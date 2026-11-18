@@ -885,7 +885,7 @@ def chiedi_claude(chiavi, cfg, testo, massimo=900, conto=None):
             motivo = grezzo[:200]
         aiuto = {400: "richiesta rifiutata: se la chiave è personale (sk-ant-usr) e non è legata a un'area di lavoro, "
                       "crea una chiave scegliendo «Default Workspace», oppure salva l'ID dell'area con: python castello.py chiave anthropic_workspace",
-                 401: "chiave non valida: serve una chiave API che inizia con sk-ant-api",
+                 401: "chiave non valida: hai incollato l'ID (apikey_...) invece della chiave sk-ant-..., oppure la chiave è stata cancellata",
                  403: "chiave senza permesso", 429: "troppe richieste o credito finito",
                  529: "servizio sovraccarico, riprova"}.get(e.code, "")
         raise RuntimeError(f"HTTP {e.code} – {motivo[:200] or aiuto}" + (f" ({aiuto})" if motivo and aiuto else ""))
@@ -1725,7 +1725,7 @@ if __name__ == "__main__":
             print("Nessuna chiave: python castello.py chiave anthropic_key")
         else:
             k_ = ch_["anthropic_key"]
-            print("Chiave salvata: inizia con", k_[:10] + "…", "(le chiavi API giuste iniziano con sk-ant-api)")
+            print("Chiave salvata: inizia con", k_[:10] + "…", "(vanno bene sk-ant-api e sk-ant-usr; non l'ID che inizia con apikey_)")
             try:
                 print("Risposta:", chiedi_claude(ch_, leggi_json(os.path.join(QUI, "config.json"), {}), "Rispondi solo: ok", 10))
                 print("Il cervello funziona.")
