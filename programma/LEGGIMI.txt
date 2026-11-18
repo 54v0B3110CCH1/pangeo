@@ -227,3 +227,17 @@ NOVITÀ 2.13 – PRIMA NELLA LINGUA DEL POSTO, E I GIRI SI VEDONO
 - Per vedere i giri:   python castello.py giri
   mostra ogni quanto partono, il prossimo, quanto è durato ciascuno, quante voci ha portato, a che punto è
   quello in corso e l'ordine delle tappe. Nella pagina: Live > Diario del programma > «I giri, uno per uno».
+
+NOVITÀ 2.14 – UN GIRO OGNI ORA, E PARTE ANCHE SE CRON NON FUNZIONA
+- Giro leggero ogni ora: legge solo feed, canali Telegram, canali YouTube e cielo (una richiesta per fonte, nessuna
+  ricerca). Ogni 3 ore il giro resta completo, con ricerche, lingue, studio e fonti nuove. Lo decide il programma:
+  se dall'ultimo giro completo sono passate meno di 2 ore e 50, il giro è leggero.
+    python castello.py aggiorna completo     forza un giro completo adesso
+    python castello.py aggiorna leggero      forza un giro leggero
+- Più fonti: 101 testate nazionali in più, provate una per una (190 feed fissi; 99 Stati hanno almeno una
+  testata propria).
+- Orologio interno: finché la pagina sul telefono è accesa (bash avvia.sh), il programma controlla ogni minuto e
+  fa partire il giro quando è passata un'ora dall'ultimo. Serve perché il 18 novembre i giri di cron delle 15:17 e
+  delle 18:17 non sono partiti. La riga di cron viene riscritta con i percorsi completi e portata a «ogni ora».
+- Dopo un giro leggero su GitHub va solo il diario; i dati grossi ci vanno ogni 3 ore.
+- python castello.py giri   mostra anche il tipo di ogni giro e se l'orologio interno è acceso.

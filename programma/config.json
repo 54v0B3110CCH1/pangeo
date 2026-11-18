@@ -723,6 +723,813 @@
    "url": "https://www.europol.europa.eu/rss.xml",
    "filtra": false,
    "lv": "B"
+  },
+  {
+   "nome": "The Standard (Kenya)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.standardmedia.co.ke/rss/headlines.php",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Kenya"
+  },
+  {
+   "nome": "NewsDay (Zimbabwe)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.newsday.co.zw/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Zimbabwe"
+  },
+  {
+   "nome": "Nile Post (Uganda)",
+   "tema": "Notizie dal mondo",
+   "url": "https://nilepost.co.ug/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Uganda"
+  },
+  {
+   "nome": "MyJoyOnline (Ghana)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.myjoyonline.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Ghana"
+  },
+  {
+   "nome": "Channels TV (Nigeria)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.channelstv.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Nigeria"
+  },
+  {
+   "nome": "Punch (Nigeria)",
+   "tema": "Notizie dal mondo",
+   "url": "https://punchng.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Nigeria"
+  },
+  {
+   "nome": "Capital FM (Kenya)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.capitalfm.co.ke/news/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Kenya"
+  },
+  {
+   "nome": "Lusaka Times (Zambia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.lusakatimes.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Zambia"
+  },
+  {
+   "nome": "FrontPage Africa (Liberia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://frontpageafricaonline.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Liberia"
+  },
+  {
+   "nome": "Club of Mozambique",
+   "tema": "Notizie dal mondo",
+   "url": "https://clubofmozambique.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Mozambico"
+  },
+  {
+   "nome": "Daily Trust (Nigeria)",
+   "tema": "Notizie dal mondo",
+   "url": "https://dailytrust.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Nigeria"
+  },
+  {
+   "nome": "Radio Okapi (RD Congo)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.radiookapi.net/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "stato": "RD Congo"
+  },
+  {
+   "nome": "Gabonreview",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.gabonreview.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Gabon"
+  },
+  {
+   "nome": "Daily News (Tanzania)",
+   "tema": "Notizie dal mondo",
+   "url": "https://dailynews.co.tz/feed/",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Tanzania"
+  },
+  {
+   "nome": "KT Press (Ruanda)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.ktpress.rw/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Ruanda"
+  },
+  {
+   "nome": "LeFaso.net (Burkina Faso)",
+   "tema": "Notizie dal mondo",
+   "url": "https://lefaso.net/spip.php?page=backend",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Burkina Faso"
+  },
+  {
+   "nome": "Actualite.cd (RD Congo)",
+   "tema": "Notizie dal mondo",
+   "url": "https://actualite.cd/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "stato": "RD Congo"
+  },
+  {
+   "nome": "The Reporter (Etiopia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.thereporterethiopia.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Etiopia"
+  },
+  {
+   "nome": "Midi Madagasikara",
+   "tema": "Notizie dal mondo",
+   "url": "https://midi-madagasikara.mg/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Madagascar"
+  },
+  {
+   "nome": "Nyasa Times (Malawi)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.nyasatimes.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Malawi"
+  },
+  {
+   "nome": "Hespress English (Marocco)",
+   "tema": "Notizie dal mondo",
+   "url": "https://en.hespress.com/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Marocco"
+  },
+  {
+   "nome": "Dabanga (Sudan)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.dabangasudan.org/en/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Sudan"
+  },
+  {
+   "nome": "Egypt Independent",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.egyptindependent.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Egitto"
+  },
+  {
+   "nome": "The National (Emirati)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.thenationalnews.com/arc/outboundfeeds/rss/?outputType=xml",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Emirati Arabi"
+  },
+  {
+   "nome": "Radio Tamazuj (Sud Sudan)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.radiotamazuj.org/en/rss",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Sud Sudan"
+  },
+  {
+   "nome": "Iraqi News",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.iraqinews.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Iraq"
+  },
+  {
+   "nome": "Eye Radio (Sud Sudan)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.eyeradio.org/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Sud Sudan"
+  },
+  {
+   "nome": "Doha News (Qatar)",
+   "tema": "Notizie dal mondo",
+   "url": "https://dohanews.co/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Qatar"
+  },
+  {
+   "nome": "Daily Sabah (Turchia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.dailysabah.com/rssFeed/10",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Turchia"
+  },
+  {
+   "nome": "Civil.ge (Georgia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://civil.ge/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Georgia"
+  },
+  {
+   "nome": "Libya Herald",
+   "tema": "Notizie dal mondo",
+   "url": "https://libyaherald.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Libia"
+  },
+  {
+   "nome": "OC Media (Caucaso)",
+   "tema": "Notizie dal mondo",
+   "url": "https://oc-media.org/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "JAMnews (Caucaso)",
+   "tema": "Notizie dal mondo",
+   "url": "https://jam-news.net/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Iwacu (Burundi)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.iwacu-burundi.org/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Burundi"
+  },
+  {
+   "nome": "24.kg (Kirghizistan)",
+   "tema": "Notizie dal mondo",
+   "url": "https://24.kg/english/rss/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Kirghizistan"
+  },
+  {
+   "nome": "Amu TV (Afghanistan)",
+   "tema": "Notizie dal mondo",
+   "url": "https://amu.tv/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Afghanistan"
+  },
+  {
+   "nome": "The Express Tribune (Pakistan)",
+   "tema": "Notizie dal mondo",
+   "url": "https://tribune.com.pk/feed/home",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Pakistan"
+  },
+  {
+   "nome": "Daily News Egypt",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.dailynewsegypt.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Egitto"
+  },
+  {
+   "nome": "Cyprus Mail",
+   "tema": "Notizie dal mondo",
+   "url": "https://cyprus-mail.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Cipro"
+  },
+  {
+   "nome": "EconomyNext (Sri Lanka)",
+   "tema": "Notizie dal mondo",
+   "url": "https://economynext.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Sri Lanka"
+  },
+  {
+   "nome": "The Bhutanese",
+   "tema": "Notizie dal mondo",
+   "url": "https://thebhutanese.bt/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Bhutan"
+  },
+  {
+   "nome": "Myanmar Now",
+   "tema": "Notizie dal mondo",
+   "url": "https://myanmar-now.org/en/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Myanmar"
+  },
+  {
+   "nome": "The Straits Times (Asia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.straitstimes.com/news/asia/rss.xml",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Free Malaysia Today",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.freemalaysiatoday.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Malesia"
+  },
+  {
+   "nome": "Laotian Times",
+   "tema": "Notizie dal mondo",
+   "url": "https://laotiantimes.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Laos"
+  },
+  {
+   "nome": "Khaama Press (Afghanistan)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.khaama.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Afghanistan"
+  },
+  {
+   "nome": "CamboJA News (Cambogia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://cambojanews.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Cambogia"
+  },
+  {
+   "nome": "Inquirer (Filippine)",
+   "tema": "Notizie dal mondo",
+   "url": "https://newsinfo.inquirer.net/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Filippine"
+  },
+  {
+   "nome": "The Mainichi (Giappone)",
+   "tema": "Notizie dal mondo",
+   "url": "https://mainichi.jp/rss/etc/english_latest.rss",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Giappone"
+  },
+  {
+   "nome": "Sarajevo Times",
+   "tema": "Notizie dal mondo",
+   "url": "https://sarajevotimes.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Bosnia ed Erzegovina"
+  },
+  {
+   "nome": "N1 (Serbia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://n1info.rs/english/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Serbia"
+  },
+  {
+   "nome": "Asia-Plus (Tagikistan)",
+   "tema": "Notizie dal mondo",
+   "url": "https://asiaplustj.info/en/rss",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Tagikistan"
+  },
+  {
+   "nome": "Tatoli (Timor Est)",
+   "tema": "Notizie dal mondo",
+   "url": "https://en.tatoli.tl/feed/",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Timor Est"
+  },
+  {
+   "nome": "Online Khabar (Nepal)",
+   "tema": "Notizie dal mondo",
+   "url": "https://english.onlinekhabar.com/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Nepal"
+  },
+  {
+   "nome": "Notes from Poland",
+   "tema": "Notizie dal mondo",
+   "url": "https://notesfrompoland.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Polonia"
+  },
+  {
+   "nome": "Total Croatia News",
+   "tema": "Notizie dal mondo",
+   "url": "https://total-croatia-news.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Croazia"
+  },
+  {
+   "nome": "Daily News Hungary",
+   "tema": "Notizie dal mondo",
+   "url": "https://dailynewshungary.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Ungheria"
+  },
+  {
+   "nome": "ERR News (Estonia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://news.err.ee/rss",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Estonia"
+  },
+  {
+   "nome": "Yle News (Finlandia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://yle.fi/rss/news",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Finlandia"
+  },
+  {
+   "nome": "Tirana Times (Albania)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.tiranatimes.com/?feed=rss2",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Albania"
+  },
+  {
+   "nome": "LSM English (Lettonia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://eng.lsm.lv/rss/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Lettonia"
+  },
+  {
+   "nome": "Antara (Indonesia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://en.antaranews.com/rss/news.xml",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Indonesia"
+  },
+  {
+   "nome": "LRT English (Lituania)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.lrt.lt/en/news-in-english?rss",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Lituania"
+  },
+  {
+   "nome": "RTÉ News (Irlanda)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.rte.ie/feeds/rss/?index=/news/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Irlanda"
+  },
+  {
+   "nome": "NK News (Corea del Nord)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.nknews.org/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Corea del Nord"
+  },
+  {
+   "nome": "The Local (Norvegia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.thelocal.no/feeds/rss.php",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Norvegia"
+  },
+  {
+   "nome": "The Portugal News",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.theportugalnews.com/rss",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Portogallo"
+  },
+  {
+   "nome": "The Local (Svezia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.thelocal.se/feeds/rss.php",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Svezia"
+  },
+  {
+   "nome": "DutchNews (Paesi Bassi)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.dutchnews.nl/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Paesi Bassi"
+  },
+  {
+   "nome": "The Local (Danimarca)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.thelocal.dk/feeds/rss.php",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Danimarca"
+  },
+  {
+   "nome": "Ukrainska Pravda (in inglese)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.pravda.com.ua/eng/rss/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Ucraina"
+  },
+  {
+   "nome": "Times of Malta",
+   "tema": "Notizie dal mondo",
+   "url": "https://timesofmalta.com/rss",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Malta"
+  },
+  {
+   "nome": "Vatican News",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.vaticannews.va/en.rss.xml",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Vaticano"
+  },
+  {
+   "nome": "Novinite (Bulgaria)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.novinite.com/services/news_rdf.php",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Bulgaria"
+  },
+  {
+   "nome": "The War Zone",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.twz.com/feed",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Mexico News Daily",
+   "tema": "Notizie dal mondo",
+   "url": "https://mexiconewsdaily.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Messico"
+  },
+  {
+   "nome": "Ukrinform (Ucraina)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.ukrinform.net/rss/block-lastnews",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Ucraina"
+  },
+  {
+   "nome": "CBC World (Canada)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.cbc.ca/webfeed/rss/rss-world",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "The Haitian Times",
+   "tema": "Notizie dal mondo",
+   "url": "https://haitiantimes.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Haiti"
+  },
+  {
+   "nome": "Barbados Today",
+   "tema": "Notizie dal mondo",
+   "url": "https://barbadostoday.bb/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Barbados"
+  },
+  {
+   "nome": "Jamaica Observer",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.jamaicaobserver.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Giamaica"
+  },
+  {
+   "nome": "St Kitts & Nevis Observer",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.thestkittsnevisobserver.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Saint Kitts e Nevis"
+  },
+  {
+   "nome": "Kaieteur News (Guyana)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.kaieteurnewsonline.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Guyana"
+  },
+  {
+   "nome": "Antigua Observer",
+   "tema": "Notizie dal mondo",
+   "url": "https://antiguaobserver.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Antigua e Barbuda"
+  },
+  {
+   "nome": "Prishtina Insight (Kosovo)",
+   "tema": "Notizie dal mondo",
+   "url": "https://prishtinainsight.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Kosovo"
+  },
+  {
+   "nome": "Caribbean News Global",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.caribbeannewsglobal.com/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Confidencial (Nicaragua)",
+   "tema": "Notizie dal mondo",
+   "url": "https://confidencial.digital/english/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Nicaragua"
+  },
+  {
+   "nome": "The Rio Times (Brasile)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.riotimesonline.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Brasile"
+  },
+  {
+   "nome": "Caracas Chronicles (Venezuela)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.caracaschronicles.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Venezuela"
+  },
+  {
+   "nome": "IPN (Moldavia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.ipn.md/en/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Moldavia"
+  },
+  {
+   "nome": "Colombia Reports",
+   "tema": "Notizie dal mondo",
+   "url": "https://colombiareports.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Colombia"
+  },
+  {
+   "nome": "WIC News (Caraibi)",
+   "tema": "Notizie dal mondo",
+   "url": "https://wicnews.com/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Havana Times (Cuba)",
+   "tema": "Notizie dal mondo",
+   "url": "https://havanatimes.org/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Cuba"
+  },
+  {
+   "nome": "Marshall Islands Journal",
+   "tema": "Notizie dal mondo",
+   "url": "https://marshallislandsjournal.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Isole Marshall"
+  },
+  {
+   "nome": "Matangi Tonga",
+   "tema": "Notizie dal mondo",
+   "url": "https://matangitonga.to/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Tonga"
+  },
+  {
+   "nome": "Island Times (Palau)",
+   "tema": "Notizie dal mondo",
+   "url": "https://islandtimes.org/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Palau"
+  },
+  {
+   "nome": "Samoa Global News",
+   "tema": "Notizie dal mondo",
+   "url": "https://samoaglobalnews.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Samoa"
+  },
+  {
+   "nome": "Stuff (Nuova Zelanda)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.stuff.co.nz/rss",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Nuova Zelanda"
+  },
+  {
+   "nome": "Breaking Belize News",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.breakingbelizenews.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Belize"
+  },
+  {
+   "nome": "SBS News (Australia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.sbs.com.au/news/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Australia"
+  },
+  {
+   "nome": "Amandala (Belize)",
+   "tema": "Notizie dal mondo",
+   "url": "https://amandala.com.bz/news/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Belize"
   }
  ],
  "youtube": [
@@ -1178,5 +1985,9 @@
   "stati_per_giro": 4,
   "voci": 30,
   "gdelt_per_giro": 4
+ },
+ "giro_leggero": {
+  "attivo": true,
+  "minuti_completo": 170
  }
 }

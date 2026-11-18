@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""PanGeo 2.13 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.14 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
 Si amplia da solo: prova le fonti candidate e scopre nuovi siti tra quelli più citati.
 
 Comandi:
+  python castello.py aggiorna completo      forza un giro completo adesso (leggero = solo feed, Telegram, YouTube)
   python castello.py aggiorna              raccoglie tutto e scrive web/live.js
   python castello.py serve [porta]         apre il Castello su http://127.0.0.1:8080
   python castello.py stato                 riassunto: notizie, cielo, fonti
@@ -48,7 +49,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import datetime, timedelta, timezone
 
-VERSIONE = "2.13"
+VERSIONE = "2.14"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -923,7 +924,7 @@ def miglioratore(cfg, chiavi, analisi, auto, errori):
     # 3. fonti fisse rotte da molti giri: le salta per una settimana
     for f in cfg.get("rss", []):
         st = auto.get("stato", {}).get(f["url"], {})
-        if st.get("fila", 0) >= 6 and f["url"] not in imp.get("in_pausa", {}):
+        if st.get("fila", 0) >= (18 if cfg.get("giro_leggero", {}).get("attivo", True) else 6) and f["url"] not in imp.get("in_pausa", {}):
             imp.setdefault("in_pausa", {})[f["url"]] = (adesso + timedelta(days=7)).date().isoformat()
             fatte.append(f"«{f['nome']}» non risponde da {st['fila']} giri: messa in pausa per 7 giorni.")
     imp["in_pausa"] = {u: g for u, g in imp.get("in_pausa", {}).items() if g >= adesso.date().isoformat()}
@@ -1384,9 +1385,9 @@ def sapere(cfg, paesi, errori, adesso):
     sulle forze armate e sulla storia e, dalla copia d'archivio del World Factbook, la parte su forze armate e
     sicurezza. Tiene titolo, indirizzo e data. Sono fonti per orientarsi, non conferme."""
     imp = cfg.get("sapere", {})
-    if not imp.get("attivo", True):
-        return 0
     perc = os.path.join(DATI, "sapere.json")
+    if not imp.get("attivo", True):
+        return sum(1 for v in leggi_json(perc, {}).values() if len(v) > 1)
     S_ = leggi_json(perc, {})
     if not S_:  # prima volta: parte da ciò che è già nel repository (lo ha preparato Claude), senza rifare le richieste
         try:
@@ -1486,7 +1487,8 @@ def rapporto(ore=24):
     i0 = diario.index(g[0])
     a, z = (diario[i0 - 1] if i0 else g[0]), g[-1]
     pd = lambda x: round(100 * x["livelli"].get("D", 0) / max(sum(x["livelli"].values()), 1))
-    print(f"Diario delle ultime {ore} ore: {len(g)} giri, dal {g[0]['quando']} al {z['quando']} (versione {z['v']})")
+    leggeri_ = sum(1 for x in g if x.get("tipo") == "leggero")
+    print(f"Diario delle ultime {ore} ore: {len(g)} giri ({len(g) - leggeri_} completi, {leggeri_} leggeri), dal {g[0]['quando']} al {z['quando']} (versione {z['v']})")
     print(f"Voci nuove raccolte: {sum(x['nuove'] for x in g)}")
     da_dove = {}
     for x in g:
@@ -1630,16 +1632,26 @@ def giri(quanti=12):
         tab = ""
     riga = next((r for r in tab.splitlines() if "castello.py aggiorna" in r and not r.strip().startswith("#")), "")
     ora = datetime.now()
-    if riga.split()[:2] == ["17", "*/3"]:
+    if riga.split()[:2] in (["17", "*/3"], ["17", "*"]):
+        ogni_ora = riga.split()[1] == "*"
         pross = ora.replace(minute=17, second=0, microsecond=0)
-        while pross <= ora or pross.hour % 3:
+        while pross <= ora or (not ogni_ora and pross.hour % 3):
             pross += timedelta(hours=1)
-        print(f"Giro automatico: uno ogni 3 ore, al minuto 17 (0:17, 3:17, 6:17 … 21:17), 8 al giorno. Prossimo: {pross.strftime('%H:%M')}"
+        print(("Giro automatico: uno ogni ora, al minuto 17: 24 al giorno. Ogni 3 ore è un giro completo (ricerche comprese), "
+               "gli altri sono giri leggeri (feed, Telegram, YouTube, cielo)." if ogni_ora else
+               "Giro automatico: uno ogni 3 ore, al minuto 17 (0:17, 3:17, 6:17 … 21:17), 8 al giorno.")
+              + f" Prossimo: {pross.strftime('%H:%M')}"
               + ("" if _cron_vivo() else "  ATTENZIONE: il giro automatico è FERMO, lancia  bash avvia.sh"))
     elif riga:
         print("Giro automatico programmato così:", " ".join(riga.split()[:5]))
     else:
         print("Giro automatico NON programmato su questo dispositivo (bash installa.sh).")
+    try:
+        interno = subprocess.run(["pgrep", "-f", "castello.py serve"], capture_output=True).returncode == 0
+    except OSError:
+        interno = None
+    if interno is not None:
+        print("Orologio interno (fa partire i giri anche se cron si ferma):", "acceso" if interno else "SPENTO: lancia  bash avvia.sh")
     blocco = os.path.join(DATI, "aggiorna.lock")
     pr = leggi_json(os.path.join(DATI, "progresso.json"), {})
     try:
@@ -1656,17 +1668,17 @@ def giri(quanti=12):
     if oggi_:
         print(f"Ultime 24 ore: {len(oggi_)} giri, durata media {round(sum(x['durata'] for x in oggi_) / len(oggi_) / 60)} minuti, "
               f"{sum(x['nuove'] for x in oggi_)} voci nuove in tutto.")
-    print("quando        min  nuove  tradotti  senza  richieste  rifiuti  avvisi  versione")
+    print("quando        tipo      min  nuove  tradotti  senza  richieste  rifiuti  avvisi  versione")
     prima = None
     for x in diario[-quanti:]:
         if prima and x.get("iso") and prima.get("iso"):
             try:
                 buco = (datetime.fromisoformat(x["iso"]) - datetime.fromisoformat(prima["iso"])).total_seconds() / 3600
-                if buco > 3.6:
+                if buco > (1.6 if x.get("tipo") else 3.6):
                     print(f"   — buco di {buco:.1f} ore: in questo intervallo il programma era fermo —")
             except ValueError:
                 pass
-        print(f"{x['quando']:<12} {round(x['durata'] / 60):>4} {x['nuove']:>6} {x.get('tradotti', 0):>9} {x['scoperti']:>6} "
+        print(f"{x['quando']:<12}  {x.get('tipo', 'completo'):<8} {max(1, round(x['durata'] / 60)):>4} {x['nuove']:>6} {x.get('tradotti', 0):>9} {x['scoperti']:>6} "
               f"{x['richieste']:>10} {sum(x.get('rifiuti', {}).values()):>8} {x['errori']:>7}  {x['v']}")
         prima = x
     z = diario[-1]
@@ -1685,21 +1697,24 @@ def _cron_vivo():
 
 
 def _riserva_cron():
-    """Riserva di cron (non un secondo ciclo): se l'ultimo giro è più vecchio di 3 ore e 20 minuti, fa partire
-    lo stesso `aggiorna`. Il blocco in dati/aggiorna.lock garantisce che ne giri sempre uno solo."""
+    """Orologio interno (non un secondo ciclo): finché la pagina sul telefono è accesa, ogni minuto guarda quando è
+    partito l'ultimo giro e, se è passata un'ora (o 3 ore senza giro leggero), lancia lo stesso `aggiorna`.
+    Così i giri partono anche se cron non funziona. Il blocco in dati/aggiorna.lock garantisce che ne giri uno solo."""
     while True:
-        time.sleep(600)
+        time.sleep(60)
         try:
-            eta = time.time() - os.path.getmtime(os.path.join(DATI, "live.json"))
-        except OSError:
-            eta = 1e9
-        if eta > 200 * 60:
+            leggero_ = leggi_json(os.path.join(QUI, "config.json"), {}).get("giro_leggero", {}).get("attivo", True)
+            ultimo = (leggi_json(os.path.join(DATI, "diario.json"), []) or [{}])[-1].get("iso", "")
             try:
+                eta = (datetime.now(timezone.utc) - datetime.fromisoformat(ultimo)).total_seconds() / 60 if ultimo else 1e9
+            except ValueError:
+                eta = 1e9
+            if eta >= (62 if leggero_ else 185):
                 with open(os.path.join(DATI, "log.txt"), "a", encoding="utf-8") as log:
-                    subprocess.run([sys.executable, os.path.join(QUI, "castello.py"), "aggiorna"], stdout=log,
+                    subprocess.run([sys.executable, os.path.join(QUI, "castello.py"), "aggiorna", "auto"], stdout=log,
                                    stderr=subprocess.STDOUT, check=False)
-            except OSError:
-                pass
+        except OSError:
+            pass
 
 
 # ----------------------------------------------------------------------------- raccolta
@@ -1728,7 +1743,25 @@ def da_saltare(f, st, adesso):
     return st.get("ultimo", "") >= (adesso - timedelta(days=7)).isoformat()
 
 
-def aggiorna():
+def programma_cron(cfg):
+    """Tiene in cron la riga di PanGeo: ogni ora se il giro leggero è acceso, ogni 3 ore se è spento, con i percorsi
+    completi di python e della cartella (dentro cron «python» da solo può non essere trovato). Tocca solo la propria riga."""
+    if not shutil.which("crontab"):
+        return ""
+    passo = "17 * * * *" if cfg.get("giro_leggero", {}).get("attivo", True) else "17 */3 * * *"
+    voluta = f"{passo} cd {shlex.quote(QUI)} && {shlex.quote(sys.executable)} castello.py aggiorna >> dati/log.txt 2>&1"
+    try:
+        tab = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=15).stdout
+        righe = [r for r in tab.splitlines() if "castello.py aggiorna" not in r or r.strip().startswith("#")]
+        if voluta in tab.splitlines() and len(righe) == len(tab.splitlines()) - 1:
+            return ""
+        subprocess.run(["crontab", "-"], input="\n".join(righe + [voluta]) + "\n", text=True, timeout=15, check=False)
+        return passo
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def aggiorna(tipo=""):
     """Il cuore: un solo giro alla volta. Se cron e avvia.sh partono insieme, il secondo aspetta il prossimo turno:
     così due giri non scrivono mai gli stessi file nello stesso momento."""
     os.makedirs(DATI, exist_ok=True)
@@ -1742,8 +1775,29 @@ def aggiorna():
     with open(blocco, "w", encoding="utf-8") as f:
         f.write(str(os.getpid()))
     _tieni_sveglio()  # ogni giro si assicura che il prossimo parta
+    cfg_ = leggi_json(os.path.join(QUI, "config.json"), {})
+    nuovo_passo = programma_cron(cfg_)
+    if nuovo_passo:
+        print("Giro automatico portato a:", "ogni ora" if nuovo_passo == "17 * * * *" else "ogni 3 ore", f"({nuovo_passo})")
+    # giro completo ogni 3 ore; nelle ore in mezzo un giro leggero (solo feed, Telegram, YouTube, cielo): lo decide il
+    # tempo passato dall'ultimo giro completo. Si può forzare:  python castello.py aggiorna completo | leggero
+    if tipo == "auto":
+        ultimo_ = (leggi_json(os.path.join(DATI, "diario.json"), []) or [{}])[-1].get("iso", "")
+        passo_ = 50 if cfg_.get("giro_leggero", {}).get("attivo", True) else 170
+        if ultimo_ >= (datetime.now(timezone.utc) - timedelta(minutes=passo_)).isoformat():
+            try:
+                os.remove(blocco)
+            except OSError:
+                pass
+            return  # un giro c'è appena stato (l'ha fatto cron o l'hai lanciato tu): l'orologio interno non raddoppia
+    if tipo not in ("completo", "leggero"):
+        gl_ = cfg_.get("giro_leggero", {})
+        ultimo_c = next((x.get("iso", "") for x in reversed(leggi_json(os.path.join(DATI, "diario.json"), []))
+                         if x.get("tipo", "completo") == "completo"), "")
+        soglia = (datetime.now(timezone.utc) - timedelta(minutes=gl_.get("minuti_completo", 170))).isoformat()
+        tipo = "leggero" if gl_.get("attivo", True) and ultimo_c >= soglia else "completo"
     try:
-        _aggiorna()
+        _aggiorna(tipo == "leggero")
     finally:
         try:
             os.remove(blocco)
@@ -1751,10 +1805,17 @@ def aggiorna():
             pass
 
 
-def _aggiorna():
+def _aggiorna(leggero=False):
     os.makedirs(DATI, exist_ok=True)
     os.makedirs(WEB, exist_ok=True)
     cfg = leggi_json(os.path.join(QUI, "config.json"), {})
+    if leggero:
+        # giro leggero: niente ricerche (Google News, GDELT), niente studio, niente scoperta di fonti.
+        # Ogni fonte riceve una sola richiesta, come è normale per un feed letto una volta l'ora.
+        cfg = dict(cfg, temi=[], gdelt=[], rotazione_stati=0, giro_lingue={"attivo": False},
+                   ricerca=dict(cfg.get("ricerca", {}), attiva=False), sapere=dict(cfg.get("sapere", {}), attivo=False),
+                   scoperta=dict(cfg.get("scoperta", {}), attiva=False),
+                   scoperta_telegram=dict(cfg.get("scoperta_telegram", {}), per_giro=0))
     mie = leggi_json(os.path.join(DATI, "fonti_mie.json"), {})
     chiavi = leggi_json(os.path.join(DATI, "chiavi.json"), {})
     auto = leggi_json(os.path.join(DATI, "fonti_auto.json"), {})
@@ -1845,7 +1906,7 @@ def _aggiorna():
             time.sleep(1)
     # GDELT accetta poche richieste: al massimo una volta ogni 6 ore, con 12 secondi tra una e l'altra
     stato_gdelt = leggi_json(os.path.join(DATI, "gdelt.json"), {})
-    if stato_gdelt.get("ultimo", "") < (adesso - timedelta(hours=cfg.get("gdelt_ore", 6))).isoformat():
+    if not leggero and stato_gdelt.get("ultimo", "") < (adesso - timedelta(hours=cfg.get("gdelt_ore", 6))).isoformat():
         for g in cfg.get("gdelt", []):
             try:
                 for v in gdelt(g["query"]):
@@ -1880,7 +1941,7 @@ def _aggiorna():
     tappa("temi")
     # 1b. Rotazione per Stato: a ogni giro cerca notizie sugli Stati meno coperti
     imp_auto = leggi_json(os.path.join(DATI, "impostazioni_auto.json"), {})
-    rot = imp_auto.get("rotazione_stati", cfg.get("rotazione_stati", 6))
+    rot = 0 if leggero else imp_auto.get("rotazione_stati", cfg.get("rotazione_stati", 6))
     if rot:
         cop = leggi_json(os.path.join(DATI, "copertura.json"), {})
         ultimi = (adesso - timedelta(hours=72)).isoformat()
@@ -2299,6 +2360,7 @@ def _aggiorna():
     diario = leggi_json(os.path.join(DATI, "diario.json"), [])
     diario.append({
         "quando": datetime.now().strftime("%d/%m %H:%M"), "iso": adesso.isoformat(), "v": VERSIONE,
+        "tipo": "leggero" if leggero else "completo",
         "durata": int(time.time() - inizio_), "nuove": contati, "da": {k: v for k, v in tappe.items() if v},
         "live": analisi["notizie"], "confermate": analisi["confermate"], "quota": analisi["quota_confermate"],
         "livelli": analisi["per_livello"], "scoperti": analisi["stati_scoperti"],
@@ -2347,7 +2409,7 @@ def _aggiorna():
     avvisa(cfg, segnali, dati_calore)
     avvisa_bot(chiavi, live, segnali)
     if cfg.get("repo_git") or chiavi.get("repo_git"):
-        sincronizza(cfg, chiavi)
+        sincronizza(cfg, chiavi, solo_diario=leggero)
 
 
 def avvisa(cfg, segnali, dati_calore):
@@ -2518,7 +2580,7 @@ def ripristina(percorso):
 
 # ----------------------------------------------------------------------------- comandi
 
-def sincronizza(cfg=None, chiavi=None):
+def sincronizza(cfg=None, chiavi=None, solo_diario=False):
     """Facoltativo: scambia file con un repository Git (es. GitHub).
     Scarica l'ultima versione del Castello pubblicata lì e carica i dati live."""
     cfg = cfg or leggi_json(os.path.join(QUI, "config.json"), {})
@@ -2582,7 +2644,9 @@ def sincronizza(cfg=None, chiavi=None):
             shutil.copyfile(os.path.join(cartella, "tabelle.html"), os.path.join(WEB, "tabelle.html"))
             if os.path.isdir(os.path.join(cartella, "tabelle")):
                 shutil.copytree(os.path.join(cartella, "tabelle"), os.path.join(WEB, "tabelle"), dirs_exist_ok=True)
-        for nome in ("live.json", "live.js", "sapere.js", "memoria.js", "diario.json"):
+        # dopo un giro leggero su GitHub va solo il diario (pochi KB): i dati grossi ci vanno ogni 3 ore, così il
+        # repository non cresce tre volte più in fretta
+        for nome in (("diario.json",) if solo_diario else ("live.json", "live.js", "sapere.js", "memoria.js", "diario.json")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -2664,6 +2728,7 @@ class Gestore(http.server.SimpleHTTPRequestHandler):
 def serve(porta=8080):
     _tieni_sveglio()
     _avvio_al_riavvio()
+    programma_cron(leggi_json(os.path.join(QUI, "config.json"), {}))
     threading.Thread(target=_riserva_cron, daemon=True).start()
     gestore = functools.partial(Gestore, directory=WEB)
     with http.server.ThreadingHTTPServer(("127.0.0.1", porta), gestore) as srv:
@@ -2779,7 +2844,7 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     comando = a[0] if a else "aiuto"
     if comando == "aggiorna":
-        aggiorna()
+        aggiorna(a[1] if len(a) > 1 else "")
     elif comando == "serve":
         serve(int(a[1]) if len(a) > 1 else 8080)
     elif comando == "stato":
