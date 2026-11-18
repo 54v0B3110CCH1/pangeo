@@ -1,0 +1,535 @@
+{
+ "temi": [
+  {
+   "nome": "Conflitti e guerre",
+   "it": "guerra OR bombardamento OR offensiva OR tregua OR \"cessate il fuoco\"",
+   "en": "war OR airstrike OR offensive OR ceasefire OR \"drone strike\""
+  },
+  {
+   "nome": "Difesa e forze armate",
+   "it": "\"forze armate\" OR \"ministro della Difesa\" OR esercitazione militare OR riarmo",
+   "en": "\"armed forces\" OR \"defense minister\" OR \"military exercise\" OR conscription"
+  },
+  {
+   "nome": "Industria e appalti",
+   "it": "contratto difesa OR appalto militare OR commessa militare OR \"gara\" difesa OR Leonardo OR Fincantieri OR Rheinmetall",
+   "en": "\"defense contract\" OR \"contract awarded\" military OR \"arms deal\" OR \"defence procurement\" OR \"foreign military sale\""
+  },
+  {
+   "nome": "Alleanze e diplomazia",
+   "it": "NATO OR \"difesa europea\" OR vertice OR \"accordo di difesa\"",
+   "en": "NATO OR \"defense pact\" OR \"security agreement\" OR summit defense"
+  },
+  {
+   "nome": "Proteste e crisi politiche",
+   "it": "proteste OR \"colpo di Stato\" OR \"crisi di governo\" OR manifestazioni",
+   "en": "protests OR coup OR unrest OR \"state of emergency\""
+  },
+  {
+   "nome": "Rotte, stretti e infrastrutture",
+   "it": "Hormuz OR \"Mar Rosso\" OR gasdotto OR \"cavo sottomarino\" OR porto militare",
+   "en": "\"Strait of Hormuz\" OR \"Red Sea\" shipping OR pipeline OR \"undersea cable\""
+  },
+  {
+   "nome": "Propaganda e disinformazione",
+   "it": "disinformazione OR propaganda OR ingerenza OR \"guerra ibrida\"",
+   "en": "disinformation OR \"influence operation\" OR propaganda OR \"hybrid warfare\""
+  },
+  {
+   "nome": "Cielo e spazio aereo",
+   "it": "\"spazio aereo\" chiuso OR NOTAM OR \"no-fly\" OR \"voli sospesi\"",
+   "en": "\"airspace closed\" OR \"airspace closure\" OR NOTAM OR \"no-fly zone\" OR \"flights suspended\""
+  },
+  {
+   "nome": "Aziende: proprietà e azionisti",
+   "it": "quota OR azionisti OR acquisizione OR \"golden power\" difesa",
+   "en": "stake OR shareholder OR acquisition OR takeover defense company"
+  },
+  {
+   "nome": "Sicurezza privata e mercenari",
+   "it": "mercenari OR \"compagnia militare privata\" OR contractor OR \"Africa Corps\" OR \"sicurezza privata\" armata",
+   "en": "mercenaries OR \"private military company\" OR \"private military contractor\" OR \"Africa Corps\" OR Wagner"
+  },
+  {
+   "nome": "Basi e truppe all’estero",
+   "it": "\"base militare\" OR \"truppe straniere\" OR \"ritiro delle truppe\" OR \"accordo sulle basi\"",
+   "en": "\"military base\" OR \"foreign troops\" OR \"troop withdrawal\" OR \"basing agreement\" OR \"status of forces\""
+  }
+ ],
+ "gdelt": [
+  {
+   "tema": "Conflitti e guerre",
+   "query": "(airstrike OR \"armed forces\" OR missile OR shelling) sourcelang:english"
+  },
+  {
+   "tema": "Industria e appalti",
+   "query": "(\"defense contract\" OR \"arms deal\" OR \"defence procurement\") sourcelang:english"
+  },
+  {
+   "tema": "Proteste e crisi politiche",
+   "query": "(protest OR coup OR \"state of emergency\") sourcelang:english"
+  }
+ ],
+ "rss": [
+  {
+   "nome": "UN News",
+   "tema": "Alleanze e diplomazia",
+   "url": "https://news.un.org/feed/subscribe/en/news/all/rss.xml",
+   "lv": "A"
+  },
+  {
+   "nome": "Defense News",
+   "tema": "Difesa e forze armate",
+   "url": "https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml",
+   "lv": "B"
+  },
+  {
+   "nome": "Breaking Defense",
+   "tema": "Industria e appalti",
+   "url": "https://breakingdefense.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "War on the Rocks",
+   "tema": "Difesa e forze armate",
+   "url": "https://warontherocks.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Analisi Difesa",
+   "tema": "Difesa e forze armate",
+   "url": "https://www.analisidifesa.it/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "EUvsDisinfo",
+   "tema": "Propaganda e disinformazione",
+   "url": "https://euvsdisinfo.eu/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "BBC World",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Al Jazeera",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.aljazeera.com/xml/rss/all.xml",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "France 24",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.france24.com/en/rss",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "The Guardian World",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.theguardian.com/world/rss",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "New York Times World",
+   "tema": "Notizie dal mondo",
+   "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "ANSA Mondo",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Bellingcat",
+   "tema": "Inchieste OSINT",
+   "url": "https://www.bellingcat.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "The Aviationist",
+   "tema": "Difesa e forze armate",
+   "url": "https://theaviationist.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Defense One",
+   "tema": "Difesa e forze armate",
+   "url": "https://www.defenseone.com/rss/all/",
+   "lv": "B"
+  },
+  {
+   "nome": "The Diplomat",
+   "tema": "Alleanze e diplomazia",
+   "url": "https://thediplomat.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "USGS terremoti M4.5+",
+   "tema": "Disastri ed emergenze",
+   "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.atom",
+   "lv": "A"
+  },
+  {
+   "nome": "TASS (agenzia statale russa)",
+   "tema": "Media statali (voce dei governi)",
+   "url": "https://tass.com/rss/v2.xml",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "Pentagono – contratti del giorno",
+   "tema": "Industria e appalti",
+   "url": "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=400&Site=945&max=10",
+   "lv": "C"
+  },
+  {
+   "nome": "Regno Unito – ministero della Difesa",
+   "tema": "Industria e appalti",
+   "url": "https://www.gov.uk/government/organisations/ministry-of-defence.atom",
+   "lv": "C"
+  },
+  {
+   "nome": "Regno Unito – acquisti della difesa (DE&S)",
+   "tema": "Industria e appalti",
+   "url": "https://www.gov.uk/government/organisations/defence-equipment-and-support.atom",
+   "lv": "C"
+  },
+  {
+   "nome": "Army Technology",
+   "tema": "Industria e appalti",
+   "url": "https://www.army-technology.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Airforce Technology",
+   "tema": "Industria e appalti",
+   "url": "https://www.airforce-technology.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Naval Technology",
+   "tema": "Industria e appalti",
+   "url": "https://www.naval-technology.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Defence Industry Europe",
+   "tema": "Industria e appalti",
+   "url": "https://defence-industry.eu/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Defence24 (Polonia)",
+   "tema": "Industria e appalti",
+   "url": "https://defence24.com/_rss",
+   "lv": "B"
+  },
+  {
+   "nome": "SIPRI",
+   "tema": "Difesa e forze armate",
+   "url": "https://www.sipri.org/rss/combined.xml",
+   "lv": "A"
+  },
+  {
+   "nome": "defenceWeb (Africa)",
+   "tema": "Difesa e forze armate",
+   "url": "https://www.defenceweb.co.za/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Military Africa",
+   "tema": "Difesa e forze armate",
+   "url": "https://www.military.africa/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "ADF Magazine (Africa, comando USA)",
+   "tema": "Difesa e forze armate",
+   "url": "https://adf-magazine.com/feed/",
+   "lv": "C"
+  },
+  {
+   "nome": "Zona Militar (America Latina)",
+   "tema": "Difesa e forze armate",
+   "url": "https://www.zona-militar.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Asian Military Review",
+   "tema": "Difesa e forze armate",
+   "url": "https://www.asianmilitaryreview.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Ares Difesa",
+   "tema": "Difesa e forze armate",
+   "url": "https://aresdifesa.it/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "The Sentry",
+   "tema": "Sicurezza privata e mercenari",
+   "url": "https://thesentry.org/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Global Initiative (crimine organizzato)",
+   "tema": "Sicurezza privata e mercenari",
+   "url": "https://globalinitiative.net/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "Long War Journal",
+   "tema": "Conflitti e guerre",
+   "url": "https://www.longwarjournal.org/feed",
+   "lv": "B"
+  },
+  {
+   "nome": "Small Wars Journal",
+   "tema": "Conflitti e guerre",
+   "url": "https://smallwarsjournal.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "ONU – diritti umani (OHCHR)",
+   "tema": "Sicurezza privata e mercenari",
+   "url": "https://www.ohchr.org/en/rss.xml",
+   "lv": "A"
+  },
+  {
+   "nome": "Crisis Group",
+   "tema": "Conflitti e guerre",
+   "url": "https://www.crisisgroup.org/rss.xml",
+   "lv": "B"
+  },
+  {
+   "nome": "ReliefWeb (ONU)",
+   "tema": "Disastri ed emergenze",
+   "url": "https://reliefweb.int/updates/rss.xml",
+   "lv": "A"
+  }
+ ],
+ "youtube": [
+  "@NATO",
+  "@UnitedNations",
+  "@euronews",
+  "@DWNews",
+  "@France24_en",
+  "@aljazeeraenglish",
+  "@conflictly"
+ ],
+ "giorni_archivio": 7,
+ "ore_live": 72,
+ "max_notizie": 1500,
+ "max_video": 200,
+ "repo_git": "",
+ "candidati": [
+  {
+   "nome": "Kyiv Independent",
+   "tema": "Notizie dal mondo",
+   "url": "https://kyivindependent.com/news-archive/rss/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Meduza (in inglese)",
+   "tema": "Notizie dal mondo",
+   "url": "https://meduza.io/rss/en/all",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Times of Israel",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.timesofisrael.com/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Formiche",
+   "tema": "Alleanze e diplomazia",
+   "url": "https://formiche.net/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Difesa Online",
+   "tema": "Difesa e forze armate",
+   "url": "https://www.difesaonline.it/feed",
+   "lv": "B"
+  },
+  {
+   "nome": "ISPI",
+   "tema": "Alleanze e diplomazia",
+   "url": "https://www.ispionline.it/it/feed",
+   "lv": "B"
+  },
+  {
+   "nome": "ECFR",
+   "tema": "Alleanze e diplomazia",
+   "url": "https://ecfr.eu/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "ISW",
+   "tema": "Conflitti e guerre",
+   "url": "https://www.understandingwar.org/rss.xml",
+   "lv": "B"
+  },
+  {
+   "nome": "Cremlino (in inglese)",
+   "tema": "Voci ufficiali",
+   "url": "http://en.kremlin.ru/events/all/feed",
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "Dipartimento della Difesa USA",
+   "tema": "Voci ufficiali",
+   "url": "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945&max=10",
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "Xinhua (agenzia statale cinese)",
+   "tema": "Media statali (voce dei governi)",
+   "url": "https://english.news.cn/rss/worldrss.xml",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "Global Times (Cina)",
+   "tema": "Media statali (voce dei governi)",
+   "url": "https://www.globaltimes.cn/rss/outbrain.xml",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "Tehran Times (Iran)",
+   "tema": "Media statali (voce dei governi)",
+   "url": "https://www.tehrantimes.com/rss",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "Naval News",
+   "tema": "Difesa e forze armate",
+   "url": "https://www.navalnews.com/feed/",
+   "lv": "B"
+  },
+  {
+   "nome": "GDACS (ONU-UE)",
+   "tema": "Disastri ed emergenze",
+   "url": "https://www.gdacs.org/xml/rss.xml",
+   "lv": "A"
+  }
+ ],
+ "telegram": [
+  {
+   "canale": "V_Zelenskiy_official",
+   "chi": "Zelensky, presidente dell'Ucraina"
+  },
+  {
+   "canale": "GeneralStaffZSU",
+   "chi": "Stato maggiore ucraino"
+  },
+  {
+   "canale": "mod_russia",
+   "chi": "Ministero della Difesa russo"
+  },
+  {
+   "canale": "MFARussia",
+   "chi": "Ministero degli Esteri russo"
+  },
+  {
+   "canale": "idfofficial",
+   "chi": "Forze armate israeliane (IDF)"
+  },
+  {
+   "canale": "ukraine_mfa",
+   "chi": "Ministero degli Esteri ucraino"
+  },
+  {
+   "canale": "kpszsu",
+   "chi": "Aeronautica ucraina"
+  },
+  {
+   "canale": "IsraelMFA",
+   "chi": "Ministero degli Esteri israeliano"
+  },
+  {
+   "canale": "khamenei_ir",
+   "chi": "Guida suprema dell’Iran (ufficio di Khamenei)"
+  },
+  {
+   "canale": "Tasnimnews_EN",
+   "chi": "Tasnim, agenzia iraniana vicina ai Pasdaran"
+  },
+  {
+   "canale": "PressTV",
+   "chi": "Press TV, televisione statale iraniana"
+  },
+  {
+   "canale": "IranIntl_En",
+   "chi": "Iran International, tv dell’opposizione iraniana in esilio"
+  },
+  {
+   "canale": "TRTWorld",
+   "chi": "TRT World, televisione statale turca"
+  },
+  {
+   "canale": "europeancommission",
+   "chi": "Commissione europea"
+  },
+  {
+   "canale": "XHNews",
+   "chi": "Xinhua, agenzia statale cinese"
+  },
+  {
+   "canale": "rybar",
+   "chi": "Rybar, canale militare filorusso"
+  },
+  {
+   "canale": "DeepStateUA",
+   "chi": "DeepState, mappa del fronte filoucraina"
+  },
+  {
+   "canale": "kyivindependent_official",
+   "chi": "Kyiv Independent, testata ucraina"
+  },
+  {
+   "canale": "meduzalive",
+   "chi": "Meduza, testata russa indipendente in esilio"
+  }
+ ],
+ "cielo": true,
+ "scoperta": {
+  "attiva": true,
+  "per_giro": 3,
+  "min_citazioni": 3,
+  "max_fonti": 80
+ },
+ "rotazione_stati": 6,
+ "cervello": {
+  "attivo": true,
+  "modello": "claude-haiku-5-5",
+  "max_al_giorno": 12,
+  "brief_ore": 4,
+  "max_usd_giorno": 0.5,
+  "max_usd_mese": 15.0
+ }
+}

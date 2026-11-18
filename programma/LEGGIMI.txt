@@ -1,0 +1,142 @@
+PANGEO 2.7 (prima «Castello mentale») - programma e app per il telefono (Termux)
+La cartella resta ~/castello e il programma castello.py: cambia solo il nome che vedi.
+
+COSA FA
+- Apre il Castello (planisfero, 198 Stati, aziende con le loro proprietà, propaganda, fonti)
+  dal telefono, anche senza claude.ai.
+- Ogni 3 ore raccoglie da fonti gratuite, senza chiavi:
+  * Google News (italiano e inglese) e GDELT su 9 temi: guerre, difesa, appalti, alleanze,
+    proteste, rotte, propaganda, spazio aereo, proprietà delle aziende;
+  * 20 testate e centri studi (BBC, Al Jazeera, France 24, Guardian, NYT, ANSA, Defense News,
+    Breaking Defense, Naval News, The Aviationist, Defense One, The Diplomat, War on the Rocks,
+    Analisi Difesa, Bellingcat, EUvsDisinfo, UN News, GDACS, terremoti USGS, TASS come media
+    statale) più 16 candidate che il programma prova da solo (Kyiv Independent, Meduza, Times of
+    Israel, Formiche, ISPI, ECFR, ISW, Crisis Group, ReliefWeb, Cremlino, Pentagono, NATO,
+    Xinhua, Global Times, Tehran Times...);
+  * canali Telegram ufficiali pubblici, letti senza account (Zelensky, Stato maggiore ucraino,
+    Difesa e Esteri russi, IDF): segnati «di parte»;
+  * video dei canali YouTube (NATO, ONU, Euronews, DW, France 24, Al Jazeera), senza chiave;
+  * CIELO: con OpenSky conta gli aerei in volo sopra ogni Stato e segnala quando un cielo si
+    svuota rispetto alla stessa ora dei giorni prima (spazio aereo chiuso?). Salva solo i conteggi.
+- SI AMPLIA DA SOLO: guarda quali siti compaiono più spesso nelle notizie, cerca il loro feed,
+  lo prova e lo aggiunge come «da valutare» (fino a 80). Le fonti che non rispondono per
+  molti giri vengono messe da parte e riprovate dopo una settimana.
+- DISCRIMINA LE FONTI: ogni fonte ha un livello (A agenzie ed enti neutrali, B testate e centri
+  studi seri, C voci di parte come governi e media statali, D non classificate). Per ogni notizia
+  conta quante fonti diverse danno lo stesso fatto: «✓ 3 fonti» vuol dire confermata da almeno
+  un'altra fonte A o B. Le fonti trovate da sole salgono a B se vengono confermate spesso, e
+  vengono scartate se non le conferma quasi nessuno. Nella cartella Live: «Solo confermate».
+- COPRE TUTTI GLI STATI: a ogni giro cerca notizie apposta per i 6 Stati meno coperti.
+- SI MIGLIORA OGNI GIORNO: alla fine di ogni giro scrive un'analisi con consigli; ogni giorno
+  il «curatore» di Claude la legge, prova fonti nuove, migliora il programma e, se hai collegato
+  GitHub, il telefono riceve da solo la nuova versione.
+- Ogni Stato del Castello ha la cartella «Dal vivo»: Flightradar24, navi (MarineTraffic) e
+  incendi da satellite (NASA) già centrati su quel Paese, più il cielo e le notizie live.
+
+INSTALLAZIONE (in Termux)
+  termux-setup-storage            (consenti l'accesso ai file; serve solo la prima volta)
+  pkg install -y unzip
+  cp ~/storage/downloads/castello.zip ~ && cd ~ && unzip -o castello.zip
+  cd castello && bash installa.sh
+Per passare da una versione vecchia basta rifare le stesse righe: i dati, le tue fonti e le
+tue chiavi (cartella dati/) restano.
+
+L'APP SUL TELEFONO
+- Dopo  bash avvia.sh  il Castello si apre nel browser. Dal menu ⋮ scegli «Installa app» (o
+  «Aggiungi a schermata Home»): compare l'icona del Castello e si apre a tutto schermo.
+- L'app si apre anche senza internet o con Termux spento: mostra l'ultima versione salvata.
+  Quando il programma è acceso, i dati live si rinnovano da soli ogni 15 minuti.
+- Facoltativo (da F-Droid, dove hai preso Termux): «Termux:Widget» mette sulla schermata Home
+  un pulsante «Castello» che aggiorna e apre tutto; «Termux:Boot» riaccende il programma
+  quando riaccendi il telefono. installa.sh li prepara già.
+
+USO
+  bash avvia.sh                       aggiorna e apre il Castello (http://127.0.0.1:8080/)
+  python castello.py stato            notizie, Stati più citati, cieli che si svuotano
+  python castello.py fonti            quali fonti funzionano
+  tail dati/log.txt                   cosa è successo negli aggiornamenti automatici
+
+AGGIUNGERE FONTI (si scrivono in dati/fonti_mie.json e restano anche dopo un aggiornamento)
+  python castello.py fonte https://sito.it/feed/ "Difesa e forze armate"
+  python castello.py youtube @NomeCanale
+  python castello.py telegram nomecanale "Chi è"
+
+CHIAVI GRATUITE (facoltative; restano solo sul telefono, in dati/chiavi.json)
+Non mandarle mai in chat: scrivile tu qui.
+- OpenSky, 10 volte più richieste al giorno: crea un account su https://opensky-network.org,
+  nella pagina del tuo account crea un «API client», poi:
+    python castello.py chiave opensky_id IL_TUO_CLIENT_ID
+    python castello.py chiave opensky_segreto IL_TUO_CLIENT_SECRET
+- NASA FIRMS, fonti di calore da satellite contate per Stato (una volta al giorno): chiedi la
+  MAP_KEY gratuita su https://firms.modaps.eosdis.nasa.gov/api/map_key/ e poi:
+    python castello.py chiave firms_key LA_TUA_MAP_KEY
+
+CERVELLO (FACOLTATIVO, A PAGAMENTO)
+Con una chiave API di Claude (console.anthropic.com) il programma traduce in italiano i titoli
+in russo, ucraino, arabo, cinese... e ogni 6 ore scrive «Da sapere adesso» con le sole notizie
+confermate. L'API si paga a consumo, a parte rispetto all'abbonamento: imposta un limite di
+spesa nella console. Il programma fa al massimo 6 richieste al giorno (config.json, «cervello»).
+  python castello.py chiave anthropic_key    (te la chiede senza mostrarla; mai in chat o in foto)
+Senza chiave il programma funziona lo stesso; il riassunto sul Castello di claude.ai lo scrive
+Claude nei giri notturni, senza costi in più.
+
+COLLEGAMENTO CON CLAUDE E SITO PUBBLICO (GitHub, gratis)
+Basta un token di GitHub (anche uno vecchio, se è ancora valido e ha il permesso «repo»):
+  bash github.sh
+Chiede nome utente e token (il token non si vede mentre lo incolli), poi da solo: crea il
+repository «pangeo», ci carica Castello, app e dati, e accende il sito pubblico
+https://TUONOME.github.io/pangeo/ . Da lì in poi, ogni 3 ore il telefono aggiorna il sito.
+Il token resta solo sul telefono (~/.git-credentials): non mandarlo mai in chat o in foto.
+Token nuovo (serve entrare su github.com, con la verifica in due passaggi):
+https://github.com/settings/tokens/new?scopes=public_repo&description=castello
+
+AVVISI SUL TELEFONO
+Con l'app «Termux:API» (F-Droid) il programma manda una notifica quando un cielo si svuota o
+il calore da satellite sale in uno Stato. Toccandola si apre la cartella Live.
+
+NOTE
+- Android può fermare Termux in background: avvia.sh lo tiene sveglio (termux-wake-lock).
+  Se gli aggiornamenti si fermano, togli Termux dall'ottimizzazione batteria.
+- Le notizie sono segnali da verificare: nel Castello entrano solo con una seconda fonte.
+- Niente tracciamento di aerei o navi militari: il cielo è fatto solo di conteggi per Stato.
+
+TELEGRAM (versione 2.6)
+Leggere: PanGeo legge già 19 canali pubblici senza account (voci ufficiali di Ucraina, Russia, Israele,
+Iran, Turchia, Cina, Unione europea e testate): sono sempre segnati «di parte». Per aggiungerne uno:
+  python castello.py telegram nomecanale "Chi è"
+I titoli in russo, ucraino, arabo, persiano, cinese vengono tradotti dal «cervello» (se la chiave API ha credito).
+Ricevere sul tuo Telegram il riassunto e gli avvisi (facoltativo, gratis):
+  1. In Telegram apri @BotFather, scrivi /newbot, scegli un nome: ti dà un token.
+  2. In Termux:  python castello.py chiave telegram_bot     (incolla il token, non si vede)
+  3. In Telegram apri il tuo bot e scrivigli: ciao
+  4. In Termux:  python castello.py bot                     (trova la chat e manda un messaggio di prova)
+Da quel momento, a ogni giro, arrivano «Da sapere adesso» quando è nuovo, i picchi di notizie e i cieli che si svuotano.
+
+COSTO DEL CERVELLO (versione 2.6)
+  python castello.py stato     mostra le richieste di oggi e la spesa stimata di oggi e del mese.
+Il programma si ferma da solo a 0,50 $ al giorno e 15 $ al mese (sotto il tetto di 20 $ della console) (config.json: cervello.max_usd_giorno, max_usd_mese).
+Se compare «HTTP 400», il messaggio dice il motivo: di solito manca il credito in https://platform.claude.com/settings/billing
+
+NOVITÀ 2.7
+- Telegram: il programma trova da solo nuovi canali (quelli citati da almeno 2 canali già seguiti) e li legge
+  come «da valutare». Elenco: python castello.py fonti
+- Segnali da guardare: per ogni Stato i fatti osservati nelle ultime 24 ore (picco di notizie, cielo, calore,
+  notizie confermate da più fonti), ognuno con le fonti. Non sono previsioni.
+- Dove peggiora: Stati con più notizie confermate rispetto ai giorni prima (serve una settimana di raccolta).
+- Agente miglioratore: a ogni giro misura il sistema, corregge da solo ciò che è sicuro e scrive che cosa
+  chiede a te o a Claude. Lo vedi con: python castello.py stato   e nella cartella Live della pagina.
+- Uomini e mezzi: accanto alle stime c'è la «coerenza con i dati storici» (serie 2008–2020 della Banca Mondiale).
+
+NOVITÀ 2.7.1 – TU RESTI L'INTERRUTTORE
+- Il programma nuovo che arriva da GitHub NON si installa da solo: resta in attesa finché non scrivi
+    python castello.py approva
+  (la versione di prima resta in dati/copie/). Dati e pagina invece si aggiornano da soli.
+- python castello.py salute    controlla che il cuore sia sano.
+- Un solo giro alla volta: se cron e avvia.sh partono insieme, il secondo si ferma.
+
+TABELLE APERTE (versione 2.7.2)
+Tutti i dati di PanGeo (Stati, notizie datate, storia, basi, aziende e proprietà, appalti, sicurezza privata,
+unità d'élite, uomini e mezzi, siti ufficiali, fonti) sono anche tabelle con data e fonti, senza account:
+  sul telefono:  http://127.0.0.1:8080/tabelle.html
+  sul sito GitHub (dopo bash github.sh):  https://TUONOME.github.io/pangeo/tabelle.html
+  file:  web/tabelle/*.csv (si aprono con Excel o Fogli Google) e *.json
