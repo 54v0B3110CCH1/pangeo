@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.12 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.13 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -16,6 +16,7 @@ Comandi:
   (da solo: cerca notizie sugli Stati meno coperti, studia gli Stati su Wikipedia, trova feed e canali nuovi)
   python castello.py chiave nome valore    salva una chiave gratuita (es. opensky_id)
   python castello.py approva               installa il programma nuovo arrivato da GitHub (mai da solo)
+  python castello.py giri                   quanti giri fa, ogni quanto, quanto durano, a che punto è quello in corso
   python castello.py rapporto [ore]         che cosa ha raccolto e dove è migliorato (dal diario, 24 ore)
   python castello.py salute                controlla che il cuore del programma sia sano
   python castello.py bot                   collega il tuo bot Telegram (dopo: chiave telegram_bot)
@@ -47,7 +48,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import datetime, timedelta, timezone
 
-VERSIONE = "2.12"
+VERSIONE = "2.13"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -268,7 +269,7 @@ def google_news(q, lingua, giorni=1):
     return voci
 
 
-def gdelt(q):
+def gdelt(q, con_paese=False):
     url = "https://api.gdeltproject.org/api/v2/doc/doc?" + urllib.parse.urlencode(
         {"query": q, "mode": "ArtList", "format": "json", "maxrecords": "75", "timespan": "1d", "sort": "DateDesc"})
     try:
@@ -284,7 +285,7 @@ def gdelt(q):
     for a in json.loads(testo).get("articles", []):
         d = a.get("domain", "")
         voci.append((a.get("title", ""), a.get("url", ""), data_iso(a.get("seendate")), d or "GDELT",
-                     "https://" + d if d else ""))
+                     "https://" + d if d else "") + ((a.get("sourcecountry", ""),) if con_paese else ()))
     return voci
 
 
@@ -1178,7 +1179,8 @@ EDIZIONI = {"it": ("it", "IT", "IT:it"), "en": ("en", "US", "US:en"), "fr": ("fr
             "el": ("el", "GR", "GR:el"), "he": ("he", "IL", "IL:he"), "vi": ("vi", "VN", "VN:vi"), "th": ("th", "TH", "TH:th"),
             "bn": ("bn", "BD", "BD:bn"), "ro": ("ro", "RO", "RO:ro"), "hu": ("hu", "HU", "HU:hu"), "cs": ("cs", "CZ", "CZ:cs"),
             "sk": ("sk", "SK", "SK:sk"), "bg": ("bg", "BG", "BG:bg"), "sr": ("sr", "RS", "RS:sr"), "sl": ("sl", "SI", "SI:sl"),
-            "lt": ("lt", "LT", "LT:lt"), "lv": ("lv", "LV", "LV:lv"), "no": ("no", "NO", "NO:no")}
+            "lt": ("lt", "LT", "LT:lt"), "lv": ("lv", "LV", "LV:lv"), "no": ("no", "NO", "NO:no"),
+            "ta": ("ta", "IN", "IN:ta"), "te": ("te", "IN", "IN:te"), "mr": ("mr", "IN", "IN:mr"), "ml": ("ml", "IN", "IN:ml")}
 # Lingua in cui scrive la stampa del posto e nome dello Stato in quella lingua
 LOCALE = {
     "Algeria": ("fr", "Algérie"), "Marocco": ("fr", "Maroc"), "Tunisia": ("fr", "Tunisie"), "Mauritania": ("fr", "Mauritanie"),
@@ -1239,7 +1241,37 @@ PAROLE_LOCALI = {"fr": "(armée OR militaire OR défense OR gouvernement OR séc
                  "sk": "(armáda OR vojenský OR obrana OR vláda OR bezpečnosť)",
                  "bg": "(армия OR отбрана OR правителство OR сигурност)", "sr": "(војска OR одбрана OR влада OR безбедност)",
                  "sl": "(vojska OR obramba OR vlada OR varnost)", "lt": "(kariuomenė OR gynyba OR vyriausybė OR saugumas)",
-                 "lv": "(armija OR aizsardzība OR valdība OR drošība)", "no": "(forsvaret OR militær OR regjeringen OR sikkerhet)"}
+                 "lv": "(armija OR aizsardzība OR valdība OR drošība)", "no": "(forsvaret OR militær OR regjeringen OR sikkerhet)",
+                 "ta": "(இராணுவம் OR பாதுகாப்பு OR அரசு)", "te": "(సైన్యం OR రక్షణ OR ప్రభుత్వం OR భద్రత)",
+                 "mr": "(लष्कर OR संरक्षण OR सरकार OR सुरक्षा)", "ml": "(സൈന്യം OR പ്രതിരോധം OR സർക്കാർ OR സുരക്ഷ)"}
+# Altre lingue e lingue regionali dello stesso Stato: si alternano con la principale
+LOCALE_ALTRE = {
+    "India": [("ta", "இந்தியா"), ("te", "భారతదేశం"), ("bn", "ভারত"), ("mr", "भारत"), ("ml", "ഇന്ത്യ")],
+    "Belgio": [("nl", "België")], "Svizzera": [("fr", "Suisse")], "Canada": [("fr", "Canada")], "Lussemburgo": [("de", "Luxemburg")],
+    "Israele": [("ar", "إسرائيل")], "Ucraina": [("ru", "Украина")], "Moldavia": [("ru", "Молдавия")], "Lettonia": [("ru", "Латвия")],
+    "Estonia": [("ru", "Эстония")], "Cipro": [("tr", "Kıbrıs")], "Libano": [("fr", "Liban")],
+    "Marocco": [("ar", "المغرب")], "Algeria": [("ar", "الجزائر")], "Tunisia": [("ar", "تونس")], "Mauritania": [("ar", "موريتانيا")],
+    "Ciad": [("ar", "تشاد")], "Gibuti": [("ar", "جيبوتي")], "Comore": [("ar", "جزر القمر")],
+    "Sri Lanka": [("ta", "இலங்கை")], "Singapore": [("zh", "新加坡"), ("ta", "சிங்கப்பூர்")], "Malesia": [("zh", "马来西亚"), ("ta", "மலேசியா")],
+    "Bosnia ed Erzegovina": [("sr", "Босна и Херцеговина")], "Kosovo": [("sr", "Косово")],
+}
+# Lingue senza edizione di Google News: si leggono da GDELT, che le indicizza (nome della lingua per GDELT)
+GDELT_LINGUE = {"fa": "persian", "ur": "urdu", "sw": "swahili", "fi": "finnish", "da": "danish", "hr": "croatian", "sq": "albanian",
+                "et": "estonian", "ka": "georgian", "hy": "armenian", "az": "azerbaijani", "kk": "kazakh", "mn": "mongolian",
+                "ne": "nepali", "si": "sinhalese", "ms": "malay", "so": "somali", "mk": "macedonian", "bs": "bosnian",
+                "is": "icelandic", "ca": "catalan", "gl": "galician", "af": "afrikaans", "pa": "punjabi", "gu": "gujarati",
+                "kn": "kannada", "bo": "tibetan"}
+
+
+def lingue_di(stato):
+    """Le lingue in cui scrive la stampa di uno Stato (oltre all'inglese): [(lingua, nome dello Stato in quella lingua)]."""
+    return ([LOCALE[stato]] if stato in LOCALE else []) + LOCALE_ALTRE.get(stato, [])
+
+
+def lingua_ok(resa, lg, giro):
+    """Una lingua che per tre volte non ha portato nulla (edizione che non risponde) si riprova solo ogni 8 giri."""
+    p_, v_ = resa.get(lg, [0, 0])[:2]
+    return not (p_ >= 3 and v_ == 0) or giro % 8 == 0
 MODELLI_LOCALI = {
     "fr": [("Industria e appalti", '"{n}" (armement OR armes OR défense) (contrat OR livraison OR accord)'),
            ("Proteste e crisi politiche", '"{n}" manifestation OR putsch OR élection OR troubles'),
@@ -1582,6 +1614,69 @@ def _avvio_al_riavvio():
         pass
 
 
+ORDINE_TAPPE = ["ricerche sui 16 temi (Google News, GDELT)", "Stati meno coperti, prima nella loro lingua e poi in inglese",
+                "domande che si pone da solo, domande di seguito, verifiche", "ogni Stato nella sua lingua e giro delle lingue",
+                "feed delle testate", "canali Telegram", "canali YouTube", "studio degli Stati (Wikipedia, World Factbook)",
+                "cielo e calore da satellite", "ricerca di fonti nuove e di sostituti", "analisi: livelli, conferme, segnali",
+                "cervello: traduzioni in italiano e riassunto", "memoria, diario, pagina", "invio a GitHub"]
+
+
+def giri(quanti=12):
+    """Quanti giri fa, ogni quanto, quanto durano e a che punto è quello in corso."""
+    diario = leggi_json(os.path.join(DATI, "diario.json"), [])
+    try:
+        tab = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
+    except OSError:
+        tab = ""
+    riga = next((r for r in tab.splitlines() if "castello.py aggiorna" in r and not r.strip().startswith("#")), "")
+    ora = datetime.now()
+    if riga.split()[:2] == ["17", "*/3"]:
+        pross = ora.replace(minute=17, second=0, microsecond=0)
+        while pross <= ora or pross.hour % 3:
+            pross += timedelta(hours=1)
+        print(f"Giro automatico: uno ogni 3 ore, al minuto 17 (0:17, 3:17, 6:17 … 21:17), 8 al giorno. Prossimo: {pross.strftime('%H:%M')}"
+              + ("" if _cron_vivo() else "  ATTENZIONE: il giro automatico è FERMO, lancia  bash avvia.sh"))
+    elif riga:
+        print("Giro automatico programmato così:", " ".join(riga.split()[:5]))
+    else:
+        print("Giro automatico NON programmato su questo dispositivo (bash installa.sh).")
+    blocco = os.path.join(DATI, "aggiorna.lock")
+    pr = leggi_json(os.path.join(DATI, "progresso.json"), {})
+    try:
+        in_corso = time.time() - os.path.getmtime(blocco) < 45 * 60
+    except OSError:
+        in_corso = False
+    if in_corso:
+        print(f"Un giro è in corso da {round((time.time() - os.path.getmtime(blocco)) / 60)} minuti: ultima tappa finita «"
+              f"{NOMI_TAPPE.get(pr.get('fatta', ''), pr.get('fatta', '?'))}», {pr.get('voci', 0)} voci nuove finora.")
+    if not diario:
+        print("Il diario è ancora vuoto: il primo giro lo riempie.")
+        return
+    oggi_ = [x for x in diario if x.get("iso", "") >= (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()]
+    if oggi_:
+        print(f"Ultime 24 ore: {len(oggi_)} giri, durata media {round(sum(x['durata'] for x in oggi_) / len(oggi_) / 60)} minuti, "
+              f"{sum(x['nuove'] for x in oggi_)} voci nuove in tutto.")
+    print("quando        min  nuove  tradotti  senza  richieste  rifiuti  avvisi  versione")
+    prima = None
+    for x in diario[-quanti:]:
+        if prima and x.get("iso") and prima.get("iso"):
+            try:
+                buco = (datetime.fromisoformat(x["iso"]) - datetime.fromisoformat(prima["iso"])).total_seconds() / 3600
+                if buco > 3.6:
+                    print(f"   — buco di {buco:.1f} ore: in questo intervallo il programma era fermo —")
+            except ValueError:
+                pass
+        print(f"{x['quando']:<12} {round(x['durata'] / 60):>4} {x['nuove']:>6} {x.get('tradotti', 0):>9} {x['scoperti']:>6} "
+              f"{x['richieste']:>10} {sum(x.get('rifiuti', {}).values()):>8} {x['errori']:>7}  {x['v']}")
+        prima = x
+    z = diario[-1]
+    if z.get("lingue"):
+        print("Lingue delle voci nuove dell'ultimo giro:", ", ".join(f"{k} {v}" for k, v in z["lingue"].items()))
+    print("Come procede un giro, nell'ordine:")
+    for i, t in enumerate(ORDINE_TAPPE, 1):
+        print(f"  {i:>2}. {t}")
+
+
 def _cron_vivo():
     try:
         return subprocess.run(["pgrep", "-x", "crond"], capture_output=True).returncode == 0
@@ -1689,6 +1784,11 @@ def _aggiorna():
     def tappa(nome):  # quante voci nuove ha portato ogni pezzo del giro (per il diario)
         tappe[nome] = tappe.get(nome, 0) + contati - _prima[0]
         _prima[0] = contati
+        try:  # a che punto è il giro: lo legge  python castello.py giri
+            scrivi_json(os.path.join(DATI, "progresso.json"), {"inizio": adesso.isoformat(), "fatta": nome, "voci": contati,
+                                                               "minuti": round((time.time() - inizio_) / 60, 1)})
+        except OSError:
+            pass
     adesso = datetime.now(timezone.utc)
 
     def aggiungi(tipo, voce):
@@ -1756,7 +1856,25 @@ def _aggiorna():
                     stato_gdelt["pausa"] = (adesso + timedelta(hours=24)).isoformat()
                     break
             time.sleep(12)
-        scrivi_json(os.path.join(DATI, "gdelt.json"), {"ultimo": stato_gdelt.get("pausa") and
+        # lingue senza edizione di Google News (persiano, urdu, swahili, finlandese, danese…): 4 a giro di GDELT, a rotazione
+        if not stato_gdelt.get("pausa") and cfg.get("giro_lingue", {}).get("attivo", True):
+            codici_ = sorted(GDELT_LINGUE)
+            i0_ = stato_gdelt.get("i_lingua", 0)
+            per_nome = {n_.lower(): k_ for k_, l_ in paesi.items() for n_ in l_}
+            for n_ in range(cfg.get("giro_lingue", {}).get("gdelt_per_giro", 4)):
+                lg_ = codici_[(i0_ + n_) % len(codici_)]
+                try:
+                    for t_, u_, d_, f_, s_, paese_ in gdelt("(military OR army OR defense OR government OR security) sourcelang:"
+                                                            + GDELT_LINGUE[lg_], True)[:30]:
+                        notizia("Difesa e forze armate", t_, u_, d_, f_, s_, ripiego=per_nome.get((paese_ or "").lower()), lingua=lg_)
+                except Exception as e:
+                    errori.append(f"GDELT (lingua {lg_}): {e}")
+                    if "429" in str(e):
+                        stato_gdelt["pausa"] = (adesso + timedelta(hours=24)).isoformat()
+                        break
+                time.sleep(12)
+            stato_gdelt["i_lingua"] = (i0_ + cfg.get("giro_lingue", {}).get("gdelt_per_giro", 4)) % len(codici_)
+        scrivi_json(os.path.join(DATI, "gdelt.json"), {"i_lingua": stato_gdelt.get("i_lingua", 0), "ultimo": stato_gdelt.get("pausa") and
                     (adesso + timedelta(hours=18)).isoformat() or adesso.isoformat()})
 
     tappa("temi")
@@ -1775,12 +1893,14 @@ def _aggiorna():
         ordine = sorted(paesi, key=lambda s_: (quanti.get(s_, 0), cop.get(s_, "")))
         for stato_ in [x for x in ordine if cop.get(x, "") < attesa][:rot]:
             nomi = paesi[stato_]
-            en = next((n for n in nomi[1:] if "." not in n and len(n) > 3), nomi[0])
-            # inglese più la lingua del posto (francese, spagnolo, portoghese, arabo, russo, tedesco); se non c'è, italiano
-            loc = LOCALE.get(stato_) if cfg.get("lingue_locali", True) else None
-            coppie = [("en", f'"{en}" (military OR defense OR government OR security)'),
-                      (loc[0], f'"{loc[1]}" ' + PAROLE_LOCALI[loc[0]]) if loc else
-                      ("it", f'"{nomi[0]}" (difesa OR esercito OR governo OR sicurezza)')]
+            en = nome_inglese(nomi)
+            # prima la lingua del posto (se lo Stato ne ha più d'una, si alternano), poi l'inglese; dove la stampa
+            # scrive in inglese: inglese e italiano. I titoli vengono poi tradotti in italiano dal cervello.
+            sue_ = lingue_di(stato_) if cfg.get("lingue_locali", True) else []
+            loc = sue_[(adesso.toordinal() * 8 + adesso.hour // 3) % len(sue_)] if sue_ else None
+            coppie = ([(loc[0], f'"{loc[1]}" ' + PAROLE_LOCALI[loc[0]])] if loc else []) + \
+                     [("en", f'"{en}" (military OR defense OR government OR security)')] + \
+                     ([] if loc else [("it", f'"{nomi[0]}" (difesa OR esercito OR governo OR sicurezza)')])
             for lingua, q in coppie:
                 try:
                     for t_, l_, d_, f_, s_ in google_news(q, lingua):
@@ -1817,12 +1937,15 @@ def _aggiorna():
                     tema_, l_, modello = MODELLI_RICERCA[i_]
                     m_ = "R%d" % i_
                     q_ = modello.format(it=nomi[0], en=nome_inglese(nomi))
-                    loc = LOCALE.get(stato_) if cfg.get("lingue_locali", True) else None
-                    if loc and (R.get("giro", 0) + n_) % 2 and loc[0] in MODELLI_LOCALI:
+                    sue_ = lingue_di(stato_) if cfg.get("lingue_locali", True) else []
+                    loc = sue_[(R.get("giro", 0) + n_) % len(sue_)] if sue_ else None
+                    if loc and (R.get("giro", 0) + n_) % 3 and loc[0] in MODELLI_LOCALI:
                         scelta_ = sorted(range(len(MODELLI_LOCALI[loc[0]])), key=lambda j_: -voto(loc[0] + str(j_)))
                         j_ = scelta_[(R.get("giro", 0) // 2) % len(scelta_)]
                         tema_, modello = MODELLI_LOCALI[loc[0]][j_]
                         l_, q_, m_ = loc[0], modello.format(n=loc[1]), loc[0] + str(j_)
+                    elif loc and (R.get("giro", 0) + n_) % 3:  # lingua senza modelli: la domanda generale su difesa e governo
+                        tema_, l_, q_, m_ = "Difesa e forze armate", loc[0], '"%s" %s' % (loc[1], PAROLE_LOCALI[loc[0]]), loc[0] + "g"
                     if q_ not in note_:
                         code.append({"q": q_, "l": l_, "stato": stato_, "tema": tema_, "da": "programma", "m": m_,
                                      "prove": 0, "nuove": 0, "ultimo": ""})
@@ -1915,22 +2038,44 @@ def _aggiorna():
             scrivi_json(perc_r, R)
 
     tappa("ricerca")
-    # 1d. Giro delle lingue: a ogni giro tre lingue diverse (a rotazione su tutte), le notizie di difesa, governo e
-    # sicurezza dalla stampa che scrive in quella lingua. Il cervello traduce i titoli; lo Stato si riconosce dopo.
+    # 1d. Ogni Stato nella sua lingua: a turno su tutti gli Stati che ne hanno una (4 a giro), così anche quelli già
+    # ben coperti in inglese vengono letti dalla loro stampa. Poi il giro delle lingue: 2 lingue a rotazione, le notizie
+    # di difesa, governo e sicurezza di chi scrive in quella lingua. Il cervello traduce i titoli in italiano.
     gl_ = cfg.get("giro_lingue", {})
     if gl_.get("attivo", True):
-        lingue_ = [l for l in PAROLE_LOCALI if l in EDIZIONI]
         perc_l = os.path.join(DATI, "lingue.json")
-        st_l = leggi_json(perc_l, {"i": 0})
-        for n_ in range(min(gl_.get("per_giro", 3), len(lingue_))):
-            lg_ = lingue_[(st_l.get("i", 0) + n_) % len(lingue_)]
+        st_l = leggi_json(perc_l, {})
+        resa_l, giro_l = st_l.setdefault("resa", {}), st_l.get("giri", 0)
+
+        def cerca_lingua(q_, lg_, stato2_=None):
+            prima_ = contati
+            r_ = resa_l.setdefault(lg_, [0, 0])
+            r_[0] += 1
             try:
-                for t_, l_, d_, f_, s_ in list(google_news(PAROLE_LOCALI[lg_].strip("()"), lg_))[:gl_.get("voci", 30)]:
-                    notizia("Difesa e forze armate", t_, l_, d_, f_, s_, lingua=lg_)
+                for t_, l_, d_, f_, s_ in list(google_news(q_, lg_))[:gl_.get("voci", 30)]:
+                    notizia("Copertura degli Stati" if stato2_ else "Difesa e forze armate", t_, l_, d_, f_, s_, forza=stato2_, lingua=lg_)
             except Exception as e:
                 errori.append(f"Google News (lingua {lg_}): {e}")
+            r_[1] += contati - prima_
             time.sleep(imp_auto.get("pausa_google", 1))
-        st_l["i"] = (st_l.get("i", 0) + gl_.get("per_giro", 3)) % max(len(lingue_), 1)
+
+        con_lingua = sorted(x for x in paesi if lingue_di(x))
+        for n_ in range(min(gl_.get("stati_per_giro", 4), len(con_lingua))):
+            stato2_ = con_lingua[(st_l.get("s", 0) + n_) % len(con_lingua)]
+            sue_ = lingue_di(stato2_)
+            lg_, nome2_ = sue_[(giro_l // max(len(con_lingua) // max(gl_.get("stati_per_giro", 4), 1), 1)) % len(sue_)]
+            if lingua_ok(resa_l, lg_, giro_l):
+                cerca_lingua('"%s" %s' % (nome2_, PAROLE_LOCALI[lg_]), lg_, stato2_)
+        st_l["s"] = (st_l.get("s", 0) + gl_.get("stati_per_giro", 4)) % max(len(con_lingua), 1)
+        lingue_ = [l for l in PAROLE_LOCALI if l in EDIZIONI]
+        for n_ in range(min(gl_.get("per_giro", 2), len(lingue_))):
+            lg_ = lingue_[(st_l.get("i", 0) + n_) % len(lingue_)]
+            if lingua_ok(resa_l, lg_, giro_l):
+                # solo le prime due parole (esercito, militari o difesa): «governo» e «sicurezza» senza il nome di uno
+                # Stato portano troppa cronaca locale
+                cerca_lingua(" OR ".join(PAROLE_LOCALI[lg_].strip("()").split(" OR ")[:2]), lg_)
+        st_l["i"] = (st_l.get("i", 0) + gl_.get("per_giro", 2)) % max(len(lingue_), 1)
+        st_l["giri"] = giro_l + 1
         scrivi_json(perc_l, st_l)
     tappa("lingue")
     # 2. Feed RSS: fissi, candidati, scoperti da soli, aggiunti a mano
@@ -2146,6 +2291,10 @@ def _aggiorna():
     }
     # diario del giro: che cosa è entrato, da dove, quanto è costato ai siti (lo legge `rapporto`, va anche su GitHub)
     tappa("altro")
+    lingue_nuove = {}
+    for v_ in archivio["notizie"].values():
+        if v_.get("visto") == adesso.isoformat() and v_.get("lg"):
+            lingue_nuove[v_["lg"]] = lingue_nuove.get(v_["lg"], 0) + 1
     conto_c = leggi_json(os.path.join(DATI, "cervello.json"), {})
     diario = leggi_json(os.path.join(DATI, "diario.json"), [])
     diario.append({
@@ -2159,6 +2308,7 @@ def _aggiorna():
         "tg_trovati": [c["canale"] for c in auto.get("telegram", [])], "sapere": stati_studiati,
         "memoria": [mem_nuovi, mem_totale], "ricerche": live["ricerca"]["ultime"],
         "seguiti": [n_seguiti, nuove_seguiti], "verifiche": ver_giro,
+        "lingue": {k_: v_ for k_, v_ in sorted(lingue_nuove.items(), key=lambda x: -x[1])[:25]},
         "richieste": sum(RICHIESTE.values()), "siti": sorted(RICHIESTE.items(), key=lambda x: -x[1])[:6],
         "rifiuti": dict(RIFIUTI), "errori": len(errori), "usd_oggi": conto_c.get("usd_oggi", 0),
         "usd_mese": conto_c.get("usd_mese", 0), "tradotti": sum(1 for v in archivio["notizie"].values() if v.get("it")),
@@ -2673,6 +2823,8 @@ if __name__ == "__main__":
                 print("Il cervello funziona.")
             except Exception as e:
                 print("Non funziona:", re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e)))
+    elif comando == "giri":
+        giri(int(a[1]) if len(a) > 1 and a[1].isdigit() else 12)
     elif comando == "rapporto":
         rapporto(int(a[1]) if len(a) > 1 and a[1].isdigit() else 24)
     elif comando == "salute":

@@ -1174,7 +1174,9 @@
  "lingue_locali": true,
  "giro_lingue": {
   "attivo": true,
-  "per_giro": 3,
-  "voci": 30
+  "per_giro": 2,
+  "stati_per_giro": 4,
+  "voci": 30,
+  "gdelt_per_giro": 4
  }
 }

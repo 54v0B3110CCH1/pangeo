@@ -213,3 +213,17 @@ NOVITÀ 2.12 – TUTTE LE LINGUE, 1 DOLLARO AL GIORNO, NON SOLO WIKIPEDIA
   (copia d'archivio: la CIA lo ha chiuso il 4 febbraio 2026) e la traduce in italiano.
 - Per vedere che cosa fa:  python castello.py aggiorna   (un giro subito, con il riepilogo alla fine)
                            python castello.py rapporto   (le ultime 24 ore)
+
+NOVITÀ 2.13 – PRIMA NELLA LINGUA DEL POSTO, E I GIRI SI VEDONO
+- Ogni Stato viene cercato prima nella sua lingua e poi in inglese; i titoli vengono tradotti direttamente in
+  italiano. 124 Stati hanno la loro lingua su Google News (38 edizioni: anche tamil, telugu, marathi, malayalam);
+  dove uno Stato ne ha più d'una (India, Belgio, Svizzera, Canada, Israele, Ucraina, Marocco…) si alternano.
+- A ogni giro, 4 Stati a turno su tutti vengono letti nella loro lingua (in circa 4 giorni passano tutti), più
+  2 lingue a rotazione per le notizie militari in generale.
+- Lingue senza edizione di Google News (persiano, urdu, swahili, finlandese, danese, croato, albanese, georgiano,
+  armeno, azero, kazako, mongolo, nepalese, singalese, malese, somalo, catalano e altre: 27): arrivano da GDELT,
+  4 lingue ogni 6 ore. I dialetti veri non hanno giornali indicizzati: si fermano alle lingue regionali.
+- Una lingua che per tre volte non porta nulla viene riprovata solo ogni tanto: il programma lo impara da solo.
+- Per vedere i giri:   python castello.py giri
+  mostra ogni quanto partono, il prossimo, quanto è durato ciascuno, quante voci ha portato, a che punto è
+  quello in corso e l'ordine delle tappe. Nella pagina: Live > Diario del programma > «I giri, uno per uno».
