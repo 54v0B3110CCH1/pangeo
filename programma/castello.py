@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.7.3 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.8 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -41,7 +41,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
-VERSIONE = "2.7.3"
+VERSIONE = "2.8"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -505,14 +505,22 @@ def calore(chiavi, it2en, errori, ore):
     adesso = datetime.now(timezone.utc)
     if vecchio and vecchio.get("iso", "") >= (adesso - timedelta(hours=ore)).isoformat():
         return vecchio
+    righe, satellite = [], ""
     try:
         indice = IndiceGeo(carica_geo())
-        testo = scarica(f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{chiave}/VIIRS_SNPP_NRT/world/1",
-                        timeout=180).decode("utf-8", "replace")
+        # se un satellite non ha dati (manutenzione), si prova il successivo
+        for satellite in ("VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT", "VIIRS_SNPP_NRT", "MODIS_NRT"):
+            testo = scarica(f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{chiave}/{satellite}/world/1",
+                            timeout=180).decode("utf-8", "replace")
+            righe = testo.splitlines()
+            if len(righe) > 1 or (righe and "latitude" not in righe[0]):
+                break
     except Exception as e:
         errori.append(f"NASA FIRMS: {e}")
         return vecchio
-    righe = testo.splitlines()
+    if len(righe) <= 1 and righe and "latitude" in righe[0]:
+        errori.append("NASA FIRMS: nessun dato da nessun satellite nelle ultime 24 ore (riprovo al prossimo giro)")
+        return vecchio
     if not righe or "latitude" not in righe[0]:
         errori.append("NASA FIRMS: risposta non valida (" + (righe[0][:60] if righe else "vuota") + ")")
         return vecchio
@@ -532,7 +540,7 @@ def calore(chiavi, it2en, errori, ore):
     paesi = segnali_per_stato("calore_storico.json", conta, it2en, adesso,
                               lambda n, m: "aumento" if m is not None and n >= 20 and n > 3 * m else "")
     uscita = {"iso": adesso.isoformat(), "agg": datetime.now().strftime("%d/%m %H:%M"), "totale": totale,
-              "paesi": paesi, "fonte": "NASA FIRMS (VIIRS, ultime 24 ore)"}
+              "paesi": paesi, "fonte": f"NASA FIRMS ({satellite}, ultime 24 ore)"}
     scrivi_json(percorso, uscita)
     return uscita
 
@@ -848,7 +856,23 @@ def miglioratore(cfg, chiavi, analisi, auto, errori):
     if len(m["giri"]) >= 4:
         v = m["giri"][-8:]
         tendenza = {"quota": [v[0]["quota"], v[-1]["quota"]], "scoperti": [v[0]["scoperti"], v[-1]["scoperti"]], "giri": len(m["giri"])}
-    return {"fatte": m["fatte"][-8:], "richieste": richieste[:10], "tendenza": tendenza}
+    # una volta al giorno, se c'è il cervello: 3 miglioramenti concreti scritti da Claude sui numeri del sistema
+    oggi_ = adesso.date().isoformat()
+    if chiavi.get("anthropic_key") and m.get("rapporto_giorno") != oggi_:
+        try:
+            dati_ = {"giri": m["giri"][-8:], "per_livello": analisi["per_livello"], "fonti_meno_confermate":
+                     analisi.get("fonti_meno_confermate", [])[:8], "stati_scoperti": analisi.get("esempi_scoperti", [])[:20],
+                     "errori": errori[:10], "fatte": m["fatte"][-5:]}
+            m["rapporto"] = chiedi_claude(chiavi, cfg, "Sei il revisore di un programma che raccoglie notizie di difesa e geopolitica "
+                                          "da fonti gratuite e le confronta tra loro. Con questi numeri scrivi in italiano 3 miglioramenti "
+                                          "concreti e piccoli (una riga ciascuno, che iniziano con «- »): fonti da aggiungere o togliere, "
+                                          "Stati da coprire, errori da sistemare. Niente premesse.\n" + json.dumps(dati_, ensure_ascii=False)[:6000], 400)[:1500]
+            m["rapporto_giorno"] = oggi_
+            scrivi_json(percorso, m)
+        except Exception as e:
+            errori.append("Claude (rapporto del miglioratore): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:150])
+    return {"fatte": m["fatte"][-8:], "richieste": richieste[:10], "tendenza": tendenza,
+            "rapporto": m.get("rapporto", ""), "rapporto_giorno": m.get("rapporto_giorno", "")}
 
 
 # ----------------------------------------------------------------------------- cervello (facoltativo, a pagamento)
@@ -1634,6 +1658,9 @@ def stato():
             print(f"  miglioratore ha fatto ({q_}):", x_)
         for x_ in mg.get("richieste", []):
             print("  miglioratore chiede:", x_)
+        if mg.get("rapporto"):
+            print(f"Rapporto del cervello ({mg.get('rapporto_giorno', '')}):")
+            print(mg["rapporto"])
         pg = (an.get("peggiora") or {}).get("lista") or []
         if pg:
             print("Dove peggiora:", ", ".join(f"{x[0]} ({x[1]} al giorno, prima {x[2]})" for x in pg[:8]))
