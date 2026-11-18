@@ -12,4 +12,4 @@ poi tabelle.js; solo dopo si pubblica.
 
   node tools/build22.js base.html out.html      aggiunge ambasciate (Wikidata) e «Fedi, etnie e disuguaglianze»;
                                                  i dati sono in tools/dati/dati22.json. La catena è:
-                                                 pagina senza estensioni 20-22 → build21.js → build22.js → istantanea
+                                                 pagina senza estensioni 20-23 → build21.js → build22.js → build23.js → istantanea

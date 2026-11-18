@@ -197,3 +197,19 @@ NOVITÀ 2.11 – IMPARA DALLE SUE DOMANDE, VERIFICA, TI DICE CHE COSA HA AGGIUNT
   «Diario del programma» ha numeri, barre e confronto prima e dopo.
 - Carico: 6 domande autonome + 2 di seguito + 3 verifiche a giro (prima 8 in tutto) e 8 temi per giro invece
   di 6: un giro fa circa 220-230 richieste, una quarantina a Google News. Il diario conta i rifiuti.
+
+NOVITÀ 2.12 – TUTTE LE LINGUE, 1 DOLLARO AL GIORNO, NON SOLO WIKIPEDIA
+- Spesa del cervello: fino a 1 $ al giorno (prima 0,50) e 20 $ al mese, come il tetto che hai messo nella console.
+  In pratica spende pochi centesimi al giorno: il tetto è un muro, non un obiettivo.
+- Traduzioni: prima non arrivavano perché il modello «ragionava» e consumava tutto lo spazio della risposta.
+  Ora il ragionamento è spento per traduzioni e riassunti; traduce fino a 180 titoli a giro, a lotti da 30.
+- Lingue: 34 edizioni di Google News (anche cinese, giapponese, coreano, turco, hindi, indonesiano, ucraino,
+  polacco, olandese, svedese, greco, ebraico, vietnamita, thailandese, bengalese, rumeno, ungherese, ceco,
+  slovacco, bulgaro, serbo, sloveno, lituano, lettone, norvegese). 117 Stati vengono cercati anche nella loro
+  lingua. In più, a ogni giro, il «giro delle lingue»: 3 lingue a rotazione, 30 notizie ciascuna.
+- Fonti che non funzionano: dopo 3 giri senza risposta il programma cerca da solo l'indirizzo nuovo sullo stesso
+  sito; una volta al giorno chiede al cervello un sostituto equivalente e lo prova.
+- Non solo Wikipedia: per ogni Stato legge anche la parte «forze armate e sicurezza» del World Factbook
+  (copia d'archivio: la CIA lo ha chiuso il 4 febbraio 2026) e la traduce in italiano.
+- Per vedere che cosa fa:  python castello.py aggiorna   (un giro subito, con il riepilogo alla fine)
+                           python castello.py rapporto   (le ultime 24 ore)

@@ -39,7 +39,7 @@ sost('</style>', `
 sost('\nfunction render() {', String.raw`
 // Ventunesima estensione, 18 novembre 2026: che cosa ha aggiunto il programma dall'ultima visita, diario dei giri,
 // memoria dei fatti confermati (i dati arrivano dal programma: LIVE.diario, LIVE.ricerca.verifiche, memoria.js)
-const TAPPE_NOME = { temi: 'ricerche per tema', stati: 'rotazione degli Stati', ricerca: 'ricerca autonoma', feed: 'feed delle testate', telegram: 'Telegram', video: 'YouTube', altro: 'altro' };
+const TAPPE_NOME = { temi: 'ricerche per tema', stati: 'rotazione degli Stati', ricerca: 'ricerca autonoma', lingue: 'giro delle lingue', feed: 'feed delle testate', telegram: 'Telegram', video: 'YouTube', altro: 'altro' };
 const VISTO_PRIMA = (() => { try { return localStorage.getItem('pg_visto') || ''; } catch (e) { return ''; } })();
 window.addEventListener('load', () => setTimeout(() => { try { localStorage.setItem('pg_visto', new Date().toISOString()); } catch (e) {} }, 20000));
 function nvChips(v, max, fn) { return '<div class="nv-chips">' + v.slice(0, max).map(fn).join('') + (v.length > max ? '<a class="nv-chip" href="#live">e altri ' + (v.length - max) + '</a>' : '') + '</div>'; }
@@ -63,7 +63,7 @@ function novitaHtml() {
   const quando = VISTO_PRIMA ? new Date(VISTO_PRIMA).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : '';
   if (!giri.length) return '<section class="nv" aria-label="Novità"><div class="nv-top"><b>Niente di nuovo dall’ultima volta</b><span>Sei entrato il ' + esc(quando) + '. L’ultimo giro del programma è del ' + esc(z.quando) + '; il prossimo arriva entro 3 ore.</span></div></section>';
   const i0 = D.indexOf(giri[0]), prima = i0 > 0 ? D[i0 - 1] : giri[0], N = nvDati(D, giri, prima);
-  let o = '<section class="nv" aria-label="Novità"><div class="nv-top"><b>' + (VISTO_PRIMA ? 'Dall’ultima volta che sei entrato' : 'Che cosa ha aggiunto il programma') + '</b><span>' + (VISTO_PRIMA ? 'Dal ' + esc(quando) + ': ' : 'Negli ultimi ') + giri.length + (giri.length === 1 ? ' giro' : ' giri') + ' del programma, l’ultimo il ' + esc(z.quando) + (VISTO_PRIMA && D[0].iso > VISTO_PRIMA ? ' (qui si vedono gli ultimi ' + D.length + ' giri)' : '') + '</span></div>';
+  let o = '<section class="nv" aria-label="Novità"><div class="nv-top"><b>' + (VISTO_PRIMA ? 'Dall’ultima volta che sei entrato' : 'Che cosa ha aggiunto il programma') + '</b><span>' + (giri.length === 1 ? (VISTO_PRIMA ? 'Dal ' + esc(quando) + ': un giro del programma, il ' : 'Nell’ultimo giro del programma, il ') : (VISTO_PRIMA ? 'Dal ' + esc(quando) + ': ' : 'Negli ultimi ') + giri.length + ' giri del programma, l’ultimo il ') + esc(z.quando) + (VISTO_PRIMA && D[0].iso > VISTO_PRIMA ? ' (qui si vedono gli ultimi ' + D.length + ' giri)' : '') + '</span></div>';
   o += '<div class="nv-tiles">' + nvTile(num(N.som('nuove')), 'voci nuove raccolte') + nvTile(num(N.fonti.length + N.tg.length), 'fonti e canali trovati da solo') + nvTile(num(N.coperti.length), 'Stati che prima erano senza notizie') + nvTile(num(N.som('memoria', 0)), 'fatti confermati messi in memoria') + '</div>';
   if (N.coperti.length) o += '<div class="nv-riga"><span>Stati ora coperti</span>' + nvChips(N.coperti, 8, s => '<a class="nv-chip" href="#live/' + encodeURIComponent(s) + '">' + esc(s) + '</a>') + '</div>';
   if (N.fonti.length || N.tg.length) o += '<div class="nv-riga"><span>Fonti nuove, da valutare</span>' + nvChips(N.fonti.concat(N.tg.map(c => 'Telegram: ' + c)), 4, f => '<span class="nv-chip">' + esc(f) + '</span>') + '</div>';

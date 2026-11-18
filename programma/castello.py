@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.11 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.12 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -47,7 +47,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import datetime, timedelta, timezone
 
-VERSIONE = "2.11"
+VERSIONE = "2.12"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -953,7 +953,9 @@ def miglioratore(cfg, chiavi, analisi, auto, errori):
         try:
             dati_ = {"giri": m["giri"][-8:], "per_livello": analisi["per_livello"], "fonti_meno_confermate":
                      analisi.get("fonti_meno_confermate", [])[:8], "stati_scoperti": analisi.get("esempi_scoperti", [])[:20],
-                     "errori": errori[:10], "fatte": m["fatte"][-5:]}
+                     "errori": errori[:10], "fatte": m["fatte"][-5:],
+                     "fonti_rotte": [f.get("nome", "") for f in cfg.get("rss", []) + cfg.get("candidati", [])
+                                     if auto.get("stato", {}).get(f["url"], {}).get("fila", 0) >= 3][:10]}
             conto_ = leggi_json(os.path.join(DATI, "cervello.json"), {})
             m["rapporto"] = chiedi_claude(chiavi, cfg, "Sei il revisore di un programma che raccoglie notizie di difesa e geopolitica "
                                           "da fonti gratuite e le confronta tra loro. Con questi numeri scrivi in italiano 3 miglioramenti "
@@ -961,8 +963,10 @@ def miglioratore(cfg, chiavi, analisi, auto, errori):
                                           "Stati da coprire, errori da sistemare. Niente premesse. Poi scrivi una riga con la sola parola RICERCHE e sotto "
                                           "fino a 8 ricerche per Google News sugli Stati e sui temi meno coperti, una per riga, nel formato "
                                           "lingua (it o en)|nome dello Stato in italiano|parole da cercare (con il nome dello Stato tra virgolette). "
-                                          "Infine una riga con la sola parola FONTI e sotto fino a 6 siti di notizie o di istituzioni che hanno un "
-                                          "feed RSS e coprono gli Stati meno coperti, uno per riga, nel formato dominio|nome dello Stato in italiano.\n"
+                                          "Infine una riga con la sola parola FONTI e sotto fino a 10 siti di notizie o di istituzioni che hanno un "
+                                          "feed RSS: prima un sostituto equivalente (stesso Paese o stesso tema) per ciascuna delle fonti_rotte, "
+                                          "poi siti che coprono gli Stati meno coperti, anche in lingue diverse dall'inglese. "
+                                          "Uno per riga, nel formato dominio|nome dello Stato in italiano.\n"
                                           + json.dumps(dati_, ensure_ascii=False)[:6000], 1000, conto_)[:3500]
             scrivi_json(os.path.join(DATI, "cervello.json"), conto_)
             pezzi_ = re.split(r"(?m)^\W*RICERCHE\W*$", m["rapporto"], maxsplit=1)
@@ -1022,15 +1026,26 @@ def pulisci_brief(testo):
 
 def chiedi_claude(chiavi, cfg, testo, massimo=900, conto=None):
     modello = cfg.get("cervello", {}).get("modello", "claude-haiku-5-5")
-    # margine di token: se il modello ragiona prima di rispondere, il ragionamento consuma lo stesso tetto
-    corpo = json.dumps({"model": modello, "max_tokens": massimo + cfg.get("cervello", {}).get("riserva_token", 1500),
-                        "messages": [{"role": "user", "content": testo}]}).encode()
+    imp_c = cfg.get("cervello", {})
+    dati_r = {"model": modello, "max_tokens": massimo + imp_c.get("riserva_token", 1500),
+              "messages": [{"role": "user", "content": testo}]}
+    # Haiku 5.5 ragiona prima di rispondere e il ragionamento consuma lo stesso tetto di token: per tradurre e
+    # riassumere non serve, quindi si spegne (per riaccenderlo: "pensiero": "acceso" in config.json)
+    if imp_c.get("pensiero", "spento") == "spento":
+        dati_r["thinking"] = {"type": "disabled"}
     intest = {"x-api-key": chiavi["anthropic_key"], "anthropic-version": "2023-06-01", "content-type": "application/json"}
     if chiavi.get("anthropic_workspace"):
         # chiavi personali (sk-ant-usr) non legate a un'area di lavoro: serve l'ID dell'area (wrkspc_...)
         intest["anthropic-workspace-id"] = chiavi["anthropic_workspace"]
     try:
-        r = json.loads(scarica(ANTHROPIC, timeout=120, corpo=corpo, intestazioni=intest))
+        try:
+            r = json.loads(scarica(ANTHROPIC, timeout=120, corpo=json.dumps(dati_r).encode(), intestazioni=intest))
+        except urllib.error.HTTPError as e0:
+            if e0.code != 400 or "thinking" not in dati_r:
+                raise
+            # alcuni modelli non permettono di spegnere il ragionamento: si riprova una volta lasciandolo acceso
+            del dati_r["thinking"]
+            r = json.loads(scarica(ANTHROPIC, timeout=120, corpo=json.dumps(dati_r).encode(), intestazioni=intest))
     except urllib.error.HTTPError as e:
         # il motivo vero sta nel corpo della risposta (credito finito, limite di spesa, chiave sbagliata...)
         grezzo = ""
@@ -1081,24 +1096,55 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
         tetto = 0
     voci = [(k, v) for k, v in archivio["notizie"].items() if (v.get("data_iso") or "") >= recente]
     # 1. traduzioni
-    da_tradurre = [v for _, v in voci if not v.get("it") and (NON_LATINO.search(v["t"]) or v.get("lg"))][:40]
-    if da_tradurre and conto["chiamate"] < tetto:
-        domanda = ("Traduci in italiano questi titoli di notizie, uno per riga, nello stesso ordine e con lo "
-                   "stesso numero davanti, senza commenti:\n" +
-                   "\n".join(f"{i + 1}. {v['t']}" for i, v in enumerate(da_tradurre)))
+    # (titoli in altri alfabeti o trovati cercando in un'altra lingua; prima i più recenti, a lotti)
+    da_tradurre = sorted((v for _, v in voci if not v.get("it") and (NON_LATINO.search(v["t"]) or v.get("lg"))),
+                         key=lambda v: v.get("data_iso") or "", reverse=True)
+    lotto_, lotti_ = impost.get("traduzioni_lotto", 30), 0
+    numerata = re.compile(r"\s*\**(\d+)\**\s*[.):\-]\s*\**\s*(.+)")
+    while da_tradurre and conto["chiamate"] < tetto and lotti_ < impost.get("traduzioni_per_giro", 6):
+        gruppo, da_tradurre = da_tradurre[:lotto_], da_tradurre[lotto_:]
+        lotti_ += 1
+        domanda = ("Traduci in italiano questi titoli di notizie (sono in lingue diverse), uno per riga, nello stesso ordine e "
+                   "con lo stesso numero davanti, senza commenti:\n" +
+                   "\n".join(f"{i + 1}. {v['t']}" for i, v in enumerate(gruppo)))
         try:
-            risposta = chiedi_claude(chiavi, cfg, domanda, 1500, conto)
+            risposta = chiedi_claude(chiavi, cfg, domanda, 2500, conto)
             conto["chiamate"] += 1
+            presi_ = 0
             for riga in risposta.splitlines():
-                m = re.match(r"\s*(\d+)[.)]\s*(.+)", riga)
-                if m and 0 < int(m.group(1)) <= len(da_tradurre):
-                    v = da_tradurre[int(m.group(1)) - 1]
+                m = numerata.match(riga)
+                if m and 0 < int(m.group(1)) <= len(gruppo):
+                    v = gruppo[int(m.group(1)) - 1]
                     v["it"] = pulisci(m.group(2), 300)
+                    presi_ += 1
                     for p in ric.trova(v["it"]):
                         if p not in v["paesi"]:
                             v["paesi"].append(p)
+            if not presi_:
+                errori.append(f"Claude (traduzioni): risposta senza righe numerate ({len(risposta)} caratteri)")
+                break
         except Exception as e:
             errori.append(f"Claude (traduzioni): {re.sub(r'sk-ant-[A-Za-z0-9_-]+', '***', str(e))}")
+            break
+    # 1b. il «sapere» letto in inglese (Wikipedia in inglese, World Factbook) diventa italiano
+    S_ = leggi_json(os.path.join(DATI, "sapere.json"), {})
+    da_s = [(st_, k) for st_, v in S_.items() for k in ("forze", "storia", "factbook")
+            if isinstance(v.get(k), dict) and v[k].get("lingua") == "en" and not v[k].get("testo_it")][:impost.get("sapere_per_giro", 8)]
+    if da_s and conto["chiamate"] < tetto:
+        domanda = ("Traduci in italiano questi testi, uno per riga, nello stesso ordine e con lo stesso numero davanti. "
+                   "Ogni traduzione su una riga sola, senza commenti e senza aggiungere nulla:\n" +
+                   "\n".join(f"{i + 1}. {S_[a][b]['testo']}" for i, (a, b) in enumerate(da_s)))
+        try:
+            risposta = chiedi_claude(chiavi, cfg, domanda, 4500, conto)
+            conto["chiamate"] += 1
+            for riga in risposta.splitlines():
+                m = numerata.match(riga)
+                if m and 0 < int(m.group(1)) <= len(da_s):
+                    a, b = da_s[int(m.group(1)) - 1]
+                    S_[a][b]["testo_it"] = pulisci(m.group(2), 1800)
+            scrivi_sapere(S_)
+        except Exception as e:
+            errori.append(f"Claude (traduzione del sapere): {re.sub(r'sk-ant-[A-Za-z0-9_-]+', '***', str(e))}")
     # 2. «Da sapere adesso», al massimo ogni 6 ore
     vecchio = (conto.get("brief") or {}).get("iso", "")
     if conto["chiamate"] < tetto and vecchio < (datetime.now(timezone.utc) - timedelta(hours=impost.get("brief_ore", 6))).isoformat():
@@ -1125,7 +1171,14 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
 # Edizioni di Google News per lingua: (hl, gl, ceid)
 EDIZIONI = {"it": ("it", "IT", "IT:it"), "en": ("en", "US", "US:en"), "fr": ("fr", "FR", "FR:fr"),
             "es": ("es-419", "US", "US:es-419"), "pt": ("pt-BR", "BR", "BR:pt-419"), "ar": ("ar", "EG", "EG:ar"),
-            "ru": ("ru", "RU", "RU:ru"), "de": ("de", "DE", "DE:de")}
+            "ru": ("ru", "RU", "RU:ru"), "de": ("de", "DE", "DE:de"),
+            "zh": ("zh-CN", "CN", "CN:zh-Hans"), "zh-TW": ("zh-TW", "TW", "TW:zh-Hant"), "ja": ("ja", "JP", "JP:ja"),
+            "ko": ("ko", "KR", "KR:ko"), "tr": ("tr", "TR", "TR:tr"), "hi": ("hi", "IN", "IN:hi"), "id": ("id", "ID", "ID:id"),
+            "uk": ("uk", "UA", "UA:uk"), "pl": ("pl", "PL", "PL:pl"), "nl": ("nl", "NL", "NL:nl"), "sv": ("sv", "SE", "SE:sv"),
+            "el": ("el", "GR", "GR:el"), "he": ("he", "IL", "IL:he"), "vi": ("vi", "VN", "VN:vi"), "th": ("th", "TH", "TH:th"),
+            "bn": ("bn", "BD", "BD:bn"), "ro": ("ro", "RO", "RO:ro"), "hu": ("hu", "HU", "HU:hu"), "cs": ("cs", "CZ", "CZ:cs"),
+            "sk": ("sk", "SK", "SK:sk"), "bg": ("bg", "BG", "BG:bg"), "sr": ("sr", "RS", "RS:sr"), "sl": ("sl", "SI", "SI:sl"),
+            "lt": ("lt", "LT", "LT:lt"), "lv": ("lv", "LV", "LV:lv"), "no": ("no", "NO", "NO:no")}
 # Lingua in cui scrive la stampa del posto e nome dello Stato in quella lingua
 LOCALE = {
     "Algeria": ("fr", "Algérie"), "Marocco": ("fr", "Maroc"), "Tunisia": ("fr", "Tunisie"), "Mauritania": ("fr", "Mauritanie"),
@@ -1151,13 +1204,42 @@ LOCALE = {
     "Tagikistan": ("ru", "Таджикистан"), "Kirghizistan": ("ru", "Киргизия"), "Bielorussia": ("ru", "Беларусь"),
     "Armenia": ("ru", "Армения"), "Azerbaigian": ("ru", "Азербайджан"),
     "Austria": ("de", "Österreich"), "Svizzera": ("de", "Schweiz"), "Liechtenstein": ("de", "Liechtenstein"),
+    "Germania": ("de", "Deutschland"), "Francia": ("fr", "France"), "Belgio": ("fr", "Belgique"), "Spagna": ("es", "España"),
+    "Portogallo": ("pt", "Portugal"), "Russia": ("ru", "Россия"), "Georgia": ("ru", "Грузия"), "Somalia": ("ar", "الصومال"),
+    "Cina": ("zh", "中国"), "Taiwan": ("zh-TW", "台灣"), "Giappone": ("ja", "日本"), "Corea del Sud": ("ko", "한국"),
+    "Corea del Nord": ("ko", "북한"), "Turchia": ("tr", "Türkiye"), "India": ("hi", "भारत"), "Indonesia": ("id", "Indonesia"),
+    "Ucraina": ("uk", "Україна"), "Polonia": ("pl", "Polska"), "Paesi Bassi": ("nl", "Nederland"), "Suriname": ("nl", "Suriname"),
+    "Svezia": ("sv", "Sverige"), "Grecia": ("el", "Ελλάδα"), "Cipro": ("el", "Κύπρος"), "Israele": ("he", "ישראל"),
+    "Vietnam": ("vi", "Việt Nam"), "Thailandia": ("th", "ประเทศไทย"), "Bangladesh": ("bn", "বাংলাদেশ"),
+    "Romania": ("ro", "România"), "Moldavia": ("ro", "Moldova"), "Ungheria": ("hu", "Magyarország"),
+    "Repubblica Ceca": ("cs", "Česko"), "Slovacchia": ("sk", "Slovensko"), "Bulgaria": ("bg", "България"),
+    "Serbia": ("sr", "Србија"), "Montenegro": ("sr", "Црна Гора"), "Slovenia": ("sl", "Slovenija"),
+    "Lituania": ("lt", "Lietuva"), "Lettonia": ("lv", "Latvija"), "Norvegia": ("no", "Norge"),
 }
 PAROLE_LOCALI = {"fr": "(armée OR militaire OR défense OR gouvernement OR sécurité)",
                  "es": "(ejército OR militar OR defensa OR gobierno OR seguridad)",
                  "pt": "(exército OR militar OR defesa OR governo OR segurança)",
                  "ar": "(الجيش OR الدفاع OR الحكومة OR الأمن)",
                  "ru": "(армия OR оборона OR правительство OR безопасность)",
-                 "de": "(Armee OR Militär OR Verteidigung OR Regierung OR Sicherheit)"}
+                 "de": "(Armee OR Militär OR Verteidigung OR Regierung OR Sicherheit)",
+                 "zh": "(军队 OR 国防 OR 政府 OR 安全)", "zh-TW": "(軍隊 OR 國防 OR 政府 OR 安全)",
+                 "ja": "(自衛隊 OR 防衛 OR 政府 OR 安全保障)", "ko": "(군 OR 국방 OR 정부 OR 안보)",
+                 "tr": "(ordu OR askeri OR savunma OR hükümet OR güvenlik)", "hi": "(सेना OR रक्षा OR सरकार OR सुरक्षा)",
+                 "id": "(militer OR tentara OR pertahanan OR pemerintah OR keamanan)",
+                 "uk": "(армія OR військові OR оборона OR уряд OR безпека)",
+                 "pl": "(wojsko OR armia OR obrona OR rząd OR bezpieczeństwo)",
+                 "nl": "(leger OR militair OR defensie OR regering OR veiligheid)",
+                 "sv": "(armén OR militär OR försvar OR regeringen OR säkerhet)",
+                 "el": "(στρατός OR άμυνα OR κυβέρνηση OR ασφάλεια)", "he": "(צבא OR ביטחון OR ממשלה OR הגנה)",
+                 "vi": '("quân đội" OR "quốc phòng" OR "chính phủ" OR "an ninh")',
+                 "th": "(กองทัพ OR กลาโหม OR รัฐบาล OR ความมั่นคง)", "bn": "(সেনাবাহিনী OR প্রতিরক্ষা OR সরকার OR নিরাপত্তা)",
+                 "ro": "(armata OR militar OR apărare OR guvern OR securitate)",
+                 "hu": "(hadsereg OR katonai OR védelem OR kormány OR biztonság)",
+                 "cs": "(armáda OR vojenský OR obrana OR vláda OR bezpečnost)",
+                 "sk": "(armáda OR vojenský OR obrana OR vláda OR bezpečnosť)",
+                 "bg": "(армия OR отбрана OR правителство OR сигурност)", "sr": "(војска OR одбрана OR влада OR безбедност)",
+                 "sl": "(vojska OR obramba OR vlada OR varnost)", "lt": "(kariuomenė OR gynyba OR vyriausybė OR saugumas)",
+                 "lv": "(armija OR aizsardzība OR valdība OR drošība)", "no": "(forsvaret OR militær OR regjeringen OR sikkerhet)"}
 MODELLI_LOCALI = {
     "fr": [("Industria e appalti", '"{n}" (armement OR armes OR défense) (contrat OR livraison OR accord)'),
            ("Proteste e crisi politiche", '"{n}" manifestation OR putsch OR élection OR troubles'),
@@ -1232,10 +1314,43 @@ def wikipedia(lingua, cerca):
     return None
 
 
+def scrivi_sapere(S_):
+    scrivi_json(os.path.join(DATI, "sapere.json"), S_)
+    with open(os.path.join(WEB, "sapere.js.tmp"), "w", encoding="utf-8") as f:
+        f.write("window.SAPERE = " + json.dumps({k: v for k, v in S_.items() if len(v) > 1}, ensure_ascii=False) + ";\n")
+    os.replace(os.path.join(WEB, "sapere.js.tmp"), os.path.join(WEB, "sapere.js"))
+
+
+def testo_factbook(x):
+    """Un campo del World Factbook: testo semplice, oppure più voci (es. la spesa anno per anno)."""
+    if not isinstance(x, dict):
+        return ""
+    if "text" in x:
+        return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", str(x["text"])))).strip()
+    return "; ".join(t for t in (testo_factbook(v) for v in list(x.values())[:3]) if t)
+
+
+def factbook(percorso):
+    """Forze armate e sicurezza di uno Stato dalla copia d'archivio del CIA World Factbook (chiuso il 4 febbraio 2026)."""
+    d = json.loads(scarica("https://raw.githubusercontent.com/factbook/factbook.json/master/" + percorso + ".json", timeout=30))
+    ms = d.get("Military and Security") or {}
+    pezzi = []
+    for campo, nome in (("Military and security forces", "Forces"), ("Military and security service personnel strengths", "Personnel"),
+                        ("Military expenditures", "Spending"), ("Military equipment inventories and acquisitions", "Equipment"),
+                        ("Military service age and obligation", "Service"), ("Military deployments", "Deployments")):
+        t = testo_factbook(ms.get(campo))
+        if t:
+            pezzi.append(nome + ": " + (t if len(t) <= 300 else t[:300].rsplit(" ", 1)[0] + "…"))
+    if not pezzi:
+        return None
+    return {"titolo": "World Factbook, forze armate e sicurezza (copia d'archivio, febbraio 2026)", "testo": " ".join(pezzi)[:1700],
+            "url": "https://github.com/factbook/factbook.json/blob/master/" + percorso + ".json", "lingua": "en"}
+
+
 def sapere(cfg, paesi, errori, adesso):
     """Il programma studia da solo: per pochi Stati a giro legge su Wikipedia (italiano, poi inglese) le voci
-    sulle forze armate e sulla storia, e le tiene con titolo, indirizzo e data. È un'enciclopedia aperta:
-    serve per orientarsi, non come conferma."""
+    sulle forze armate e sulla storia e, dalla copia d'archivio del World Factbook, la parte su forze armate e
+    sicurezza. Tiene titolo, indirizzo e data. Sono fonti per orientarsi, non conferme."""
     imp = cfg.get("sapere", {})
     if not imp.get("attivo", True):
         return 0
@@ -1249,15 +1364,18 @@ def sapere(cfg, paesi, errori, adesso):
         except (OSError, ValueError):
             S_ = {}
     vecchio = (adesso - timedelta(days=imp.get("giorni", 90))).date().isoformat()
-    da_fare = [x for x in paesi if S_.get(x, {}).get("data", "") < vecchio][:imp.get("per_giro", 4)]
+    fbm = imp.get("factbook", {})
+    da_fare = [x for x in paesi if S_.get(x, {}).get("data", "") < vecchio
+               or (x in fbm and "factbook" not in S_.get(x, {}) and "factbook_no" not in S_.get(x, {}))][:imp.get("per_giro", 4)]
     for st_ in da_fare:
         nomi = paesi[st_]
         en = nome_inglese(nomi)
-        voce = {"data": adesso.date().isoformat()}
+        fresco = S_.get(st_, {}).get("data", "") >= vecchio  # Wikipedia è già stata letta di recente: manca solo il Factbook
+        voce = dict(S_[st_]) if fresco else {"data": adesso.date().isoformat()}
         riuscito = True
         radice = re.sub(r"[^a-z]", "", nomi[0].lower())[:5]
-        for chiave, q_it, q_en in (("forze", "forze armate " + nomi[0], en + " armed forces military"),
-                                   ("storia", "storia " + nomi[0], "history of " + en)):
+        for chiave, q_it, q_en in (() if fresco else (("forze", "forze armate " + nomi[0], en + " armed forces military"),
+                                                      ("storia", "storia " + nomi[0], "history of " + en))):
             try:
                 for lingua, q_ in (("it", q_it), ("en", q_en)):
                     v = wikipedia(lingua, q_)
@@ -1272,12 +1390,18 @@ def sapere(cfg, paesi, errori, adesso):
                 break
         if not riuscito:
             break  # il sito non risponde: si riprova al prossimo giro, senza insistere
+        if st_ in fbm and "factbook" not in voce:
+            try:
+                fb_ = factbook(fbm[st_])
+                if fb_:
+                    voce["factbook"] = fb_
+                else:
+                    voce["factbook_no"] = adesso.date().isoformat()
+            except Exception as e:
+                errori.append(f"World Factbook ({st_}): {e}")
         S_[st_] = voce
     if da_fare or (S_ and not os.path.exists(os.path.join(WEB, "sapere.js"))):
-        scrivi_json(perc, S_)
-        with open(os.path.join(WEB, "sapere.js.tmp"), "w", encoding="utf-8") as f:
-            f.write("window.SAPERE = " + json.dumps({k: v for k, v in S_.items() if len(v) > 1}, ensure_ascii=False) + ";\n")
-        os.replace(os.path.join(WEB, "sapere.js.tmp"), os.path.join(WEB, "sapere.js"))
+        scrivi_sapere(S_)
     return sum(1 for v in S_.values() if len(v) > 1)
 
 
@@ -1315,7 +1439,7 @@ def memoria_stati(archivio, adesso, cfg):
     return nuovi, sum(len(l) for l in M.values())
 
 
-NOMI_TAPPE = {"temi": "ricerche per tema", "stati": "rotazione degli Stati", "ricerca": "ricerca autonoma",
+NOMI_TAPPE = {"temi": "ricerche per tema", "stati": "rotazione degli Stati", "ricerca": "ricerca autonoma", "lingue": "giro delle lingue",
               "feed": "feed delle testate", "telegram": "Telegram", "video": "YouTube", "altro": "altro"}
 
 
@@ -1791,6 +1915,24 @@ def _aggiorna():
             scrivi_json(perc_r, R)
 
     tappa("ricerca")
+    # 1d. Giro delle lingue: a ogni giro tre lingue diverse (a rotazione su tutte), le notizie di difesa, governo e
+    # sicurezza dalla stampa che scrive in quella lingua. Il cervello traduce i titoli; lo Stato si riconosce dopo.
+    gl_ = cfg.get("giro_lingue", {})
+    if gl_.get("attivo", True):
+        lingue_ = [l for l in PAROLE_LOCALI if l in EDIZIONI]
+        perc_l = os.path.join(DATI, "lingue.json")
+        st_l = leggi_json(perc_l, {"i": 0})
+        for n_ in range(min(gl_.get("per_giro", 3), len(lingue_))):
+            lg_ = lingue_[(st_l.get("i", 0) + n_) % len(lingue_)]
+            try:
+                for t_, l_, d_, f_, s_ in list(google_news(PAROLE_LOCALI[lg_].strip("()"), lg_))[:gl_.get("voci", 30)]:
+                    notizia("Difesa e forze armate", t_, l_, d_, f_, s_, lingua=lg_)
+            except Exception as e:
+                errori.append(f"Google News (lingua {lg_}): {e}")
+            time.sleep(imp_auto.get("pausa_google", 1))
+        st_l["i"] = (st_l.get("i", 0) + gl_.get("per_giro", 3)) % max(len(lingue_), 1)
+        scrivi_json(perc_l, st_l)
+    tappa("lingue")
     # 2. Feed RSS: fissi, candidati, scoperti da soli, aggiunti a mano
     for f in elenco_fonti(cfg, mie, auto):
         st = auto["stato"].get(f["url"], {})
@@ -1883,7 +2025,30 @@ def _aggiorna():
         noti = {dominio(f["url"]) for f in elenco_fonti(cfg, mie, auto)}
         rinnovo = (adesso - timedelta(days=30)).isoformat()
         prove = 0
-        # prima i siti proposti dal cervello («da_provare»), poi i più citati nelle notizie di questo giro
+        # fonti fisse che non rispondono da 3 giri: cerca da solo il loro indirizzo nuovo sullo stesso sito
+        for f in elenco_fonti(cfg, mie, auto):
+            if prove >= sc.get("per_giro", 3):
+                break
+            d = dominio(f["url"])
+            if f["tipo"] not in ("fissa", "mia") or auto["stato"].get(f["url"], {}).get("fila", 0) < 3 \
+                    or auto["domini_provati"].get("rotta:" + d, "") >= rinnovo:
+                continue
+            prove += 1
+            auto["domini_provati"]["rotta:" + d] = adesso.isoformat()
+            try:
+                u = trova_feed(d)
+            except Exception:
+                u = None
+            if u and u != f["url"] and u not in {x["url"] for x in auto["scoperte"]}:
+                nf_ = {"nome": f.get("nome", d) + " (indirizzo nuovo)", "url": u, "tema": f.get("tema", "Notizie dal mondo"),
+                       "aggiunta": adesso.date().isoformat(), "sostituisce": f["url"]}
+                if f.get("stato"):
+                    nf_["stato"] = f["stato"]
+                if f.get("lv") in ("A", "B"):
+                    nf_["promossa"] = True  # è la stessa testata: tiene il livello di prima
+                auto["scoperte"].append(nf_)
+                nuove.append(nf_)
+        # poi i siti proposti dal cervello («da_provare») e i più citati nelle notizie di questo giro
         coda_ = [(x["d"], 99, x.get("stato", "")) for x in auto.get("da_provare", [])] + \
                 [(d, n, "") for d, n in sorted(citati.items(), key=lambda x: -x[1])]
         for d, n, st_ in coda_:
