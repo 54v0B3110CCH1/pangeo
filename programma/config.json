@@ -550,7 +550,7 @@
  },
  "sapere": {
   "attivo": true,
-  "per_giro": 4,
+  "per_giro": 8,
   "giorni": 90
  }
 }
