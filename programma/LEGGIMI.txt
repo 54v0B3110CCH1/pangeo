@@ -140,3 +140,13 @@ unità d'élite, uomini e mezzi, siti ufficiali, fonti) sono anche tabelle con d
   sul telefono:  http://127.0.0.1:8080/tabelle.html
   sul sito GitHub (dopo bash github.sh):  https://TUONOME.github.io/pangeo/tabelle.html
   file:  web/tabelle/*.csv (si aprono con Excel o Fogli Google) e *.json
+
+NOVITÀ 2.9 – CERCA E STUDIA DA SOLO
+- Ricerca autonoma: a ogni giro il programma si fa da solo 6 domande sugli Stati e sui temi meno coperti
+  (forze armate, appalti, basi, proteste, mercenari, accordi), le prova su Google News, tiene quelle che
+  portano notizie nuove e scarta le altre. Una volta al giorno anche il cervello ne propone fino a 8.
+- Sapere: per ogni Stato legge su Wikipedia le voci sulle forze armate e sulla storia (titolo, inizio del
+  testo, indirizzo, data). È un'enciclopedia aperta: serve per orientarsi, non come conferma.
+- YouTube: 19 canali (agenzie, centri studi, enti). Telegram: 19 canali, più quelli che trova da solo.
+- python castello.py stato   mostra le ultime ricerche fatte da solo e quanti Stati ha studiato.
+- Carico: 2 secondi tra due richieste allo stesso sito, temi alterni, al massimo 8 Stati a rotazione per giro.

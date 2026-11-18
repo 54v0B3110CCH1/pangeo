@@ -327,7 +327,19 @@
   "@DWNews",
   "@France24_en",
   "@aljazeeraenglish",
-  "@conflictly"
+  "@conflictly",
+  "@csis",
+  "@IISSorg",
+  "@CrisisGroup",
+  "@cfr",
+  "@Reuters",
+  "@AssociatedPress",
+  "@ISPIonline",
+  "@SIPRIorg",
+  "@CarnegieEndowment",
+  "@usnavalinstitute",
+  "@BBCNews",
+  "@WION"
  ],
  "giorni_archivio": 7,
  "ore_live": 72,
@@ -531,5 +543,14 @@
   "brief_ore": 4,
   "max_usd_giorno": 0.5,
   "max_usd_mese": 15.0
+ },
+ "ricerca": {
+  "attiva": true,
+  "per_giro": 6
+ },
+ "sapere": {
+  "attivo": true,
+  "per_giro": 4,
+  "giorni": 90
  }
 }
