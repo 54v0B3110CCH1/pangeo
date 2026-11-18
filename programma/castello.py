@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.8.1 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.8.2 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -41,7 +41,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
-VERSIONE = "2.8.1"
+VERSIONE = "2.8.2"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -577,11 +577,19 @@ LIVELLI_NOMI = {
           "ilsole24ore", "wsj", "jerusalem post", "arab news", "ahram", "ekathimerini", "the hill", "c-span",
           "ctv news", "middle east eye", "quotidiano nazionale", "resto del carlino", "huffpost", "milano finanza",
           "interfax", "nation thailand", "khmer times", "modern ghana", "free malaysia today", "ynetnews",
-          "il manifesto", "kyodo", "the sentry", "thesentry", "italpress", "agenparl", "unione sarda"],
+          "il manifesto", "kyodo", "the sentry", "thesentry", "italpress", "agenparl", "unione sarda",
+          "quotidiano.net", "euronews", "tgcom24", "il foglio", "la nazione", "il mattino", "gazzetta del mezzogiorno",
+          "internazionale", "libero", "tgla7", "ticinonline", "radio radicale", "agenzia dire", "cnbc", "straits times",
+          "the national", "daily star", "ndtv", "inquirer", "rudaw", "the new arab", "iranwire", "censor", "цензор",
+          "ukrainian news agency", "унн", "new voice of ukraine", "chosun", "조선일보", "매일경제", "아시아경제",
+          "파이낸셜뉴스", "sbs", "联合早报", "zaobao", "national review", "the star", "asia news network", "upi",
+          "ani news", "small wars journal", "zona militar", "ares difesa", "asian military review", "global initiative",
+          "eurasia review", "mmegi", "modern ghana", "the sun malaysia", "rúv", "ruv.is", "vijesti", "notizie geopolitiche"],
     "C": ["tass", "ria novosti", "sputnik", "rt ", "xinhua", "global times", "cgtn", "china daily",
           "presstv", "press tv", "tehran times", "irna", "kcna", "anadolu", "telegram ·", "cremlino",
           "dipartimento della difesa usa", "ministero", "kremlin", "vietnam.vn", "ukrinform", "apa.az",
-          "herald.co.zw", "al arabiya", "department of war", "сaba", "وكالة سبأ", "wam", "spa "],
+          "herald.co.zw", "al arabiya", "department of war", "сaba", "وكالة سبأ", "wam", "spa ", "united24",
+          "agenzia fides", "trend news agency", "a news", "world socialist", "unione sindacale"],
 }
 STOP = set("""
 alla alle anche ancora come con contro dalla dalle degli della delle dello dopo dove fino gli hanno nella
@@ -596,11 +604,17 @@ very what when where which while will with would year years week today about liv
 # Fonti che non portano notizie utili: sport, borsa, social, aggregatori automatici
 RUMORE = re.compile(r"yahoo sports|espn|sports illustrated|tradingview|marketbeat|marketscreener|indexbox|zazoom|"
                     r"facebook|instagram|tiktok|\bfox sports|gazzetta dello sport|corriere dello sport|tuttosport|"
-                    r"motley fool|seeking alpha|benzinga|investing\.com", re.I)
+                    r"motley fool|seeking alpha|benzinga|investing\.com|3bmeteo|orizzonte scuola|proactive financial|biggo|"
+                    r"ad-hoc-news|newsbreak|msn\b", re.I)
+
+APPRESI = {}  # livelli imparati dal programma: {nome fonte: "B" o "scarto"} (dati/fonti_auto.json)
+
 
 def livello_di(nome, predefinito=""):
     if predefinito:
         return predefinito
+    if APPRESI.get(nome) == "B":
+        return "B"
     n = " " + (nome or "").lower() + " "
     for liv in ("C", "A", "B"):
         if any(k in n for k in LIVELLI_NOMI[liv]):
@@ -680,6 +694,19 @@ def analizza(archivio, recente, auto, cfg, chiavi, dati_cielo, paesi, errori_fon
             f["scartata"] = True
             scartate.append(f["nome"])
     auto["scoperte"] = [f for f in auto.get("scoperte", []) if not f.get("scartata")]
+    # le fonti non classificate (per esempio quelle che arrivano da Google News) imparano il loro livello
+    appresi = auto.setdefault("livelli_appresi", {})
+    for f, st_ in punti.items():
+        if not f or st_[2] != "D" or f in appresi or f in promosse or f in scartate:
+            continue
+        quota_ = st_[1] / st_[0]
+        if st_[0] >= 15 and quota_ >= 0.3:
+            appresi[f] = "B"
+            promosse.append(f)
+        elif st_[0] >= 30 and quota_ < 0.03:
+            appresi[f] = "scarto"
+            scartate.append(f)
+    APPRESI.update(appresi)
     copertura = {}
     for v in voci.values():
         for p in v.get("paesi", []):
@@ -1052,6 +1079,7 @@ def _aggiorna():
     auto.setdefault("scoperte", [])
     auto.setdefault("stato", {})
     auto.setdefault("domini_provati", {})
+    APPRESI.update(auto.get("livelli_appresi", {}))
     paesi = leggi_json(os.path.join(QUI, "paesi.json"), {})
     it2en = leggi_json(os.path.join(QUI, "mappa.json"), {})
     ric = Riconoscitore(paesi)
@@ -1080,6 +1108,8 @@ def _aggiorna():
 
     def notizia(tema, titolo, link, data, fonte, sito="", filtra=False, livello="", lv="", forza=None):
         if RUMORE.search(" " + (fonte or "") + " "):
+            return
+        if APPRESI.get(fonte) == "scarto":
             return
         if filtra and not FILTRO.search(titolo):
             return
