@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.8 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.8.1 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -41,7 +41,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
-VERSIONE = "2.8"
+VERSIONE = "2.8.1"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -101,7 +101,16 @@ def scrivi_json(percorso, dati):
     os.replace(tmp, percorso)
 
 
+_ULTIMA = {}
+
+
 def scarica(url, timeout=25, intestazioni=None, corpo=None):
+    # rispetto dei siti: tra due richieste allo stesso sito passano almeno 2 secondi
+    d_ = urllib.parse.urlparse(url).netloc
+    attesa_ = 2.0 - (time.time() - _ULTIMA.get(d_, 0))
+    if attesa_ > 0:
+        time.sleep(attesa_)
+    _ULTIMA[d_] = time.time()
     h = {"User-Agent": UA, "Accept-Language": "it,en;q=0.8"}
     h.update(intestazioni or {})
     req = urllib.request.Request(url, headers=h, data=corpo)
@@ -818,7 +827,7 @@ def miglioratore(cfg, chiavi, analisi, auto, errori):
     imp = leggi_json(os.path.join(DATI, "impostazioni_auto.json"), {})
     # 1. troppi Stati scoperti: allarga la rotazione (fino a 12 per giro); pochi: la restringe
     rot = imp.get("rotazione_stati", cfg.get("rotazione_stati", 6))
-    if analisi["stati_scoperti"] > 60 and rot < 12:
+    if analisi["stati_scoperti"] > 60 and rot < 10:
         imp["rotazione_stati"] = rot + 2
         fatte.append(f"Stati senza notizie: {analisi['stati_scoperti']}. Rotazione portata da {rot} a {rot + 2} Stati per giro.")
     elif analisi["stati_scoperti"] < 25 and rot > 6:
@@ -1088,7 +1097,10 @@ def _aggiorna():
         aggiungi("notizie", v)
 
     # 1. Google News e GDELT: ricerche per tema
-    for tema in cfg.get("temi", []):
+    meta_ = (adesso.hour // 3) % 2
+    for n_tema, tema in enumerate(cfg.get("temi", [])):
+        if cfg.get("temi_alterni", True) and n_tema % 2 != meta_:
+            continue  # questo tema lo cerca il giro dopo
         for lingua in ("it", "en"):
             q = tema.get(lingua)
             if not q:
