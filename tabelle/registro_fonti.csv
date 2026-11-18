@@ -2467,3 +2467,6 @@ qg_wd_Q20949581,"Wikidata, voce «Hay Wharf» (banca dati aperta e modificabile:
 qg_wd_Q2167653,"Wikidata, voce «Rossauer Barracks» (banca dati aperta e modificabile: da confermare con una fonte ufficiale; letta il 18 novembre 2026)",https://www.wikidata.org/wiki/Q2167653
 qg_wd_Q5870509,"Wikidata, voce «Fuerte Baquedano» (banca dati aperta e modificabile: da confermare con una fonte ufficiale; letta il 18 novembre 2026)",https://www.wikidata.org/wiki/Q5870509
 qg_wd_Q126811482,"Wikidata, voce «Military Academy of Antsirabe» (banca dati aperta e modificabile: da confermare con una fonte ufficiale; letta il 18 novembre 2026)",https://www.wikidata.org/wiki/Q126811482
+qh_wd_sedi,"Wikidata, ambasciate, alte commissioni e nunziature (interrogazione del 18 novembre 2026, tolte le sedi chiuse)",https://www.wikidata.org/wiki/Q3917681
+qh_factbook,"CIA World Factbook, «People and Society» (copia d’archivio factbook.json; il Factbook ha chiuso il 4 febbraio 2026)",https://github.com/factbook/factbook.json
+qh_gini,"Banca Mondiale, indice di Gini (SI.POV.GINI), ultimo anno disponibile",https://data.worldbank.org/indicator/SI.POV.GINI

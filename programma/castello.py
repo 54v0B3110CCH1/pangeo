@@ -73,6 +73,9 @@ FILTRO = re.compile(
     r"ribell|insurg|jihad|\bisis\b|\bhamas\b|hezbollah|houthi|kremlin|cremlino|pentagon|diplomat|ambasciat|embassy|"
     r"trade (?:deal|agreement|pact|war|talks)|free trade|accord[oi] commercial|libero scambio|guerra commerciale|"
     r"export (?:control|ban)|\bwto\b|mercosur|\bbrics\b|"
+    r"\binterpol\b|europol|\boms\b|world health|outbreak|epidemi|pandemi|consolat|consulate|"
+    r"etnic|ethnic|sectarian|settari|minoranz|minorit|religious (?:freedom|violence|tension)|libertà religiosa|\bcast[ae]s?\b|"
+    r"disuguaglianz|inequalit|peace (?:deal|agreement|treaty|talks)|accord[oi] di pace|normaliz|abraham accords|accordi di abramo|"
     r"tariff|\bdazi|pipeline|gasdott|undersea|sottomarin|strait|stretto di|blockade|airspace|spazio aereo|"
     r"earthquake|terremoto|cyclone|ciclone|flood|alluvion|famine|carestia|humanitarian|umanitari|"
     r"sicurezza|security|satellit|space force|spazio",
@@ -1185,6 +1188,8 @@ MODELLI_RICERCA = [
     ("Sicurezza privata e mercenari", "en", '"{en}" mercenaries OR "private military" OR "security contractors"'),
     ("Alleanze e diplomazia", "en", '"{en}" "defense agreement" OR "security pact" OR "military cooperation"'),
     ("Accordi commerciali e dazi", "en", '"{en}" tariffs OR "trade agreement" OR "trade deal" OR sanctions OR "export controls"'),
+    ("Ambasciate e relazioni diplomatiche", "en", '"{en}" embassy (opens OR reopens OR closes OR expels OR recalls) OR "diplomatic relations"'),
+    ("Tensioni etniche, religiose e sociali", "en", '"{en}" "ethnic minority" OR "religious minority" OR sectarian OR "ethnic tensions" OR inequality'),
 ]
 
 

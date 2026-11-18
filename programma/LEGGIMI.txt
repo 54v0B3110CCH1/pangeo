@@ -176,8 +176,13 @@ NOVITÀ 2.10 – SI AMPLIA DA SOLO E TIENE IL DIARIO
   le altre una o due per sito. Se Google News rifiuta, il programma allunga da solo la pausa.
 
 NOVITÀ 2.11 – IMPARA DALLE SUE DOMANDE, VERIFICA, TI DICE CHE COSA HA AGGIUNTO
-- Tema nuovo: «Accordi commerciali e dazi» (anche sanzioni e controlli alle esportazioni), in italiano, in inglese
-  e nelle lingue del posto. I temi sono 12.
+- Temi nuovi (ora sono 16): «Accordi commerciali e dazi» (anche sanzioni e controlli alle esportazioni),
+  «Ambasciate e relazioni diplomatiche» (aperture, chiusure, espulsioni), «OMS, Interpol e organismi
+  internazionali», «Accordi di pace e normalizzazione» (tipo Accordi di Abramo), «Tensioni etniche, religiose
+  e sociali» (minoranze, caste, disuguaglianze). Feed nuovi: OMS, OMS Africa, OPS/PAHO, Europol (Interpol non
+  ha un feed: arriva dalle ricerche).
+- Nella pagina, in ogni Stato: «Ambasciate e sedi diplomatiche» (in quali Stati ha un'ambasciata e quali ne
+  hanno una lì) e «Fedi, etnie e disuguaglianze».
 - Impara quali domande rendono: per ogni tipo di domanda conta le notizie nuove che porta e usa di più i tipi
   migliori (li vedi in fondo a: python castello.py rapporto).
 - Domande di seguito: sui fatti più confermati delle ultime 24 ore si fa da solo una domanda in più per scavare
@@ -190,4 +195,5 @@ NOVITÀ 2.11 – IMPARA DALLE SUE DOMANDE, VERIFICA, TI DICE CHE COSA HA AGGIUNT
 - Nella pagina: in cima trovi «Dall'ultima volta che sei entrato» con quello che il programma ha aggiunto da
   allora (voci nuove, fonti trovate, Stati ora coperti, fatti in memoria, verifiche). Nella cartella Live il
   «Diario del programma» ha numeri, barre e confronto prima e dopo.
-- Carico: 6 domande autonome + 2 di seguito + 3 verifiche a giro (prima 8 in tutto); il resto è invariato.
+- Carico: 6 domande autonome + 2 di seguito + 3 verifiche a giro (prima 8 in tutto) e 8 temi per giro invece
+  di 6: un giro fa circa 220-230 richieste, una quarantina a Google News. Il diario conta i rifiuti.

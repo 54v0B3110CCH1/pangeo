@@ -60,6 +60,13 @@ tabella('sapere', 'Sapere: forze armate e storia da Wikipedia', 'Voci lette dal 
 tabella('copertura', 'Copertura: che cosa c’è per ogni Stato', 'Per ogni Stato, quante voci ci sono in ogni sezione. Zero vuol dire «ancora da fare» oppure «non esiste» (per esempio Stati senza esercito).',
   ['Stato', 'Governo', 'Notizie datate', 'Righe di storia', 'Trattati', 'Uomini e mezzi (stima)', 'Personale (Banca Mondiale)', 'Basi', 'Siti ufficiali', 'Unità', 'Appalti', 'Sicurezza privata', 'Sapere (Wikipedia)'],
   Object.entries(SCHEDE).map(([n, d]) => [n, d.gov ? 'sì' : 'no', (d.nz || []).length, (d.st || []).length, (d.tr || []).length, FORZE[n] ? 'sì' : 'no', POP[n] ? 'sì' : 'no', vm.runInContext('(STATI[' + JSON.stringify(n) + '].items.basi||[]).length', ctx), (SITI[n] || []).length, UNITA.filter(u => u[0] === n).length, vm.runInContext('appaltiDi(' + JSON.stringify(n) + ').length', ctx), vm.runInContext('pmcDi(' + JSON.stringify(n) + ').length', ctx), SAP[n] ? Object.keys(SAP[n]).length - 1 : 0]));
+const DIP = G('DIPLO') || {}, SF = G('SOC_FEDI') || {}, SE = G('SOC_ETNIE') || {}, SG = G('SOC_GINI') || {};
+tabella('sedi_diplomatiche', 'Ambasciate: quale Stato ha una sede in quale Stato', 'Ambasciate, alte commissioni e nunziature, una riga per coppia di Stati. Elenco aperto di Wikidata letto il 18 novembre 2026, senza le sedi segnate come chiuse; non comprende i consolati, può avere buchi e sedi sospese o chiuse da poco.',
+  ['Stato che invia', 'Stato che ospita', 'Reciproca nell’elenco', 'Fonte'],
+  Object.entries(DIP).flatMap(([a, d]) => d.fuori.map(b => [a, b, (DIP[b] && DIP[b].fuori.includes(a)) ? 'sì' : 'no', fonte('qh_wd_sedi')])));
+tabella('societa', 'Fedi, etnie e disuguaglianze per Stato', 'Composizione religiosa ed etnica (copia d’archivio del World Factbook, con gli anni della fonte) e indice di Gini della Banca Mondiale.',
+  ['Stato', 'Fedi religiose', 'Etnie e minoranze (testo originale in inglese)', 'Indice di Gini', 'Anno del Gini', 'Fonti'],
+  Object.keys(SCHEDE).filter(n => SF[n] || SE[n] || SG[n]).map(n => [n, SF[n] || '', SE[n] || '', SG[n] ? SG[n][0] : '', SG[n] ? SG[n][1] : '', fonti(['qh_factbook', 'qh_gini'])]));
 tabella('fonti_gratuite', 'Fonti gratuite da seguire', 'Banche dati, osservatori, centri studi, libri e corsi, con affidabilità e limiti.',
   ['Tema', 'Nome', 'Indirizzo', 'Che cosa offre', 'Come si accede', 'Affidabilità', 'Limiti'], FONTI.map(f => f.slice(0, 7)));
 tabella('registro_fonti', 'Registro di tutte le fonti citate', 'Ogni chiave di fonte usata nelle altre tabelle, con descrizione e indirizzo.',

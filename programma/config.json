@@ -59,6 +59,26 @@
    "nome": "Accordi commerciali e dazi",
    "it": "dazi OR \"accordo commerciale\" OR \"libero scambio\" OR sanzioni OR \"controlli alle esportazioni\"",
    "en": "tariffs OR \"trade agreement\" OR \"trade deal\" OR \"free trade\" OR sanctions OR \"export controls\""
+  },
+  {
+   "nome": "Ambasciate e relazioni diplomatiche",
+   "it": "ambasciata (apre OR riapre OR chiude OR chiusa) OR \"ambasciatore espulso\" OR \"ambasciatore richiamato\" OR \"relazioni diplomatiche\"",
+   "en": "embassy (opens OR reopens OR closes OR closed) OR \"ambassador expelled\" OR \"recalls ambassador\" OR \"diplomatic relations\" OR \"diplomatic ties\""
+  },
+  {
+   "nome": "OMS, Interpol e organismi internazionali",
+   "it": "\"Organizzazione mondiale della sanità\" OR \"allarme OMS\" OR epidemia OR Interpol OR Europol",
+   "en": "\"World Health Organization\" OR \"WHO warns\" OR outbreak OR Interpol OR Europol"
+  },
+  {
+   "nome": "Accordi di pace e normalizzazione",
+   "it": "\"accordi di Abramo\" OR \"accordo di pace\" OR \"accordo di normalizzazione\" OR \"trattato di pace\" OR \"normalizzazione dei rapporti\"",
+   "en": "\"Abraham Accords\" OR \"peace agreement\" OR \"normalization agreement\" OR \"peace deal\" OR \"peace treaty\""
+  },
+  {
+   "nome": "Tensioni etniche, religiose e sociali",
+   "it": "\"minoranza etnica\" OR \"tensioni etniche\" OR \"violenze settarie\" OR \"libertà religiosa\" OR caste OR disuguaglianze",
+   "en": "\"ethnic minority\" OR \"ethnic tensions\" OR \"sectarian violence\" OR \"religious freedom\" OR \"caste discrimination\" OR inequality"
   }
  ],
  "gdelt": [
@@ -675,6 +695,34 @@
    "filtra": true,
    "lv": "B",
    "stato": "Repubblica Dominicana"
+  },
+  {
+   "nome": "OMS (Organizzazione mondiale della sanità)",
+   "tema": "OMS, Interpol e organismi internazionali",
+   "url": "https://www.who.int/rss-feeds/news-english.xml",
+   "filtra": false,
+   "lv": "A"
+  },
+  {
+   "nome": "OMS Africa",
+   "tema": "OMS, Interpol e organismi internazionali",
+   "url": "https://www.afro.who.int/rss/featured-news.xml",
+   "filtra": false,
+   "lv": "A"
+  },
+  {
+   "nome": "OPS/PAHO (OMS per le Americhe)",
+   "tema": "OMS, Interpol e organismi internazionali",
+   "url": "https://www.paho.org/en/rss.xml",
+   "filtra": false,
+   "lv": "A"
+  },
+  {
+   "nome": "Europol",
+   "tema": "OMS, Interpol e organismi internazionali",
+   "url": "https://www.europol.europa.eu/rss.xml",
+   "filtra": false,
+   "lv": "B"
   }
  ],
  "youtube": [

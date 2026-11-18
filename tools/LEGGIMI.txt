@@ -9,3 +9,7 @@ Strumenti per la pagina di PanGeo (servono node, senza pacchetti).
 
 Regola: una modifica alla pagina passa sempre da uno script come build21.js (mai a mano), poi smoke.js,
 poi tabelle.js; solo dopo si pubblica.
+
+  node tools/build22.js base.html out.html      aggiunge ambasciate (Wikidata) e «Fedi, etnie e disuguaglianze»;
+                                                 i dati sono in tools/dati/dati22.json. La catena è:
+                                                 pagina senza estensioni 20-22 → build21.js → build22.js → istantanea
