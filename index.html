@@ -118,6 +118,8 @@ footer { margin-top: 36px; font-size: 13px; color: var(--muted); border-top: 1px
 .nv-top { display: grid; gap: 2px; }
 .nv-top b { font-family: var(--display); font-size: 21px; font-weight: 600; line-height: 1.2; text-wrap: balance; }
 .nv-top span { font-size: 13px; color: var(--muted); }
+.nv-fermo { border-left-color: var(--st4); }
+.nv-fermo code { font-size: 13px; background: var(--bg); padding: 1px 6px; border-radius: 6px; color: var(--ink); }
 .nv-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 @media (min-width: 560px) { .nv-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .nv-tile { background: var(--bg); border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px; align-content: start; min-width: 0; }
@@ -8885,9 +8887,14 @@ function novitaHtml() {
   const D = (liveOk() && window.LIVE.diario) || []; if (!D.length) return '';
   const giri = VISTO_PRIMA ? D.filter(x => x.iso > VISTO_PRIMA) : D.slice(-8), z = D[D.length - 1];
   const quando = VISTO_PRIMA ? new Date(VISTO_PRIMA).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : '';
-  if (!giri.length) return '<section class="nv" aria-label="Novità"><div class="nv-top"><b>Niente di nuovo dall’ultima volta</b><span>Sei entrato il ' + esc(quando) + '. L’ultimo giro del programma è del ' + esc(z.quando) + '; il prossimo arriva entro 3 ore.</span></div></section>';
+  // il programma si è fermato? Sul telefono ci si aspetta un giro all'ora (dalla 2.14), sul sito i dati arrivano ogni 3 ore
+  const sulTelefono = /^(localhost|127\.0\.0\.1)$/.test(location.hostname), minuti = Math.round((Date.now() - Date.parse(z.iso)) / 60000);
+  const durata = m => m < 120 ? m + ' minuti' : Math.floor(m / 60) + ' ore' + (m % 60 >= 10 ? ' e ' + (m % 60) + ' minuti' : '');
+  const fermo = APP_OK && minuti > (sulTelefono && z.tipo ? 95 : 200) ? '<section class="nv nv-fermo" role="status"><div class="nv-top"><b>Il programma è fermo da ' + durata(minuti) + '</b><span>L’ultimo giro è del ' + esc(z.quando) + '. Per farlo ripartire apri Termux e lancia <code>bash avvia.sh</code>, poi lascia Termux aperto in sottofondo, con la batteria su «Senza restrizioni».</span></div></section>' : '';
+  const dove = !APP_OK ? ' Su claude.ai questa è un’istantanea: i dati dal vivo sono sul telefono e sul sito.' : sulTelefono ? (z.tipo ? ' Il prossimo giro arriva entro un’ora.' : ' Il prossimo giro arriva entro 3 ore.') : ' Sul sito i dati arrivano ogni 3 ore.';
+  if (!giri.length) return fermo || '<section class="nv" aria-label="Novità"><div class="nv-top"><b>Niente di nuovo dall’ultima volta</b><span>Sei entrato il ' + esc(quando) + '. L’ultimo giro del programma è del ' + esc(z.quando) + '.' + dove + '</span></div></section>';
   const i0 = D.indexOf(giri[0]), prima = i0 > 0 ? D[i0 - 1] : giri[0], N = nvDati(D, giri, prima);
-  let o = '<section class="nv" aria-label="Novità"><div class="nv-top"><b>' + (VISTO_PRIMA ? 'Dall’ultima volta che sei entrato' : 'Che cosa ha aggiunto il programma') + '</b><span>' + (giri.length === 1 ? (VISTO_PRIMA ? 'Dal ' + esc(quando) + ': un giro del programma, il ' : 'Nell’ultimo giro del programma, il ') : (VISTO_PRIMA ? 'Dal ' + esc(quando) + ': ' : 'Negli ultimi ') + giri.length + ' giri del programma, l’ultimo il ') + esc(z.quando) + (VISTO_PRIMA && D[0].iso > VISTO_PRIMA ? ' (qui si vedono gli ultimi ' + D.length + ' giri)' : '') + '</span></div>';
+  let o = fermo + '<section class="nv" aria-label="Novità"><div class="nv-top"><b>' + (VISTO_PRIMA ? 'Dall’ultima volta che sei entrato' : 'Che cosa ha aggiunto il programma') + '</b><span>' + (giri.length === 1 ? (VISTO_PRIMA ? 'Dal ' + esc(quando) + ': un giro del programma, il ' : 'Nell’ultimo giro del programma, il ') : (VISTO_PRIMA ? 'Dal ' + esc(quando) + ': ' : 'Negli ultimi ') + giri.length + ' giri del programma, l’ultimo il ') + esc(z.quando) + (VISTO_PRIMA && D[0].iso > VISTO_PRIMA ? ' (qui si vedono gli ultimi ' + D.length + ' giri)' : '') + '</span></div>';
   o += '<div class="nv-tiles">' + nvTile(num(N.som('nuove')), 'voci nuove raccolte') + nvTile(num(N.fonti.length + N.tg.length), 'fonti e canali trovati da solo') + nvTile(num(N.coperti.length), 'Stati che prima erano senza notizie') + nvTile(num(N.som('memoria', 0)), 'fatti confermati messi in memoria') + '</div>';
   if (N.coperti.length) o += '<div class="nv-riga"><span>Stati ora coperti</span>' + nvChips(N.coperti, 8, s => '<a class="nv-chip" href="#live/' + encodeURIComponent(s) + '">' + esc(s) + '</a>') + '</div>';
   if (N.fonti.length || N.tg.length) o += '<div class="nv-riga"><span>Fonti nuove, da valutare</span>' + nvChips(N.fonti.concat(N.tg.map(c => 'Telegram: ' + c)), 4, f => '<span class="nv-chip">' + esc(f) + '</span>') + '</div>';
