@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.10 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.11 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -34,6 +34,7 @@ import http.server
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -46,7 +47,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import datetime, timedelta, timezone
 
-VERSIONE = "2.10"
+VERSIONE = "2.11"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -70,6 +71,8 @@ FILTRO = re.compile(
     r"profugh|rifugiat|embargo|treaty|trattat|intelligence|\bspy|\bspi[ae]\b|cyber|hacker|propagand|disinform|"
     r"ostagg|hostage|offensiv|invasion|occupat|frontline|shelling|artiglier|artiller|militia|milizi|rebel|"
     r"ribell|insurg|jihad|\bisis\b|\bhamas\b|hezbollah|houthi|kremlin|cremlino|pentagon|diplomat|ambasciat|embassy|"
+    r"trade (?:deal|agreement|pact|war|talks)|free trade|accord[oi] commercial|libero scambio|guerra commerciale|"
+    r"export (?:control|ban)|\bwto\b|mercosur|\bbrics\b|"
     r"tariff|\bdazi|pipeline|gasdott|undersea|sottomarin|strait|stretto di|blockade|airspace|spazio aereo|"
     r"earthquake|terremoto|cyclone|ciclone|flood|alluvion|famine|carestia|humanitarian|umanitari|"
     r"sicurezza|security|satellit|space force|spazio",
@@ -1155,16 +1158,21 @@ PAROLE_LOCALI = {"fr": "(armée OR militaire OR défense OR gouvernement OR séc
 MODELLI_LOCALI = {
     "fr": [("Industria e appalti", '"{n}" (armement OR armes OR défense) (contrat OR livraison OR accord)'),
            ("Proteste e crisi politiche", '"{n}" manifestation OR putsch OR élection OR troubles'),
-           ("Basi e truppe all’estero", '"{n}" "base militaire" OR "troupes étrangères" OR "casques bleus"')],
+           ("Basi e truppe all’estero", '"{n}" "base militaire" OR "troupes étrangères" OR "casques bleus"'),
+           ("Accordi commerciali e dazi", '"{n}" "accord commercial" OR "droits de douane" OR sanctions OR "libre-échange"')],
     "es": [("Industria e appalti", '"{n}" (armas OR armamento OR defensa) (contrato OR compra OR acuerdo)'),
            ("Proteste e crisi politiche", '"{n}" protestas OR golpe OR elecciones OR disturbios'),
-           ("Difesa e forze armate", '"{n}" "fuerzas armadas" OR militares OR ejército')],
+           ("Difesa e forze armate", '"{n}" "fuerzas armadas" OR militares OR ejército'),
+           ("Accordi commerciali e dazi", '"{n}" "acuerdo comercial" OR aranceles OR sanciones OR "libre comercio"')],
     "pt": [("Industria e appalti", '"{n}" (armas OR armamento OR defesa) (contrato OR compra OR acordo)'),
-           ("Proteste e crisi politiche", '"{n}" protestos OR golpe OR eleições')],
+           ("Proteste e crisi politiche", '"{n}" protestos OR golpe OR eleições'),
+           ("Accordi commerciali e dazi", '"{n}" "acordo comercial" OR tarifas OR sanções OR "livre comércio"')],
     "ar": [("Industria e appalti", '"{n}" (أسلحة OR تسليح OR صفقة) (الدفاع OR الجيش)'),
-           ("Proteste e crisi politiche", '"{n}" احتجاجات OR انقلاب OR انتخابات')],
+           ("Proteste e crisi politiche", '"{n}" احتجاجات OR انقلاب OR انتخابات'),
+           ("Accordi commerciali e dazi", '"{n}" "اتفاق تجاري" OR "رسوم جمركية" OR عقوبات')],
     "ru": [("Industria e appalti", '"{n}" (вооружение OR оружие OR оборона) (контракт OR поставка OR соглашение)'),
-           ("Proteste e crisi politiche", '"{n}" протесты OR переворот OR выборы')],
+           ("Proteste e crisi politiche", '"{n}" протесты OR переворот OR выборы'),
+           ("Accordi commerciali e dazi", '"{n}" "торговое соглашение" OR пошлины OR санкции')],
 }
 
 # Domande che il programma si fa da solo sugli Stati meno coperti: (tema, lingua, modello)
@@ -1176,10 +1184,18 @@ MODELLI_RICERCA = [
     ("Difesa e forze armate", "it", '"{it}" "forze armate" OR esercito OR militari OR "ministro della Difesa"'),
     ("Sicurezza privata e mercenari", "en", '"{en}" mercenaries OR "private military" OR "security contractors"'),
     ("Alleanze e diplomazia", "en", '"{en}" "defense agreement" OR "security pact" OR "military cooperation"'),
+    ("Accordi commerciali e dazi", "en", '"{en}" tariffs OR "trade agreement" OR "trade deal" OR sanctions OR "export controls"'),
 ]
 
 
+# Stati che in inglese si chiamano come in italiano, o dove il secondo nome dell'elenco è la capitale
+INGLESE = {"Russia": "Russia", "Iran": "Iran", "Taiwan": "Taiwan", "Laos": "Laos", "Eswatini": "Eswatini",
+           "Macedonia del Nord": "North Macedonia", "Bosnia ed Erzegovina": "Bosnia and Herzegovina"}
+
+
 def nome_inglese(nomi):
+    if nomi[0] in INGLESE:
+        return INGLESE[nomi[0]]
     return next((n for n in nomi[1:] if "." not in n and len(n) > 3), nomi[0])
 
 
@@ -1344,6 +1360,25 @@ def rapporto(ore=24):
         for q_, n_ in buone:
             if n_:
                 print(f"  {n_} notizie: {q_[:80]}")
+    sg = [sum(x.get("seguiti", [0, 0])[i] for x in g) for i in (0, 1)]
+    vr = [sum(x.get("verifiche", [0, 0])[i] for x in g) for i in (0, 1)]
+    print(f"Domande di seguito sui fatti più confermati: {sg[0]}, notizie portate: {sg[1]}")
+    print(f"Verifiche attive (notizie di fonti di parte o non classificate): {vr[0]} cercate, {vr[1]} confermate da una fonte affidabile"
+          + (" (non trovare conferma non vuol dire che la notizia è falsa)" if vr[0] else ""))
+    resa_ = leggi_json(os.path.join(DATI, "ricerche.json"), {}).get("resa", {})
+    tipi_ = []
+    for m_, (p_, n_) in resa_.items():
+        if p_ >= 2:
+            if m_[0] == "R" and m_[1:].isdigit() and int(m_[1:]) < len(MODELLI_RICERCA):
+                nome_ = MODELLI_RICERCA[int(m_[1:])][0] + " (" + MODELLI_RICERCA[int(m_[1:])][1] + ")"
+            else:
+                lg_ = m_.rstrip("0123456789")
+                j_ = int(m_[len(lg_):] or 0)
+                nome_ = (MODELLI_LOCALI.get(lg_, [("?", "")])[j_][0] if j_ < len(MODELLI_LOCALI.get(lg_, [])) else "?") + " (" + lg_ + ")"
+            tipi_.append((n_ / p_, nome_, p_))
+    if tipi_:
+        print("Tipi di domanda che rendono di più (notizie nuove per prova): "
+              + " · ".join(f"{nome_} {resa2_:.1f}".replace(".", ",") for resa2_, nome_, p_ in sorted(tipi_, reverse=True)[:5]))
     rif = {}
     for x in g:
         for k, v in x.get("rifiuti", {}).items():
@@ -1354,6 +1389,68 @@ def rapporto(ore=24):
     print(f"Titoli tradotti in archivio: {z.get('tradotti', 0)} · spesa del cervello: oggi {z.get('usd_oggi', 0):.4f} $, questo mese {z.get('usd_mese', 0):.4f} $")
     if len(g) < 2:
         print("Per vedere dove migliora servono almeno due giri: riprova più tardi.")
+
+
+CHIAVI_NO = set("""yesterday today tomorrow monday tuesday wednesday thursday friday saturday sunday january february
+march april june july august september october november december announcement statement joint breaking report
+reports according latest watch read full minister ministry president government official officials spokesman
+oggi ieri domani lunedì martedì mercoledì giovedì venerdì sabato domenica gennaio febbraio marzo aprile maggio
+giugno luglio agosto settembre ottobre novembre dicembre nonostante secondo governo ministro ministero presidente
+telegram video foto""".split())
+
+
+def parole_chiave(titolo, escludi=(), quante=4):
+    """Le parole che distinguono un titolo: prima nomi propri e numeri, poi le più lunghe."""
+    escl = {w for e in escludi for w in re.findall(r"[^\W_]+", e.lower())} | CHIAVI_NO
+    viste, proprie, altre = set(), [], []
+    for i, w in enumerate(re.findall(r"[^\W_]{3,}", titolo or "")):
+        wl = w.lower()
+        if wl in viste or wl in STOP or wl in escl or (len(w) < 4 and not w.isdigit()):
+            continue
+        viste.add(wl)
+        (proprie if (w[0].isupper() and i > 0) or w.isdigit() else altre).append(w)
+    altre.sort(key=len, reverse=True)
+    return (proprie + altre)[:quante]
+
+
+def lingua_titolo(t):
+    n = " " + (t or "").lower() + " "
+    n = re.sub(r"[^\w\s’']", " ", n).replace("’", "' ").replace("'", "' ")
+    it = sum(n.count(w) for w in (" il ", " la ", " di ", " che ", " per ", " del ", " della ", " con ", " gli ", " dei ", " nel ",
+                                  " i ", " e ", " le ", " un ", " una ", " non ", " si ", " da ", " al ", " alla ", " è ", " l' "))
+    en = sum(n.count(w) for w in (" the ", " of ", " and ", " to ", " for ", " with ", " says ", " after ", " over ", " as ",
+                                  " is ", " on ", " at ", " by ", " from ", " its ", " has "))
+    if it == en:
+        return "it" if re.search(r"[àèéìòù]", n) else "en"
+    return "it" if it > en else "en"
+
+
+def _tieni_sveglio():
+    """Sul telefono: tiene sveglio Termux e riaccende il giro automatico (cron) se si era fermato."""
+    try:
+        if shutil.which("termux-wake-lock"):
+            subprocess.run(["termux-wake-lock"], check=False, timeout=15)
+        if shutil.which("crond") and _cron_vivo() is False:
+            subprocess.run(["crond"], check=False, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def _avvio_al_riavvio():
+    """Con l'app Termux:Boot installata, PanGeo riparte da solo quando il telefono si riaccende.
+    Senza quell'app il file resta lì e non fa nulla."""
+    casa = os.path.expanduser("~/.termux")
+    if not os.path.isdir(casa):
+        return
+    try:
+        os.makedirs(os.path.join(casa, "boot"), exist_ok=True)
+        perc = os.path.join(casa, "boot", "pangeo.sh")
+        with open(perc, "w", encoding="utf-8") as f:
+            f.write("#!/data/data/com.termux/files/usr/bin/sh\n# PanGeo: riparte dopo il riavvio del telefono (lo scrive castello.py serve)\n"
+                    "termux-wake-lock\ncrond\ncd %s && nohup python castello.py serve >/dev/null 2>&1 &\n" % shlex.quote(QUI))
+        os.chmod(perc, 0o700)
+    except OSError:
+        pass
 
 
 def _cron_vivo():
@@ -1420,6 +1517,7 @@ def aggiorna():
         pass
     with open(blocco, "w", encoding="utf-8") as f:
         f.write(str(os.getpid()))
+    _tieni_sveglio()  # ogni giro si assicura che il prossimo parta
     try:
         _aggiorna()
     finally:
@@ -1455,6 +1553,7 @@ def _aggiorna():
     canali = leggi_json(os.path.join(DATI, "canali.json"), {})
     errori, contati, citati = [], 0, {}
     citati_stato, tappe, _prima, inizio_ = {}, {}, [0], time.time()
+    in_verifica, conferme_ver, n_seguiti, nuove_seguiti = [], {}, 0, 0
     RICHIESTE.clear()
     RIFIUTI.clear()
 
@@ -1572,36 +1671,118 @@ def _aggiorna():
             R = leggi_json(perc_r, {"code": []})
             code = R.setdefault("code", [])
             note_ = {x["q"] for x in code}
+            # impara quali tipi di domanda rendono: notizie nuove per prova, per ogni modello (R["resa"]).
+            # I tre modelli migliori vengono usati il doppio; quelli mai provati partono alti, così si provano tutti.
+            resa = R.setdefault("resa", {})
+
+            def voto(m_):
+                p_, n2_ = resa.get(m_, [0, 0])
+                return n2_ / p_ if p_ else 99
+
+            classifica = sorted(range(len(MODELLI_RICERCA)), key=lambda i_: -voto("R%d" % i_))
+            ciclo_ = classifica[:3] * 2 + classifica[3:]
             if sum(1 for x in code if not x.get("prove")) < 12:
                 for n_, stato_ in enumerate(ordine[:14]):
                     nomi = paesi[stato_]
-                    tema_, l_, modello = MODELLI_RICERCA[(R.get("giro", 0) + n_) % len(MODELLI_RICERCA)]
+                    i_ = ciclo_[(R.get("giro", 0) + n_) % len(ciclo_)]
+                    tema_, l_, modello = MODELLI_RICERCA[i_]
+                    m_ = "R%d" % i_
                     q_ = modello.format(it=nomi[0], en=nome_inglese(nomi))
                     loc = LOCALE.get(stato_) if cfg.get("lingue_locali", True) else None
                     if loc and (R.get("giro", 0) + n_) % 2 and loc[0] in MODELLI_LOCALI:
-                        scelta_ = MODELLI_LOCALI[loc[0]]
-                        tema_, modello = scelta_[(R.get("giro", 0) // 2) % len(scelta_)]
-                        l_, q_ = loc[0], modello.format(n=loc[1])
+                        scelta_ = sorted(range(len(MODELLI_LOCALI[loc[0]])), key=lambda j_: -voto(loc[0] + str(j_)))
+                        j_ = scelta_[(R.get("giro", 0) // 2) % len(scelta_)]
+                        tema_, modello = MODELLI_LOCALI[loc[0]][j_]
+                        l_, q_, m_ = loc[0], modello.format(n=loc[1]), loc[0] + str(j_)
                     if q_ not in note_:
-                        code.append({"q": q_, "l": l_, "stato": stato_, "tema": tema_, "da": "programma", "prove": 0, "nuove": 0, "ultimo": ""})
+                        code.append({"q": q_, "l": l_, "stato": stato_, "tema": tema_, "da": "programma", "m": m_,
+                                     "prove": 0, "nuove": 0, "ultimo": ""})
                         note_.add(q_)
             ieri_ = (adesso - timedelta(hours=24)).isoformat()
             scelte = sorted((x for x in code if x.get("ultimo", "") < ieri_),
                             key=lambda x: (x.get("prove", 0) > 0, -(x.get("nuove", 0) / max(x.get("prove", 1), 1))))[:ra.get("per_giro", 6)]
-            for x in scelte:
+
+            def nome_per(stato2_, lingua2_):  # il nome dello Stato nella lingua della domanda
+                loc2_ = LOCALE.get(stato2_)
+                if loc2_ and loc2_[0] == lingua2_:
+                    return loc2_[1]
+                return paesi[stato2_][0] if lingua2_ == "it" else nome_inglese(paesi[stato2_])
+
+            extra = []  # domande nate dai fatti: si provano subito, una volta sola
+            # domande di seguito: sui fatti più confermati delle ultime 24 ore il programma scava più a fondo
+            seguiti = R.setdefault("seguiti", [])
+            fatti_ = sorted((v for v in archivio["notizie"].values()
+                             if v.get("conf") and (v.get("nf") or 1) >= 4 and (v.get("data_iso") or "") >= ieri_ and v.get("paesi")),
+                            key=lambda v: -(v.get("nf") or 1))
+            for v in fatti_:
+                if len([x for x in extra if x["da"] == "seguito"]) >= ra.get("seguiti_per_giro", 2):
+                    break
+                st2_ = v["paesi"][0]
+                if st2_ not in paesi:
+                    continue
+                chiavi_ = parole_chiave(v["t"], paesi[st2_], 3)
+                firma_ = " ".join(sorted(w.lower() for w in chiavi_))
+                if len(chiavi_) < 2 or firma_ in seguiti or any(x["stato"] == st2_ for x in extra):
+                    continue
+                l2_ = v.get("lg") or lingua_titolo(v["t"])
+                seguiti.append(firma_)
+                extra.append({"q": '"%s" %s' % (nome_per(st2_, l2_), " ".join(chiavi_)), "l": l2_, "stato": st2_,
+                              "tema": v.get("tema") or "Ricerca autonoma", "da": "seguito", "prove": 0, "nuove": 0})
+            R["seguiti"] = seguiti[-300:]
+            # verifica attiva: per le notizie di fonti di parte o non classificate che nessun altro ha ancora
+            # riportato, cerca se una fonte affidabile dà lo stesso fatto. Non trovarla NON vuol dire che è falsa.
+            da12_ = (adesso - timedelta(hours=12)).isoformat()
+            dubbie_ = sorted(((k, v) for k, v in archivio["notizie"].items()
+                              if "nf" in v and not v.get("conf") and not v.get("ver") and v.get("lv") in ("C", "D")
+                              and (v.get("nf") or 1) == 1 and v.get("paesi") and (v.get("data_iso") or "") >= da12_),
+                             key=lambda kv: (kv[1].get("lv") != "C", kv[1].get("data_iso") or ""))
+            visti_st = set()
+            for k, v in dubbie_:
+                if len(in_verifica) >= ra.get("verifiche_per_giro", 3):
+                    break
+                st2_ = v["paesi"][0]
+                t2_ = v["t"]
+                l2_ = v.get("lg") or lingua_titolo(t2_)
+                if NON_LATINO.search(t2_) and not v.get("lg"):
+                    if not v.get("it"):
+                        continue  # alfabeto non latino, senza traduzione: non si sa in che lingua cercare
+                    t2_, l2_ = v["it"], "it"
+                chiavi_ = parole_chiave(t2_, paesi.get(st2_, []), 4)
+                if st2_ not in paesi or st2_ in visti_st or len(chiavi_) < 3:
+                    continue
+                visti_st.add(st2_)
+                v["ver"] = "in corso"
+                in_verifica.append(k)
+                extra.append({"q": '"%s" %s' % (nome_per(st2_, l2_), " ".join(chiavi_)), "l": l2_, "stato": st2_,
+                              "tema": v.get("tema") or "Ricerca autonoma", "da": "verifica", "prove": 0, "nuove": 0,
+                              "k": k, "chiavi": [w.lower() for w in chiavi_], "fonte": v.get("fonte", "")})
+            for x in scelte + extra:
                 prima_ = contati
                 try:
-                    for t_, l2_, d_, f_, s_ in google_news(x["q"], x["l"], 3):
+                    trovate_ = google_news(x["q"], x["l"], 3)
+                    if x.get("da") in ("seguito", "verifica"):
+                        trovate_ = list(trovate_)[:25]  # una domanda nata da un fatto non deve riempire l'archivio di una sola storia
+                    for t_, l2_, d_, f_, s_ in trovate_:
                         notizia(x.get("tema") or "Ricerca autonoma", t_, l2_, d_, f_, s_, forza=x.get("stato") or None, lingua=x["l"])
+                        # verifica: una fonte affidabile (A o B), diversa da quella di partenza, con le stesse parole chiave nel titolo
+                        if x.get("da") == "verifica" and x["k"] not in conferme_ver and f_ != x["fonte"] and livello_di(f_) in ("A", "B"):
+                            tl_ = t_.lower()
+                            if sum(1 for w in x["chiavi"] if w in tl_) >= max(3, len(x["chiavi"]) - 1):
+                                conferme_ver[x["k"]] = f_
                 except Exception as e:
                     errori.append(f"Ricerca autonoma ({x['q'][:40]}): {e}")
                 x["prove"] = x.get("prove", 0) + 1
                 x["nuove"] = x.get("nuove", 0) + contati - prima_
                 x["ultimo"] = adesso.isoformat()
+                if x.get("m"):
+                    r_ = resa.setdefault(x["m"], [0, 0])
+                    r_[0], r_[1] = r_[0] + 1, r_[1] + contati - prima_
+                if x.get("da") == "seguito":
+                    n_seguiti, nuove_seguiti = n_seguiti + 1, nuove_seguiti + contati - prima_
                 time.sleep(imp_auto.get("pausa_google", 1))
             R["code"] = [x for x in code if not (x.get("prove", 0) >= 3 and x.get("nuove", 0) == 0)][-150:]
             R["giro"] = R.get("giro", 0) + 1
-            R["ultime"] = [[x["q"], x["nuove"], x["prove"], x.get("da", "")] for x in scelte]
+            R["ultime"] = [[x["q"], x["nuove"], x["prove"], x.get("da", "")] for x in scelte + extra]
             scrivi_json(perc_r, R)
 
     tappa("ricerca")
@@ -1737,8 +1918,22 @@ def _aggiorna():
     analisi = analizza(archivio, recente, auto, cfg, chiavi, dati_cielo, paesi, rotte_)
     scrivi_json(os.path.join(DATI, "fonti_auto.json"), auto)
     brief = cervello(chiavi, cfg, archivio, recente, ric, errori)
-    if brief is not None or chiavi.get("anthropic_key"):
-        scrivi_json(os.path.join(DATI, "archivio.json"), archivio)  # con le traduzioni
+    # esito delle verifiche attive: «confermata» se adesso un'altra fonte affidabile riporta lo stesso fatto
+    ver_giro = [len(in_verifica), 0]
+    if in_verifica:
+        R_ = leggi_json(os.path.join(DATI, "ricerche.json"), {})
+        for k_ in in_verifica:
+            v_ = archivio["notizie"].get(k_)
+            if not v_:
+                continue
+            ok_ = bool(v_.get("conf")) or k_ in conferme_ver
+            v_["ver"] = "confermata" if ok_ else "nessuna conferma"
+            ver_giro[1] += 1 if ok_ else 0
+            R_.setdefault("verifiche", []).append([adesso.strftime("%Y-%m-%d"), v_.get("it") or v_["t"], v_.get("fonte", ""),
+                                                   v_.get("lv", ""), v_["ver"], v_.get("u", ""), conferme_ver.get(k_, "")])
+        R_["verifiche"] = R_.get("verifiche", [])[-80:]
+        scrivi_json(os.path.join(DATI, "ricerche.json"), R_)
+    scrivi_json(os.path.join(DATI, "archivio.json"), archivio)  # con conferme, gruppi, verifiche e traduzioni
     analisi["segnali"] = segnali_stati(archivio, recente, analisi, dati_cielo, dati_calore)
     analisi["peggiora"] = andamento_stati(archivio)
     analisi["miglioratore"] = miglioratore(cfg, chiavi, analisi, auto, errori)
@@ -1774,7 +1969,8 @@ def _aggiorna():
         "analisi": analisi,
         "brief": brief,
         "ricerca": {"in_coda": len(leggi_json(os.path.join(DATI, "ricerche.json"), {}).get("code", [])),
-                    "ultime": leggi_json(os.path.join(DATI, "ricerche.json"), {}).get("ultime", [])},
+                    "ultime": leggi_json(os.path.join(DATI, "ricerche.json"), {}).get("ultime", []),
+                    "verifiche": leggi_json(os.path.join(DATI, "ricerche.json"), {}).get("verifiche", [])[-12:]},
         "sapere_stati": stati_studiati,
         "errori": errori,
     }
@@ -1792,6 +1988,7 @@ def _aggiorna():
         "fonti_nuove": [f["nome"] + (" (" + f["stato"] + ")" if f.get("stato") else "") for f in nuove],
         "tg_trovati": [c["canale"] for c in auto.get("telegram", [])], "sapere": stati_studiati,
         "memoria": [mem_nuovi, mem_totale], "ricerche": live["ricerca"]["ultime"],
+        "seguiti": [n_seguiti, nuove_seguiti], "verifiche": ver_giro,
         "richieste": sum(RICHIESTE.values()), "siti": sorted(RICHIESTE.items(), key=lambda x: -x[1])[:6],
         "rifiuti": dict(RIFIUTI), "errori": len(errori), "usd_oggi": conto_c.get("usd_oggi", 0),
         "usd_mese": conto_c.get("usd_mese", 0), "tradotti": sum(1 for v in archivio["notizie"].values() if v.get("it")),
@@ -2145,10 +2342,8 @@ class Gestore(http.server.SimpleHTTPRequestHandler):
 
 
 def serve(porta=8080):
-    if shutil.which("termux-wake-lock"):
-        subprocess.run(["termux-wake-lock"], check=False)  # tiene sveglio Termux
-    if shutil.which("crond") and _cron_vivo() is False:
-        subprocess.run(["crond"], check=False)  # riaccende il giro automatico se si era fermato
+    _tieni_sveglio()
+    _avvio_al_riavvio()
     threading.Thread(target=_riserva_cron, daemon=True).start()
     gestore = functools.partial(Gestore, directory=WEB)
     with http.server.ThreadingHTTPServer(("127.0.0.1", porta), gestore) as srv:

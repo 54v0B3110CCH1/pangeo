@@ -54,6 +54,11 @@
    "nome": "Basi e truppe all’estero",
    "it": "\"base militare\" OR \"truppe straniere\" OR \"ritiro delle truppe\" OR \"accordo sulle basi\"",
    "en": "\"military base\" OR \"foreign troops\" OR \"troop withdrawal\" OR \"basing agreement\" OR \"status of forces\""
+  },
+  {
+   "nome": "Accordi commerciali e dazi",
+   "it": "dazi OR \"accordo commerciale\" OR \"libero scambio\" OR sanzioni OR \"controlli alle esportazioni\"",
+   "en": "tariffs OR \"trade agreement\" OR \"trade deal\" OR \"free trade\" OR sanctions OR \"export controls\""
   }
  ],
  "gdelt": [
@@ -68,6 +73,10 @@
   {
    "tema": "Proteste e crisi politiche",
    "query": "(protest OR coup OR \"state of emergency\") sourcelang:english"
+  },
+  {
+   "tema": "Accordi commerciali e dazi",
+   "query": "(tariffs OR \"trade agreement\" OR \"trade deal\" OR \"export controls\") sourcelang:english"
   }
  ],
  "rss": [
@@ -895,7 +904,9 @@
  },
  "ricerca": {
   "attiva": true,
-  "per_giro": 8
+  "per_giro": 6,
+  "seguiti_per_giro": 2,
+  "verifiche_per_giro": 3
  },
  "sapere": {
   "attivo": true,

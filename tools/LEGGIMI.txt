@@ -4,8 +4,8 @@ Strumenti per la pagina di PanGeo (servono node, senza pacchetti).
   node tools/copertura.js index.html            che cosa manca per ogni Stato (siti, unità, basi, stime)
   node tools/smoke.js index.html live.js "" live "live/Italia"
                                                  esegue lo script della pagina con un DOM finto e prova le viste
-  node tools/build20.js base.html out.html      esempio di estensione: toglie la riga-cornice della pubblicazione,
+  node tools/build21.js base.html out.html      esempio di estensione: toglie la riga-cornice della pubblicazione,
                                                  aggiunge funzioni con sostituzioni a «àncora unica», controlla la sintassi
 
-Regola: una modifica alla pagina passa sempre da uno script come build20.js (mai a mano), poi smoke.js,
+Regola: una modifica alla pagina passa sempre da uno script come build21.js (mai a mano), poi smoke.js,
 poi tabelle.js; solo dopo si pubblica.

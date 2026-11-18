@@ -174,3 +174,20 @@ NOVITÀ 2.10 – SI AMPLIA DA SOLO E TIENE IL DIARIO
 - Rispetto dei siti, invariato: almeno 2 secondi tra due richieste allo stesso sito, un giro ogni 3 ore.
   Un giro fa circa 200 richieste in tutto: una trentina a Google News, una ventina a Telegram e a YouTube,
   le altre una o due per sito. Se Google News rifiuta, il programma allunga da solo la pausa.
+
+NOVITÀ 2.11 – IMPARA DALLE SUE DOMANDE, VERIFICA, TI DICE CHE COSA HA AGGIUNTO
+- Tema nuovo: «Accordi commerciali e dazi» (anche sanzioni e controlli alle esportazioni), in italiano, in inglese
+  e nelle lingue del posto. I temi sono 12.
+- Impara quali domande rendono: per ogni tipo di domanda conta le notizie nuove che porta e usa di più i tipi
+  migliori (li vedi in fondo a: python castello.py rapporto).
+- Domande di seguito: sui fatti più confermati delle ultime 24 ore si fa da solo una domanda in più per scavare
+  (2 a giro).
+- Verifica attiva: per le notizie di fonti di parte o non classificate che nessun altro ha riportato, cerca se una
+  fonte affidabile dà lo stesso fatto (3 a giro). L'esito è «confermata» o «nessuna conferma»: non trovare
+  conferma NON vuol dire che la notizia è falsa.
+- Sempre acceso: ogni giro tiene sveglio Termux e riaccende il giro automatico se si era fermato. Se installi
+  l'app Termux:Boot (da F-Droid) e la apri una volta, PanGeo riparte da solo anche dopo il riavvio del telefono.
+- Nella pagina: in cima trovi «Dall'ultima volta che sei entrato» con quello che il programma ha aggiunto da
+  allora (voci nuove, fonti trovate, Stati ora coperti, fatti in memoria, verifiche). Nella cartella Live il
+  «Diario del programma» ha numeri, barre e confronto prima e dopo.
+- Carico: 6 domande autonome + 2 di seguito + 3 verifiche a giro (prima 8 in tutto); il resto è invariato.
