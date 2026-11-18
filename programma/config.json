@@ -318,6 +318,354 @@
    "tema": "Disastri ed emergenze",
    "url": "https://reliefweb.int/updates/rss.xml",
    "lv": "A"
+  },
+  {
+   "nome": "Africanews",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.africanews.com/feed/rss",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Al-Monitor",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.al-monitor.com/rss",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "The Moscow Times",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.themoscowtimes.com/rss/news",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Russia"
+  },
+  {
+   "nome": "Daily Maverick (Sudafrica)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.dailymaverick.co.za/dmrss/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Sudafrica"
+  },
+  {
+   "nome": "The Japan Times",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.japantimes.co.jp/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Giappone"
+  },
+  {
+   "nome": "Channel News Asia",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "MercoPress (Sud America)",
+   "tema": "Notizie dal mondo",
+   "url": "https://en.mercopress.com/rss/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Premium Times (Nigeria)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.premiumtimesng.com/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Nigeria"
+  },
+  {
+   "nome": "InSight Crime",
+   "tema": "Notizie dal mondo",
+   "url": "https://insightcrime.org/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Dawn (Pakistan)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.dawn.com/feeds/home",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Pakistan"
+  },
+  {
+   "nome": "Kyiv Post",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.kyivpost.com/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Ucraina"
+  },
+  {
+   "nome": "Middle East Monitor",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.middleeastmonitor.com/feed/",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "ABC Australia",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.abc.net.au/news/feed/51120/rss.xml",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "RFI (in inglese)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.rfi.fr/en/rss",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Euractiv",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.euractiv.com/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "South China Morning Post",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.scmp.com/rss/91/feed",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Times of Central Asia",
+   "tema": "Notizie dal mondo",
+   "url": "https://timesca.com/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "DW",
+   "tema": "Notizie dal mondo",
+   "url": "https://rss.dw.com/rdf/rss-en-world",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Balkan Insight",
+   "tema": "Notizie dal mondo",
+   "url": "https://balkaninsight.com/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Arab News",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.arabnews.com/rss.xml",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "Astana Times",
+   "tema": "Notizie dal mondo",
+   "url": "https://astanatimes.com/feed/",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Kazakistan"
+  },
+  {
+   "nome": "Jerusalem Post",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.jpost.com/rss/rssfeedsfrontpage.aspx",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Israele"
+  },
+  {
+   "nome": "Asharq Al-Awsat",
+   "tema": "Notizie dal mondo",
+   "url": "https://english.aawsat.com/feed",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "Yonhap (Corea del Sud)",
+   "tema": "Notizie dal mondo",
+   "url": "https://en.yna.co.kr/RSS/news.xml",
+   "filtra": true,
+   "lv": "A",
+   "stato": "Corea del Sud"
+  },
+  {
+   "nome": "Iran International",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.iranintl.com/en/feed",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Iran"
+  },
+  {
+   "nome": "Nikkei Asia",
+   "tema": "Notizie dal mondo",
+   "url": "https://asia.nikkei.com/rss/feed/nar",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "El País (in inglese)",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Taipei Times",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.taipeitimes.com/xml/index.rss",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Taiwan"
+  },
+  {
+   "nome": "Vanguard (Nigeria)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.vanguardngr.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Nigeria"
+  },
+  {
+   "nome": "The New Humanitarian",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.thenewhumanitarian.org/rss/all.xml",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Daily Star (Bangladesh)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.thedailystar.net/frontpage/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Bangladesh"
+  },
+  {
+   "nome": "Focus Taiwan",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.feedburner.com/rsscna/engnews",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Taiwan"
+  },
+  {
+   "nome": "NHK World",
+   "tema": "Notizie dal mondo",
+   "url": "https://www3.nhk.or.jp/rss/news/cat6.xml",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Giappone"
+  },
+  {
+   "nome": "The Irrawaddy (Myanmar)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.irrawaddy.com/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Myanmar"
+  },
+  {
+   "nome": "Buenos Aires Times",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.batimes.com.ar/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Argentina"
+  },
+  {
+   "nome": "Radio Free Asia",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.rfa.org/english/rss2.xml",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "Agência Brasil (in inglese)",
+   "tema": "Notizie dal mondo",
+   "url": "https://agenciabrasil.ebc.com.br/en/rss/ultimasnoticias/feed.xml",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Brasile"
+  },
+  {
+   "nome": "VnExpress International",
+   "tema": "Notizie dal mondo",
+   "url": "https://e.vnexpress.net/rss/news.rss",
+   "filtra": true,
+   "lv": "C",
+   "liv": "di parte",
+   "stato": "Vietnam"
+  },
+  {
+   "nome": "Post Courier (Papua Nuova Guinea)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.postcourier.com.pg/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Papua Nuova Guinea"
+  },
+  {
+   "nome": "Islands Business (Pacifico)",
+   "tema": "Notizie dal mondo",
+   "url": "https://islandsbusiness.com/feed/",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "RNZ Pacific (Pacifico)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.rnz.co.nz/rss/pacific.xml",
+   "filtra": true,
+   "lv": "B"
+  },
+  {
+   "nome": "Jamaica Gleaner (Giamaica)",
+   "tema": "Notizie dal mondo",
+   "url": "https://jamaica-gleaner.com/feed/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Giamaica"
+  },
+  {
+   "nome": "The Tribune (Bahamas)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.tribune242.com/rss/headlines/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Bahamas"
+  },
+  {
+   "nome": "Tico Times (Costa Rica)",
+   "tema": "Notizie dal mondo",
+   "url": "https://ticotimes.net/feed",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Costa Rica"
+  },
+  {
+   "nome": "Dominican Today (Rep. Dominicana)",
+   "tema": "Notizie dal mondo",
+   "url": "https://dominicantoday.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "stato": "Repubblica Dominicana"
   }
  ],
  "youtube": [
@@ -531,26 +879,34 @@
  "cielo": true,
  "scoperta": {
   "attiva": true,
-  "per_giro": 3,
+  "per_giro": 5,
   "min_citazioni": 3,
-  "max_fonti": 80
+  "max_fonti": 200
  },
  "rotazione_stati": 6,
  "cervello": {
   "attivo": true,
   "modello": "claude-haiku-5-5",
-  "max_al_giorno": 12,
+  "max_al_giorno": 16,
   "brief_ore": 4,
   "max_usd_giorno": 0.5,
-  "max_usd_mese": 15.0
+  "max_usd_mese": 15.0,
+  "riserva_token": 1500
  },
  "ricerca": {
   "attiva": true,
-  "per_giro": 6
+  "per_giro": 8
  },
  "sapere": {
   "attivo": true,
   "per_giro": 8,
   "giorni": 90
- }
+ },
+ "scoperta_telegram": {
+  "attiva": true,
+  "per_giro": 3,
+  "max_canali": 60,
+  "min_canali": 2
+ },
+ "lingue_locali": true
 }

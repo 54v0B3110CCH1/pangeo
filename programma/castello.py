@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.9 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.10 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -16,6 +16,7 @@ Comandi:
   (da solo: cerca notizie sugli Stati meno coperti, studia gli Stati su Wikipedia, trova feed e canali nuovi)
   python castello.py chiave nome valore    salva una chiave gratuita (es. opensky_id)
   python castello.py approva               installa il programma nuovo arrivato da GitHub (mai da solo)
+  python castello.py rapporto [ore]         che cosa ha raccolto e dove è migliorato (dal diario, 24 ore)
   python castello.py salute                controlla che il cuore del programma sia sano
   python castello.py bot                   collega il tuo bot Telegram (dopo: chiave telegram_bot)
   python castello.py sincronizza           (facoltativo) scambia file con GitHub
@@ -26,6 +27,7 @@ Usa solo la libreria standard di Python: nessun pacchetto da installare.
 """
 import email.utils
 import functools
+import gzip
 import hashlib
 import html
 import http.server
@@ -39,10 +41,12 @@ import time
 import urllib.parse
 import urllib.error
 import urllib.request
+import threading
 import xml.etree.ElementTree as ET
+import zlib
 from datetime import datetime, timedelta, timezone
 
-VERSIONE = "2.9"
+VERSIONE = "2.10"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -65,7 +69,7 @@ FILTRO = re.compile(
     r"minist|presiden|summit|vertic|nuclear|nucleare|terror|weapon|\barmi\b|\barms\b|border|confin|refugee|"
     r"profugh|rifugiat|embargo|treaty|trattat|intelligence|\bspy|\bspi[ae]\b|cyber|hacker|propagand|disinform|"
     r"ostagg|hostage|offensiv|invasion|occupat|frontline|shelling|artiglier|artiller|militia|milizi|rebel|"
-    r"ribell|insurg|jihad|\bisis\b|hamas|hezbollah|houthi|kremlin|cremlino|pentagon|diplomat|ambasciat|embassy|"
+    r"ribell|insurg|jihad|\bisis\b|\bhamas\b|hezbollah|houthi|kremlin|cremlino|pentagon|diplomat|ambasciat|embassy|"
     r"tariff|\bdazi|pipeline|gasdott|undersea|sottomarin|strait|stretto di|blockade|airspace|spazio aereo|"
     r"earthquake|terremoto|cyclone|ciclone|flood|alluvion|famine|carestia|humanitarian|umanitari|"
     r"sicurezza|security|satellit|space force|spazio",
@@ -103,6 +107,7 @@ def scrivi_json(percorso, dati):
 
 
 _ULTIMA = {}
+RICHIESTE, RIFIUTI = {}, {}  # richieste fatte e rifiuti (429) per sito, nel giro in corso
 
 
 def scarica(url, timeout=25, intestazioni=None, corpo=None):
@@ -115,8 +120,24 @@ def scarica(url, timeout=25, intestazioni=None, corpo=None):
     h = {"User-Agent": UA, "Accept-Language": "it,en;q=0.8"}
     h.update(intestazioni or {})
     req = urllib.request.Request(url, headers=h, data=corpo)
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+    RICHIESTE[d_] = RICHIESTE.get(d_, 0) + 1
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            dati_ = r.read()
+            compr_ = (r.headers.get("Content-Encoding") or "").lower()
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            RIFIUTI[d_] = RIFIUTI.get(d_, 0) + 1
+        raise
+    # alcuni siti (es. UN News dal novembre 2026) mandano il feed compresso anche se non lo si chiede
+    try:
+        if dati_[:2] == b"\x1f\x8b":
+            dati_ = gzip.decompress(dati_)
+        elif "deflate" in compr_:
+            dati_ = zlib.decompress(dati_, -zlib.MAX_WBITS if dati_[:1] != b"\x78" else zlib.MAX_WBITS)
+    except (OSError, EOFError, zlib.error):
+        pass
+    return dati_
 
 
 def data_iso(testo):
@@ -230,9 +251,9 @@ def leggi_rss(contenuto):
 # ----------------------------------------------------------------------------- fonti
 
 def google_news(q, lingua, giorni=1):
-    hl, gl = ("it", "IT") if lingua == "it" else ("en", "US")
+    hl, gl, ceid = EDIZIONI.get(lingua, EDIZIONI["en"])
     url = "https://news.google.com/rss/search?" + urllib.parse.urlencode(
-        {"q": q + f" when:{giorni}d", "hl": hl, "gl": gl, "ceid": f"{gl}:{hl}"})
+        {"q": q + f" when:{giorni}d", "hl": hl, "gl": gl, "ceid": ceid})
     voci = []
     for titolo, link, data, fonte, sito in leggi_rss(scarica(url)):
         if fonte and titolo.endswith(" - " + fonte):
@@ -513,7 +534,7 @@ def calore(chiavi, it2en, errori, ore):
     percorso = os.path.join(DATI, "calore.json")
     vecchio = leggi_json(percorso, None)
     adesso = datetime.now(timezone.utc)
-    if vecchio and vecchio.get("iso", "") >= (adesso - timedelta(hours=ore)).isoformat():
+    if vecchio and vecchio.get("totale") and vecchio.get("iso", "") >= (adesso - timedelta(hours=ore)).isoformat():
         return vecchio
     righe, satellite = [], ""
     try:
@@ -575,7 +596,7 @@ LIVELLI_NOMI = {
           "euvsdisinfo", "rivista italiana difesa", "military times", "stars and stripes", "axios",
           "foreign policy", "foreign affairs", "rand", "csis", "iiss", "sipri", "chatham house", "rusi",
           "limes", "rainews", "tg24", "sky tg24", "il fatto quotidiano", "il messaggero", "avvenire",
-          "ilsole24ore", "wsj", "jerusalem post", "arab news", "ahram", "ekathimerini", "the hill", "c-span",
+          "ilsole24ore", "wsj", "jerusalem post", "ahram", "ekathimerini", "the hill", "c-span",
           "ctv news", "middle east eye", "quotidiano nazionale", "resto del carlino", "huffpost", "milano finanza",
           "interfax", "nation thailand", "khmer times", "modern ghana", "free malaysia today", "ynetnews",
           "il manifesto", "kyodo", "the sentry", "thesentry", "italpress", "agenparl", "unione sarda",
@@ -611,14 +632,33 @@ RUMORE = re.compile(r"yahoo sports|espn|sports illustrated|tradingview|marketbea
 APPRESI = {}  # livelli imparati dal programma: {nome fonte: "B" o "scarto"} (dati/fonti_auto.json)
 
 
+LIVELLI_NOMI["C"] += ["trt", "armenpress", "xinhuanet", "sputniknews", "arab news", "asharq al-awsat", "iran international",
+                      "middle east monitor", "astana times", "vnexpress", "agência brasil", "agencia brasil", "focus taiwan",
+                      "radio free asia", "radio free europe", "rfe/rl", "voa", "voice of america"]
+_RX_LIVELLI = {}
+
+
+def _regole_livelli():
+    """Nomi interi, non pezzi di parola: «efe» non deve trovare «defence», «ansa» non «Arkansas»,
+    «rt» non «Report», «a news» non «Nigeria News». I nomi in altri alfabeti restano a confronto semplice."""
+    if not _RX_LIVELLI:
+        for liv, nomi in LIVELLI_NOMI.items():
+            nomi = [k.strip() for k in nomi if k.strip()]
+            latini = sorted({re.escape(k) for k in nomi if k.isascii()}, key=len, reverse=True)
+            _RX_LIVELLI[liv] = (re.compile(r"(?<![a-z0-9])(?:" + "|".join(latini) + r")(?![a-z])"),
+                                [k for k in nomi if not k.isascii()])
+    return _RX_LIVELLI
+
+
 def livello_di(nome, predefinito=""):
     if predefinito:
         return predefinito
     if APPRESI.get(nome) == "B":
         return "B"
-    n = " " + (nome or "").lower() + " "
+    n = (nome or "").lower()
     for liv in ("C", "A", "B"):
-        if any(k in n for k in LIVELLI_NOMI[liv]):
+        rx, altri = _regole_livelli()[liv]
+        if rx.search(n) or any(k in n for k in altri):
             return liv
     return "D"
 
@@ -668,14 +708,22 @@ def analizza(archivio, recente, auto, cfg, chiavi, dati_cielo, paesi, errori_fon
     """Confronta le fonti tra loro: quante confermano ogni notizia, quanto spesso ogni fonte viene
     confermata da altre, quali Stati restano scoperti. Promuove o scarta le fonti trovate da sole."""
     voci = {k: v for k, v in archivio["notizie"].items() if (v.get("data_iso") or "") >= recente}
+    # il livello scelto a mano (config.json, fonti trovate da sole, Telegram) resta; quello indovinato
+    # dal nome della testata (Google News, GDELT) si ricalcola, così le correzioni valgono anche per l'archivio
+    fissi = {f.get("nome") for f in cfg.get("rss", []) + cfg.get("candidati", []) + auto.get("scoperte", [])}
     for v in voci.values():
-        v["lv"] = livello_di(v.get("fonte"), v.get("lv", ""))
+        f_ = v.get("fonte") or ""
+        if f_ in fissi or f_.startswith("Telegram") or v.get("liv") == "da valutare":
+            v["lv"] = livello_di(f_, v.get("lv", ""))
+        else:
+            v["lv"] = livello_di(f_)
     gruppi, esito = raggruppa(voci)
     punti = {}
     for k, v in voci.items():
         fonti = gruppi[esito[k]]["fonti"]
         altre = {f: l for f, l in fonti.items() if f != v.get("fonte")}
         v["nf"] = len(fonti)
+        v["gr"] = esito[k]  # gruppo dello stesso fatto in questo giro (serve alla memoria)
         v["conf"] = any(l in ("A", "B") for l in altre.values())
         s = punti.setdefault(v.get("fonte", ""), [0, 0, v["lv"]])
         s[0] += 1
@@ -900,16 +948,28 @@ def miglioratore(cfg, chiavi, analisi, auto, errori):
             dati_ = {"giri": m["giri"][-8:], "per_livello": analisi["per_livello"], "fonti_meno_confermate":
                      analisi.get("fonti_meno_confermate", [])[:8], "stati_scoperti": analisi.get("esempi_scoperti", [])[:20],
                      "errori": errori[:10], "fatte": m["fatte"][-5:]}
+            conto_ = leggi_json(os.path.join(DATI, "cervello.json"), {})
             m["rapporto"] = chiedi_claude(chiavi, cfg, "Sei il revisore di un programma che raccoglie notizie di difesa e geopolitica "
                                           "da fonti gratuite e le confronta tra loro. Con questi numeri scrivi in italiano 3 miglioramenti "
                                           "concreti e piccoli (una riga ciascuno, che iniziano con «- »): fonti da aggiungere o togliere, "
                                           "Stati da coprire, errori da sistemare. Niente premesse. Poi scrivi una riga con la sola parola RICERCHE e sotto "
                                           "fino a 8 ricerche per Google News sugli Stati e sui temi meno coperti, una per riga, nel formato "
-                                          "lingua (it o en)|nome dello Stato in italiano|parole da cercare (con il nome dello Stato tra virgolette).\n"
-                                          + json.dumps(dati_, ensure_ascii=False)[:6000], 700)[:2500]
-            if "RICERCHE" in m["rapporto"]:
-                m["rapporto"], righe_ = m["rapporto"].split("RICERCHE", 1)
-                m["rapporto"] = m["rapporto"].strip()
+                                          "lingua (it o en)|nome dello Stato in italiano|parole da cercare (con il nome dello Stato tra virgolette). "
+                                          "Infine una riga con la sola parola FONTI e sotto fino a 6 siti di notizie o di istituzioni che hanno un "
+                                          "feed RSS e coprono gli Stati meno coperti, uno per riga, nel formato dominio|nome dello Stato in italiano.\n"
+                                          + json.dumps(dati_, ensure_ascii=False)[:6000], 1000, conto_)[:3500]
+            scrivi_json(os.path.join(DATI, "cervello.json"), conto_)
+            pezzi_ = re.split(r"(?m)^\W*RICERCHE\W*$", m["rapporto"], maxsplit=1)
+            if len(pezzi_) == 2:
+                m["rapporto"], righe_ = pezzi_[0].strip(), pezzi_[1]
+                pezzi_ = re.split(r"(?m)^\W*FONTI\W*$", righe_, maxsplit=1)
+                righe_ = pezzi_[0]
+                for riga in (pezzi_[1].splitlines() if len(pezzi_) == 2 else []):
+                    parti = [x.strip(" -•*`") for x in riga.split("|")]
+                    d_ = re.sub(r"^(https?://)?(www\.)?", "", parti[0].lower()).split("/")[0]
+                    if re.fullmatch(r"[a-z0-9][a-z0-9.-]{2,60}\.[a-z]{2,}", d_) and d_ not in ESCLUSI:
+                        auto.setdefault("da_provare", []).append({"d": d_, "stato": parti[1] if len(parti) > 1 else ""})
+                auto["da_provare"] = auto.get("da_provare", [])[-30:]
                 perc_r = os.path.join(DATI, "ricerche.json")
                 R = leggi_json(perc_r, {"code": []})
                 paesi_ = leggi_json(os.path.join(QUI, "paesi.json"), {})
@@ -944,9 +1004,20 @@ def costo_usd(modello, entrata, uscita):
     return (entrata * pi + uscita * pu) / 1e6
 
 
+def pulisci_brief(testo):
+    """Il riassunto nella pagina: senza segni di Markdown, senza la riga del titolo (la pagina ha già il suo)
+    e senza un ultimo punto rimasto a metà."""
+    righe = [r.strip() for r in (testo or "").replace("**", "").replace("__", "").splitlines()]
+    righe = [r for r in righe if r and not re.match(r"^#*\s*«?da sapere adesso»?\s*:?$", r, re.I)]
+    if len(righe) > 1 and righe[-1].startswith("-") and not righe[-1].endswith((")", ".", "»", '"', "!", "?")):
+        righe.pop()
+    return "\n".join(righe)
+
+
 def chiedi_claude(chiavi, cfg, testo, massimo=900, conto=None):
     modello = cfg.get("cervello", {}).get("modello", "claude-haiku-5-5")
-    corpo = json.dumps({"model": modello, "max_tokens": massimo,
+    # margine di token: se il modello ragiona prima di rispondere, il ragionamento consuma lo stesso tetto
+    corpo = json.dumps({"model": modello, "max_tokens": massimo + cfg.get("cervello", {}).get("riserva_token", 1500),
                         "messages": [{"role": "user", "content": testo}]}).encode()
     intest = {"x-api-key": chiavi["anthropic_key"], "anthropic-version": "2023-06-01", "content-type": "application/json"}
     if chiavi.get("anthropic_workspace"):
@@ -978,7 +1049,10 @@ def chiedi_claude(chiavi, cfg, testo, massimo=900, conto=None):
         conto["usd_oggi"] = round(conto.get("usd_oggi", 0.0) + d, 5)
         conto["usd_mese"] = round(conto.get("usd_mese", 0.0) + d, 5)
         conto["token_oggi"] = conto.get("token_oggi", 0) + en + us
-    return "".join(b.get("text", "") for b in r.get("content", []) if b.get("type") == "text").strip()
+    uscita_ = "".join(b.get("text", "") for b in r.get("content", []) if b.get("type") == "text").strip()
+    if r.get("stop_reason") == "max_tokens" and "\n" in uscita_:
+        uscita_ = uscita_.rsplit("\n", 1)[0].rstrip()  # l'ultima riga è rimasta a metà: meglio toglierla
+    return uscita_
 
 
 def cervello(chiavi, cfg, archivio, recente, ric, errori):
@@ -1001,7 +1075,7 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
         tetto = 0
     voci = [(k, v) for k, v in archivio["notizie"].items() if (v.get("data_iso") or "") >= recente]
     # 1. traduzioni
-    da_tradurre = [v for _, v in voci if not v.get("it") and NON_LATINO.search(v["t"])][:40]
+    da_tradurre = [v for _, v in voci if not v.get("it") and (NON_LATINO.search(v["t"]) or v.get("lg"))][:40]
     if da_tradurre and conto["chiamate"] < tetto:
         domanda = ("Traduci in italiano questi titoli di notizie, uno per riga, nello stesso ordine e con lo "
                    "stesso numero davanti, senza commenti:\n" +
@@ -1033,7 +1107,7 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
                 testo = chiedi_claude(chiavi, cfg, domanda, 900, conto)
                 conto["chiamate"] += 1
                 conto["brief"] = {"iso": datetime.now(timezone.utc).isoformat(),
-                                  "agg": datetime.now().strftime("%d/%m %H:%M"), "testo": testo[:4000]}
+                                  "agg": datetime.now().strftime("%d/%m %H:%M"), "testo": pulisci_brief(testo)[:4000]}
             except Exception as e:
                 errori.append(f"Claude (riassunto): {re.sub(r'sk-ant-[A-Za-z0-9_-]+', '***', str(e))}")
     scrivi_json(percorso, conto)
@@ -1041,6 +1115,57 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
     return {"agg": b["agg"], "testo": b["testo"]} if b else None
 
 # ----------------------------------------------------------------------------- ricerca autonoma e sapere
+
+# Edizioni di Google News per lingua: (hl, gl, ceid)
+EDIZIONI = {"it": ("it", "IT", "IT:it"), "en": ("en", "US", "US:en"), "fr": ("fr", "FR", "FR:fr"),
+            "es": ("es-419", "US", "US:es-419"), "pt": ("pt-BR", "BR", "BR:pt-419"), "ar": ("ar", "EG", "EG:ar"),
+            "ru": ("ru", "RU", "RU:ru"), "de": ("de", "DE", "DE:de")}
+# Lingua in cui scrive la stampa del posto e nome dello Stato in quella lingua
+LOCALE = {
+    "Algeria": ("fr", "Algérie"), "Marocco": ("fr", "Maroc"), "Tunisia": ("fr", "Tunisie"), "Mauritania": ("fr", "Mauritanie"),
+    "Senegal": ("fr", "Sénégal"), "Mali": ("fr", "Mali"), "Burkina Faso": ("fr", "Burkina Faso"), "Niger": ("fr", "Niger"),
+    "Ciad": ("fr", "Tchad"), "Camerun": ("fr", "Cameroun"), "Gabon": ("fr", "Gabon"), "Congo": ("fr", "Congo-Brazzaville"),
+    "RD Congo": ("fr", "RDC"), "Repubblica Centrafricana": ("fr", "Centrafrique"), "Costa d’Avorio": ("fr", "Côte d'Ivoire"),
+    "Guinea": ("fr", "Guinée"), "Benin": ("fr", "Bénin"), "Togo": ("fr", "Togo"), "Burundi": ("fr", "Burundi"),
+    "Ruanda": ("fr", "Rwanda"), "Gibuti": ("fr", "Djibouti"), "Madagascar": ("fr", "Madagascar"), "Comore": ("fr", "Comores"),
+    "Haiti": ("fr", "Haïti"), "Lussemburgo": ("fr", "Luxembourg"), "Monaco": ("fr", "Monaco"),
+    "Messico": ("es", "México"), "Guatemala": ("es", "Guatemala"), "Honduras": ("es", "Honduras"), "El Salvador": ("es", "El Salvador"),
+    "Nicaragua": ("es", "Nicaragua"), "Costa Rica": ("es", "Costa Rica"), "Panama": ("es", "Panamá"), "Cuba": ("es", "Cuba"),
+    "Repubblica Dominicana": ("es", "República Dominicana"), "Colombia": ("es", "Colombia"), "Venezuela": ("es", "Venezuela"),
+    "Ecuador": ("es", "Ecuador"), "Perù": ("es", "Perú"), "Bolivia": ("es", "Bolivia"), "Cile": ("es", "Chile"),
+    "Argentina": ("es", "Argentina"), "Paraguay": ("es", "Paraguay"), "Uruguay": ("es", "Uruguay"),
+    "Guinea Equatoriale": ("es", "Guinea Ecuatorial"),
+    "Brasile": ("pt", "Brasil"), "Angola": ("pt", "Angola"), "Mozambico": ("pt", "Moçambique"), "Capo Verde": ("pt", "Cabo Verde"),
+    "Guinea-Bissau": ("pt", "Guiné-Bissau"), "São Tomé e Príncipe": ("pt", "São Tomé e Príncipe"), "Timor Est": ("pt", "Timor-Leste"),
+    "Egitto": ("ar", "مصر"), "Arabia Saudita": ("ar", "السعودية"), "Iraq": ("ar", "العراق"), "Siria": ("ar", "سوريا"),
+    "Libano": ("ar", "لبنان"), "Giordania": ("ar", "الأردن"), "Libia": ("ar", "ليبيا"), "Sudan": ("ar", "السودان"),
+    "Yemen": ("ar", "اليمن"), "Oman": ("ar", "سلطنة عمان"), "Kuwait": ("ar", "الكويت"), "Qatar": ("ar", "قطر"),
+    "Bahrein": ("ar", "البحرين"), "Emirati Arabi": ("ar", "الإمارات"), "Palestina": ("ar", "فلسطين"),
+    "Kazakistan": ("ru", "Казахстан"), "Uzbekistan": ("ru", "Узбекистан"), "Turkmenistan": ("ru", "Туркменистан"),
+    "Tagikistan": ("ru", "Таджикистан"), "Kirghizistan": ("ru", "Киргизия"), "Bielorussia": ("ru", "Беларусь"),
+    "Armenia": ("ru", "Армения"), "Azerbaigian": ("ru", "Азербайджан"),
+    "Austria": ("de", "Österreich"), "Svizzera": ("de", "Schweiz"), "Liechtenstein": ("de", "Liechtenstein"),
+}
+PAROLE_LOCALI = {"fr": "(armée OR militaire OR défense OR gouvernement OR sécurité)",
+                 "es": "(ejército OR militar OR defensa OR gobierno OR seguridad)",
+                 "pt": "(exército OR militar OR defesa OR governo OR segurança)",
+                 "ar": "(الجيش OR الدفاع OR الحكومة OR الأمن)",
+                 "ru": "(армия OR оборона OR правительство OR безопасность)",
+                 "de": "(Armee OR Militär OR Verteidigung OR Regierung OR Sicherheit)"}
+MODELLI_LOCALI = {
+    "fr": [("Industria e appalti", '"{n}" (armement OR armes OR défense) (contrat OR livraison OR accord)'),
+           ("Proteste e crisi politiche", '"{n}" manifestation OR putsch OR élection OR troubles'),
+           ("Basi e truppe all’estero", '"{n}" "base militaire" OR "troupes étrangères" OR "casques bleus"')],
+    "es": [("Industria e appalti", '"{n}" (armas OR armamento OR defensa) (contrato OR compra OR acuerdo)'),
+           ("Proteste e crisi politiche", '"{n}" protestas OR golpe OR elecciones OR disturbios'),
+           ("Difesa e forze armate", '"{n}" "fuerzas armadas" OR militares OR ejército')],
+    "pt": [("Industria e appalti", '"{n}" (armas OR armamento OR defesa) (contrato OR compra OR acordo)'),
+           ("Proteste e crisi politiche", '"{n}" protestos OR golpe OR eleições')],
+    "ar": [("Industria e appalti", '"{n}" (أسلحة OR تسليح OR صفقة) (الدفاع OR الجيش)'),
+           ("Proteste e crisi politiche", '"{n}" احتجاجات OR انقلاب OR انتخابات')],
+    "ru": [("Industria e appalti", '"{n}" (вооружение OR оружие OR оборона) (контракт OR поставка OR соглашение)'),
+           ("Proteste e crisi politiche", '"{n}" протесты OR переворот OR выборы')],
+}
 
 # Domande che il programma si fa da solo sugli Stati meno coperti: (tema, lingua, modello)
 MODELLI_RICERCA = [
@@ -1135,6 +1260,127 @@ def sapere(cfg, paesi, errori, adesso):
     return sum(1 for v in S_.values() if len(v) > 1)
 
 
+# ----------------------------------------------------------------------------- memoria e diario
+
+def memoria_stati(archivio, adesso, cfg):
+    """La memoria che cresce da sola: per ogni Stato i fatti confermati da più fonti, tenuti 120 giorni
+    (al massimo 40 per Stato). È ciò che resta quando le notizie escono dall'archivio di 7 giorni."""
+    perc = os.path.join(DATI, "memoria.json")
+    M = leggi_json(perc, {})
+    da_ = (adesso - timedelta(hours=30)).isoformat()
+    limite = (adesso - timedelta(days=cfg.get("memoria_giorni", 120))).date().isoformat()
+    nuovi, visti = 0, set()
+    ordine = {"A": 0, "B": 1, "C": 2, "D": 3}
+    # prima i fatti con più fonti e, a parità, la fonte di livello migliore: di ogni fatto resta una riga sola
+    for v in sorted(archivio["notizie"].values(), key=lambda v: (-(v.get("nf") or 1), ordine.get(v.get("lv"), 3))):
+        if not v.get("conf") or (v.get("nf") or 1) < 2 or (v.get("data_iso") or "") < da_:
+            continue
+        p_ = parole(v.get("it") or v["t"])
+        for st_ in v.get("paesi", [])[:3]:
+            if (st_, v.get("gr")) in visti:
+                continue
+            visti.add((st_, v.get("gr")))
+            l = M.setdefault(st_, [])
+            if any(len(p_ & set(x[5].split())) >= 0.4 * max(len(p_ | set(x[5].split())), 1) for x in l):
+                continue  # lo stesso fatto c'è già
+            l.append([v["data_iso"][:10], v.get("it") or v["t"], v.get("fonte", ""), v.get("nf") or 1, v.get("u", ""),
+                      " ".join(sorted(p_)), v.get("lv", "")])
+            nuovi += 1
+    for st_ in list(M):
+        M[st_] = sorted((x for x in M[st_] if x[0] >= limite), key=lambda x: x[0], reverse=True)[:cfg.get("memoria_per_stato", 40)]
+        if not M[st_]:
+            del M[st_]
+    scrivi_json(perc, M)
+    return nuovi, sum(len(l) for l in M.values())
+
+
+NOMI_TAPPE = {"temi": "ricerche per tema", "stati": "rotazione degli Stati", "ricerca": "ricerca autonoma",
+              "feed": "feed delle testate", "telegram": "Telegram", "video": "YouTube", "altro": "altro"}
+
+
+def rapporto(ore=24):
+    """Che cosa ha preso il programma nelle ultime ore, quanto, da dove, e dove è migliorato (dal diario)."""
+    diario = leggi_json(os.path.join(DATI, "diario.json"), [])
+    da_ = (datetime.now(timezone.utc) - timedelta(hours=ore)).isoformat()
+    g = [x for x in diario if x.get("iso", "") >= da_]
+    if not g:
+        print(f"Nessun giro nel diario nelle ultime {ore} ore. Controlla con:  python castello.py salute")
+        return
+    i0 = diario.index(g[0])
+    a, z = (diario[i0 - 1] if i0 else g[0]), g[-1]
+    pd = lambda x: round(100 * x["livelli"].get("D", 0) / max(sum(x["livelli"].values()), 1))
+    print(f"Diario delle ultime {ore} ore: {len(g)} giri, dal {g[0]['quando']} al {z['quando']} (versione {z['v']})")
+    print(f"Voci nuove raccolte: {sum(x['nuove'] for x in g)}")
+    da_dove = {}
+    for x in g:
+        for k, v in x.get("da", {}).items():
+            da_dove[k] = da_dove.get(k, 0) + v
+    for k, v in sorted(da_dove.items(), key=lambda x: -x[1]):
+        print(f"  da {NOMI_TAPPE.get(k, k)}: {v}")
+    print(f"Notizie degli ultimi 3 giorni: da {a['live']} a {z['live']} · confermate da più fonti: dal {round(100 * a['quota'])}% al {round(100 * z['quota'])}%")
+    print(f"Fonti non classificate (livello D): dal {pd(a)}% al {pd(z)}% delle notizie")
+    print(f"Stati senza notizie: da {a['scoperti']} a {z['scoperti']}")
+    ora_ = sorted(set(a.get("senza", [])) - set(z.get("senza", [])))
+    persi_ = sorted(set(z.get("senza", [])) - set(a.get("senza", [])))
+    if ora_:
+        print("  ora coperti:", ", ".join(ora_))
+    if persi_:
+        print("  tornati senza notizie:", ", ".join(persi_))
+    print(f"Feed attivi: da {a['fonti'][0]} a {z['fonti'][0]} (su {z['fonti'][1]})")
+    fn = [n for x in g for n in x.get("fonti_nuove", [])]
+    if fn:
+        print("  feed trovati da solo:", ", ".join(fn))
+    tg = sorted(set(z.get("tg_trovati", [])) - set(a.get("tg_trovati", [])))
+    if tg:
+        print("  canali Telegram trovati da solo:", ", ".join(tg))
+    print(f"Stati studiati su Wikipedia: da {a.get('sapere', 0)} a {z.get('sapere', 0)} · fatti confermati in memoria: da {a['memoria'][1]} a {z['memoria'][1]}")
+    rese = {}
+    for x in g:
+        for q_, nuove_, prove_, da_chi in x.get("ricerche", []):
+            rese[q_] = max(rese.get(q_, 0), nuove_)
+    buone = sorted(rese.items(), key=lambda x: -x[1])[:5]
+    if buone:
+        print(f"Ricerca autonoma: {len(rese)} domande provate, {sum(1 for v in rese.values() if v)} hanno portato notizie. Le migliori:")
+        for q_, n_ in buone:
+            if n_:
+                print(f"  {n_} notizie: {q_[:80]}")
+    rif = {}
+    for x in g:
+        for k, v in x.get("rifiuti", {}).items():
+            rif[k] = rif.get(k, 0) + v
+    print(f"Richieste ai siti: {sum(x['richieste'] for x in g)} in tutto, {round(sum(x['richieste'] for x in g) / len(g))} per giro · "
+          f"rifiuti per troppe richieste: {sum(rif.values())}" + (" (" + ", ".join(f"{k} {v}" for k, v in rif.items()) + ")" if rif else ""))
+    print(f"Durata media di un giro: {round(sum(x['durata'] for x in g) / len(g) / 60)} minuti · avvisi per giro: {round(sum(x['errori'] for x in g) / len(g), 1)}")
+    print(f"Titoli tradotti in archivio: {z.get('tradotti', 0)} · spesa del cervello: oggi {z.get('usd_oggi', 0):.4f} $, questo mese {z.get('usd_mese', 0):.4f} $")
+    if len(g) < 2:
+        print("Per vedere dove migliora servono almeno due giri: riprova più tardi.")
+
+
+def _cron_vivo():
+    try:
+        return subprocess.run(["pgrep", "-x", "crond"], capture_output=True).returncode == 0
+    except OSError:
+        return None
+
+
+def _riserva_cron():
+    """Riserva di cron (non un secondo ciclo): se l'ultimo giro è più vecchio di 3 ore e 20 minuti, fa partire
+    lo stesso `aggiorna`. Il blocco in dati/aggiorna.lock garantisce che ne giri sempre uno solo."""
+    while True:
+        time.sleep(600)
+        try:
+            eta = time.time() - os.path.getmtime(os.path.join(DATI, "live.json"))
+        except OSError:
+            eta = 1e9
+        if eta > 200 * 60:
+            try:
+                with open(os.path.join(DATI, "log.txt"), "a", encoding="utf-8") as log:
+                    subprocess.run([sys.executable, os.path.join(QUI, "castello.py"), "aggiorna"], stdout=log,
+                                   stderr=subprocess.STDOUT, check=False)
+            except OSError:
+                pass
+
+
 # ----------------------------------------------------------------------------- raccolta
 
 def elenco_fonti(cfg, mie, auto):
@@ -1208,6 +1454,13 @@ def _aggiorna():
     archivio.setdefault("video", {})
     canali = leggi_json(os.path.join(DATI, "canali.json"), {})
     errori, contati, citati = [], 0, {}
+    citati_stato, tappe, _prima, inizio_ = {}, {}, [0], time.time()
+    RICHIESTE.clear()
+    RIFIUTI.clear()
+
+    def tappa(nome):  # quante voci nuove ha portato ogni pezzo del giro (per il diario)
+        tappe[nome] = tappe.get(nome, 0) + contati - _prima[0]
+        _prima[0] = contati
     adesso = datetime.now(timezone.utc)
 
     def aggiungi(tipo, voce):
@@ -1220,7 +1473,7 @@ def _aggiorna():
             archivio[tipo][chiave] = voce
             contati += 1
 
-    def notizia(tema, titolo, link, data, fonte, sito="", filtra=False, livello="", lv="", forza=None):
+    def notizia(tema, titolo, link, data, fonte, sito="", filtra=False, livello="", lv="", forza=None, ripiego=None, lingua=""):
         if RUMORE.search(" " + (fonte or "") + " "):
             return
         if APPRESI.get(fonte) == "scarto":
@@ -1231,13 +1484,20 @@ def _aggiorna():
             d = dominio(sito)
             if d:
                 citati[d] = citati.get(d, 0) + 1
+                if forza:
+                    cs_ = citati_stato.setdefault(d, {})
+                    cs_[forza] = cs_.get(forza, 0) + 1
         trovati = ric.trova(titolo)
         if forza and forza not in trovati:
             trovati = [forza] + trovati[:4]
+        if ripiego and not trovati:
+            trovati = [ripiego]  # testata nazionale («stato» in config.json): le notizie locali non nominano il Paese
         v = {"t": titolo, "u": solo_http(link), "data_iso": data or adesso.isoformat(), "fonte": fonte,
              "tema": tema, "paesi": trovati, "lv": livello_di(fonte, lv)}
         if livello:
             v["liv"] = livello
+        if lingua and lingua not in ("it", "en"):
+            v["lg"] = lingua  # titolo in un'altra lingua: il cervello lo traduce
         aggiungi("notizie", v)
 
     # 1. Google News e GDELT: ricerche per tema
@@ -1271,6 +1531,7 @@ def _aggiorna():
         scrivi_json(os.path.join(DATI, "gdelt.json"), {"ultimo": stato_gdelt.get("pausa") and
                     (adesso + timedelta(hours=18)).isoformat() or adesso.isoformat()})
 
+    tappa("temi")
     # 1b. Rotazione per Stato: a ogni giro cerca notizie sugli Stati meno coperti
     imp_auto = leggi_json(os.path.join(DATI, "impostazioni_auto.json"), {})
     rot = imp_auto.get("rotazione_stati", cfg.get("rotazione_stati", 6))
@@ -1287,17 +1548,22 @@ def _aggiorna():
         for stato_ in [x for x in ordine if cop.get(x, "") < attesa][:rot]:
             nomi = paesi[stato_]
             en = next((n for n in nomi[1:] if "." not in n and len(n) > 3), nomi[0])
-            for lingua, q in (("it", f'"{nomi[0]}" (difesa OR esercito OR governo OR sicurezza)'),
-                              ("en", f'"{en}" (military OR defense OR government OR security)')):
+            # inglese più la lingua del posto (francese, spagnolo, portoghese, arabo, russo, tedesco); se non c'è, italiano
+            loc = LOCALE.get(stato_) if cfg.get("lingue_locali", True) else None
+            coppie = [("en", f'"{en}" (military OR defense OR government OR security)'),
+                      (loc[0], f'"{loc[1]}" ' + PAROLE_LOCALI[loc[0]]) if loc else
+                      ("it", f'"{nomi[0]}" (difesa OR esercito OR governo OR sicurezza)')]
+            for lingua, q in coppie:
                 try:
                     for t_, l_, d_, f_, s_ in google_news(q, lingua):
-                        notizia("Copertura degli Stati", t_, l_, d_, f_, s_, forza=stato_)
+                        notizia("Copertura degli Stati", t_, l_, d_, f_, s_, forza=stato_, lingua=lingua)
                 except Exception as e:
                     errori.append(f"Google News ({stato_}, {lingua}): {e}")
                 time.sleep(imp_auto.get("pausa_google", 1))
             cop[stato_] = adesso.isoformat()
         scrivi_json(os.path.join(DATI, "copertura.json"), cop)
 
+        tappa("stati")
         # 1c. Ricerca autonoma: il programma si fa da solo le domande sugli Stati e sui temi meno coperti,
         # le prova, tiene quelle che portano notizie nuove e scarta le altre (anche il cervello ne propone)
         ra = cfg.get("ricerca", {})
@@ -1311,6 +1577,11 @@ def _aggiorna():
                     nomi = paesi[stato_]
                     tema_, l_, modello = MODELLI_RICERCA[(R.get("giro", 0) + n_) % len(MODELLI_RICERCA)]
                     q_ = modello.format(it=nomi[0], en=nome_inglese(nomi))
+                    loc = LOCALE.get(stato_) if cfg.get("lingue_locali", True) else None
+                    if loc and (R.get("giro", 0) + n_) % 2 and loc[0] in MODELLI_LOCALI:
+                        scelta_ = MODELLI_LOCALI[loc[0]]
+                        tema_, modello = scelta_[(R.get("giro", 0) // 2) % len(scelta_)]
+                        l_, q_ = loc[0], modello.format(n=loc[1])
                     if q_ not in note_:
                         code.append({"q": q_, "l": l_, "stato": stato_, "tema": tema_, "da": "programma", "prove": 0, "nuove": 0, "ultimo": ""})
                         note_.add(q_)
@@ -1321,7 +1592,7 @@ def _aggiorna():
                 prima_ = contati
                 try:
                     for t_, l2_, d_, f_, s_ in google_news(x["q"], x["l"], 3):
-                        notizia(x.get("tema") or "Ricerca autonoma", t_, l2_, d_, f_, s_, forza=x.get("stato") or None)
+                        notizia(x.get("tema") or "Ricerca autonoma", t_, l2_, d_, f_, s_, forza=x.get("stato") or None, lingua=x["l"])
                 except Exception as e:
                     errori.append(f"Ricerca autonoma ({x['q'][:40]}): {e}")
                 x["prove"] = x.get("prove", 0) + 1
@@ -1333,6 +1604,7 @@ def _aggiorna():
             R["ultime"] = [[x["q"], x["nuove"], x["prove"], x.get("da", "")] for x in scelte]
             scrivi_json(perc_r, R)
 
+    tappa("ricerca")
     # 2. Feed RSS: fissi, candidati, scoperti da soli, aggiunti a mano
     for f in elenco_fonti(cfg, mie, auto):
         st = auto["stato"].get(f["url"], {})
@@ -1347,7 +1619,8 @@ def _aggiorna():
                 notizia(f.get("tema", "Notizie dal mondo"), titolo, link, data, f.get("nome") or fonte,
                         filtra=f.get("filtra", False),
                         livello="da valutare" if f["tipo"] == "scoperta" and not f.get("promossa") else f.get("liv", ""),
-                        lv=("B" if f.get("promossa") else "D") if f["tipo"] == "scoperta" else f.get("lv", ""))
+                        lv=("B" if f.get("promossa") else "D") if f["tipo"] == "scoperta" else f.get("lv", ""),
+                        ripiego=f.get("stato"))
             st["ok"], st["fila"] = st.get("ok", 0) + 1, 0
         except Exception as e:
             st["fila"] = st.get("fila", 0) + 1
@@ -1355,6 +1628,7 @@ def _aggiorna():
                 errori.append(f"{f.get('nome', f['url'])}: {e}")
         auto["stato"][f["url"]] = st
 
+    tappa("feed")
     # 3. Telegram: canali pubblici ufficiali (dichiarazioni di parte, non conferme)
     tg_citati = {}
     auto.setdefault("telegram", [])
@@ -1397,6 +1671,7 @@ def _aggiorna():
                 errori.append(f"Telegram {c['canale']}: {e}")
             time.sleep(1)
 
+    tappa("telegram")
     # 4. YouTube: feed dei canali, senza chiave
     for h in cfg.get("youtube", []) + mie.get("youtube", []):
         try:
@@ -1407,6 +1682,7 @@ def _aggiorna():
         except Exception as e:
             errori.append(f"YouTube {h}: {e}")
 
+    tappa("video")
     # 4b. Sapere: pochi Stati a giro studiati su Wikipedia (forze armate e storia)
     stati_studiati = sapere(cfg, paesi, errori, adesso)
 
@@ -1421,7 +1697,10 @@ def _aggiorna():
         noti = {dominio(f["url"]) for f in elenco_fonti(cfg, mie, auto)}
         rinnovo = (adesso - timedelta(days=30)).isoformat()
         prove = 0
-        for d, n in sorted(citati.items(), key=lambda x: -x[1]):
+        # prima i siti proposti dal cervello («da_provare»), poi i più citati nelle notizie di questo giro
+        coda_ = [(x["d"], 99, x.get("stato", "")) for x in auto.get("da_provare", [])] + \
+                [(d, n, "") for d, n in sorted(citati.items(), key=lambda x: -x[1])]
+        for d, n, st_ in coda_:
             if prove >= sc.get("per_giro", 3) or n < sc.get("min_citazioni", 3):
                 break
             if not d or d in noti or d in ESCLUSI or auto["domini_provati"].get(d, "") >= rinnovo:
@@ -1431,8 +1710,19 @@ def _aggiorna():
             u = trova_feed(d)
             if u:
                 f = {"nome": d, "url": u, "tema": "Scoperte automatiche (da valutare)", "aggiunta": adesso.date().isoformat()}
+                # testata di un solo Stato: quasi tutte le sue notizie sono arrivate dalle ricerche su quello Stato
+                per_st = citati_stato.get(d, {})
+                if not st_ and per_st and max(per_st.values()) >= 3 and max(per_st.values()) >= 0.8 * citati.get(d, 1):
+                    # prudenza: lo Stato si assegna solo se il suo nome (o la capitale) è nel nome del sito,
+                    # così una testata straniera che parla spesso di un Paese non viene scambiata per una testata locale
+                    cand_, dn_ = max(per_st, key=per_st.get), re.sub(r"[^a-z]", "", d.lower())
+                    if any(len(k_) >= 5 and k_ in dn_ for k_ in (re.sub(r"[^a-z]", "", n_.lower()) for n_ in paesi.get(cand_, []))):
+                        st_ = cand_
+                if st_ in paesi:
+                    f["stato"] = st_
                 auto["scoperte"].append(f)
                 nuove.append(f)
+        auto["da_provare"] = [x for x in auto.get("da_provare", []) if x["d"] not in auto["domini_provati"]][-30:]
     scrivi_json(os.path.join(DATI, "fonti_auto.json"), auto)
 
     # 7. Archivio e uscita per il Castello
@@ -1452,6 +1742,8 @@ def _aggiorna():
     analisi["segnali"] = segnali_stati(archivio, recente, analisi, dati_cielo, dati_calore)
     analisi["peggiora"] = andamento_stati(archivio)
     analisi["miglioratore"] = miglioratore(cfg, chiavi, analisi, auto, errori)
+    scrivi_json(os.path.join(DATI, "fonti_auto.json"), auto)  # con i siti proposti dal cervello
+    mem_nuovi, mem_totale = memoria_stati(archivio, adesso, cfg)
     scrivi_json(os.path.join(DATI, "analisi.json"), analisi)
 
     def elenco(tipo, massimo):
@@ -1486,6 +1778,35 @@ def _aggiorna():
         "sapere_stati": stati_studiati,
         "errori": errori,
     }
+    # diario del giro: che cosa è entrato, da dove, quanto è costato ai siti (lo legge `rapporto`, va anche su GitHub)
+    tappa("altro")
+    conto_c = leggi_json(os.path.join(DATI, "cervello.json"), {})
+    diario = leggi_json(os.path.join(DATI, "diario.json"), [])
+    diario.append({
+        "quando": datetime.now().strftime("%d/%m %H:%M"), "iso": adesso.isoformat(), "v": VERSIONE,
+        "durata": int(time.time() - inizio_), "nuove": contati, "da": {k: v for k, v in tappe.items() if v},
+        "live": analisi["notizie"], "confermate": analisi["confermate"], "quota": analisi["quota_confermate"],
+        "livelli": analisi["per_livello"], "scoperti": analisi["stati_scoperti"],
+        "senza": sorted(s_ for s_ in paesi if not analisi["per_stato"].get(s_)),
+        "fonti": [len(attive), len(tutte)],
+        "fonti_nuove": [f["nome"] + (" (" + f["stato"] + ")" if f.get("stato") else "") for f in nuove],
+        "tg_trovati": [c["canale"] for c in auto.get("telegram", [])], "sapere": stati_studiati,
+        "memoria": [mem_nuovi, mem_totale], "ricerche": live["ricerca"]["ultime"],
+        "richieste": sum(RICHIESTE.values()), "siti": sorted(RICHIESTE.items(), key=lambda x: -x[1])[:6],
+        "rifiuti": dict(RIFIUTI), "errori": len(errori), "usd_oggi": conto_c.get("usd_oggi", 0),
+        "usd_mese": conto_c.get("usd_mese", 0), "tradotti": sum(1 for v in archivio["notizie"].values() if v.get("it")),
+    })
+    scrivi_json(os.path.join(DATI, "diario.json"), diario[-120:])
+    live["diario"] = [{k: v for k, v in x.items() if k not in ("ricerche", "siti")} for x in diario[-10:]]  # per la pagina
+    try:
+        shutil.copyfile(os.path.join(DATI, "diario.json"), os.path.join(WEB, "diario.json"))
+        mem_ = leggi_json(os.path.join(DATI, "memoria.json"), {})
+        with open(os.path.join(WEB, "memoria.js.tmp"), "w", encoding="utf-8") as f:
+            f.write("window.MEMORIA=" + json.dumps({k: [[x[0], x[1], x[2], x[3], x[4], x[6] if len(x) > 6 else ""] for x in l]
+                                                    for k, l in mem_.items()}, ensure_ascii=False, separators=(",", ":")) + ";")
+        os.replace(os.path.join(WEB, "memoria.js.tmp"), os.path.join(WEB, "memoria.js"))
+    except OSError:
+        pass
     with open(os.path.join(WEB, "live.js.tmp"), "w", encoding="utf-8") as f:
         f.write("window.LIVE = " + json.dumps(live, ensure_ascii=False) + ";\n")
     os.replace(os.path.join(WEB, "live.js.tmp"), os.path.join(WEB, "live.js"))
@@ -1612,6 +1933,11 @@ def istantanea(percorso, origine="programma Castello", file_brief=None):
     snap["origine"] = origine
     if snap.get("analisi"):
         snap["analisi"] = {k: v for k, v in snap["analisi"].items() if k != "per_stato"}  # più leggero
+        seg_ = snap["analisi"].get("segnali") or {}
+        if len(seg_) > 25:  # nella pagina bastano i 25 Stati con più segnali (sono già in ordine): resta leggera
+            snap["analisi"]["segnali"] = dict(list(seg_.items())[:25])
+    if (snap.get("brief") or {}).get("testo"):
+        snap["brief"] = dict(snap["brief"], testo=pulisci_brief(snap["brief"]["testo"]))
     if file_brief and os.path.exists(file_brief):
         with open(file_brief, encoding="utf-8") as f:
             snap["brief"] = {"agg": datetime.now().strftime("%d/%m %H:%M"), "testo": f.read().strip()[:4000]}
@@ -1688,8 +2014,11 @@ def sincronizza(cfg=None, chiavi=None):
     try:
         if not os.path.isdir(os.path.join(cartella, ".git")):
             subprocess.run(["git", "clone", "--depth", "1", repo, cartella], check=True)
-        else:
-            subprocess.run(["git", "-C", cartella, "pull", "--ff-only"], check=True)
+        elif subprocess.run(["git", "-C", cartella, "pull", "--ff-only"]).returncode != 0:
+            # la cartella di scambio si è disallineata (es. un invio non riuscito): si riallinea al repository.
+            # Non si perde nulla: i dati del telefono vengono ricopiati qui sotto a ogni giro.
+            subprocess.run(["git", "-C", cartella, "fetch", "--depth", "1", "origin"], check=True)
+            subprocess.run(["git", "-C", cartella, "reset", "--hard", "FETCH_HEAD"], check=True)
         # nuove versioni del programma, se Claude le ha messe nel repository (cartella programma/)
         cambiati = []
         for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt"):
@@ -1732,11 +2061,11 @@ def sincronizza(cfg=None, chiavi=None):
                 shutil.copyfile(os.path.join(WEB, nome), dest)
                 subprocess.run(["git", "-C", cartella, "add", nome], check=True)
         # tabelle aperte (CSV e JSON con date e fonti): sul sito pubblico si leggono senza account
-        if os.path.exists(os.path.join(WEB, "tabelle.html")):
-            shutil.copyfile(os.path.join(WEB, "tabelle.html"), os.path.join(cartella, "tabelle.html"))
-            shutil.copytree(os.path.join(WEB, "tabelle"), os.path.join(cartella, "tabelle"), dirs_exist_ok=True)
-            subprocess.run(["git", "-C", cartella, "add", "tabelle.html", "tabelle"], check=True)
-        for nome in ("live.json", "live.js", "sapere.js"):
+        if os.path.exists(os.path.join(cartella, "tabelle.html")):  # le prepara Claude nel repository: il telefono le riceve
+            shutil.copyfile(os.path.join(cartella, "tabelle.html"), os.path.join(WEB, "tabelle.html"))
+            if os.path.isdir(os.path.join(cartella, "tabelle")):
+                shutil.copytree(os.path.join(cartella, "tabelle"), os.path.join(WEB, "tabelle"), dirs_exist_ok=True)
+        for nome in ("live.json", "live.js", "sapere.js", "memoria.js", "diario.json"):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -1816,6 +2145,11 @@ class Gestore(http.server.SimpleHTTPRequestHandler):
 
 
 def serve(porta=8080):
+    if shutil.which("termux-wake-lock"):
+        subprocess.run(["termux-wake-lock"], check=False)  # tiene sveglio Termux
+    if shutil.which("crond") and _cron_vivo() is False:
+        subprocess.run(["crond"], check=False)  # riaccende il giro automatico se si era fermato
+    threading.Thread(target=_riserva_cron, daemon=True).start()
     gestore = functools.partial(Gestore, directory=WEB)
     with http.server.ThreadingHTTPServer(("127.0.0.1", porta), gestore) as srv:
         print(f"PanGeo aperto su http://127.0.0.1:{porta}/  · tabelle aperte: http://127.0.0.1:{porta}/tabelle.html  (Ctrl+C per chiudere)")
@@ -1894,7 +2228,7 @@ def salute():
             stato_ = "ROTTO (" + str(e)[:60] + ")"
         ok = ok and stato_ == "ok"
         print(f"  {nome}: {stato_}")
-    for nome in ("archivio.json", "live.json", "analisi.json", "fonti_auto.json", "storico_stati.json", "miglioratore.json"):
+    for nome in ("archivio.json", "live.json", "analisi.json", "fonti_auto.json", "storico_stati.json", "miglioratore.json", "diario.json", "memoria.json"):
         p = os.path.join(DATI, nome)
         if not os.path.exists(p):
             print(f"  dati/{nome}: non ancora creato")
@@ -1909,6 +2243,20 @@ def salute():
     print("  ultimo giro:", live.get("agg", "mai"), "· versione", VERSIONE)
     if os.path.exists(os.path.join(DATI, "aggiorna.lock")):
         print("  un giro è in corso adesso (o si è interrotto: il blocco scade da solo dopo 45 minuti)")
+    try:
+        tab_ = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
+        vivo_ = _cron_vivo()
+        print("  giro automatico ogni 3 ore:", "programmato" if "castello.py aggiorna" in tab_ else "NON programmato (bash installa.sh)",
+              "·", "attivo" if vivo_ else "FERMO: lancia  bash avvia.sh")
+    except OSError:
+        print("  giro automatico: qui non si può controllare")
+    try:
+        ore_ = (time.time() - os.path.getmtime(os.path.join(DATI, "live.json"))) / 3600
+        if ore_ > 4:
+            print(f"  ATTENZIONE: l'ultimo giro è di {ore_:.0f} ore fa. Lancia  bash avvia.sh  e lascia Termux aperto.")
+    except OSError:
+        pass
+    print("  giri nel diario:", len(leggi_json(os.path.join(DATI, "diario.json"), [])), "· per il riepilogo:  python castello.py rapporto")
     print("Cuore sano." if ok else "Qualcosa non va: guarda le righe con ROTTO o VUOTO.")
 
 
@@ -1960,6 +2308,8 @@ if __name__ == "__main__":
                 print("Il cervello funziona.")
             except Exception as e:
                 print("Non funziona:", re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e)))
+    elif comando == "rapporto":
+        rapporto(int(a[1]) if len(a) > 1 and a[1].isdigit() else 24)
     elif comando == "salute":
         salute()
     elif comando == "bot":

@@ -150,3 +150,27 @@ NOVITÀ 2.9 – CERCA E STUDIA DA SOLO
 - YouTube: 19 canali (agenzie, centri studi, enti). Telegram: 19 canali, più quelli che trova da solo.
 - python castello.py stato   mostra le ultime ricerche fatte da solo e quanti Stati ha studiato.
 - Carico: 2 secondi tra due richieste allo stesso sito, temi alterni, al massimo 8 Stati a rotazione per giro.
+
+NOVITÀ 2.10 – SI AMPLIA DA SOLO E TIENE IL DIARIO
+- Più fonti fisse: 45 testate in più (Africa, Medio Oriente, Asia, Balcani, America Latina, Caraibi, Pacifico),
+  tutte provate prima di entrare. Una testata nazionale assegna le sue notizie al proprio Stato anche quando
+  il titolo non lo nomina.
+- Cerca anche nella lingua del posto: francese, spagnolo, portoghese, arabo, russo, tedesco (78 Stati).
+  I titoli in queste lingue vengono tradotti dal cervello, se è acceso.
+- Trova fonti da solo più in fretta: prova 5 siti a giro (prima 3), fino a 200 feed (prima 80) e 60 canali
+  Telegram (prima 30). Una volta al giorno il cervello propone anche siti da provare per gli Stati meno
+  coperti: entrano solo se hanno davvero un feed, e restano «da valutare» finché non vengono confermati.
+- Memoria: i fatti confermati da almeno due fonti restano per 120 giorni, divisi per Stato (prima le notizie
+  sparivano dopo 7 giorni). Si vedono nella pagina, alla voce «Dal vivo» di ogni Stato, e nelle tabelle aperte.
+- Diario: a ogni giro scrive che cosa ha raccolto, da dove, quante richieste ha fatto ai siti, quanti rifiuti
+  ha ricevuto, quanto ha speso. Si legge così:
+    python castello.py rapporto        le ultime 24 ore, con il confronto prima e dopo
+    python castello.py rapporto 72     le ultime 72 ore
+  e nella pagina, cartella Live, alla voce «Diario del programma».
+- Se il giro automatico si ferma: python castello.py salute lo dice. Per farlo ripartire: bash avvia.sh
+  (finché la pagina sul telefono resta accesa, fa da riserva e lancia il giro se manca da più di 3 ore e 20).
+  Android può spegnere Termux per risparmiare batteria: in Impostazioni > App > Termux > Batteria scegli
+  «Senza restrizioni».
+- Rispetto dei siti, invariato: almeno 2 secondi tra due richieste allo stesso sito, un giro ogni 3 ore.
+  Un giro fa circa 200 richieste in tutto: una trentina a Google News, una ventina a Telegram e a YouTube,
+  le altre una o due per sito. Se Google News rifiuta, il programma allunga da solo la pausa.
