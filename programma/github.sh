@@ -19,14 +19,38 @@ fi
 if [ -z "$T" ]; then
   read -r -s -p "Token GitHub (incollalo e premi Invio; non si vede, è normale): " T; echo
 fi
+T=$(printf '%s' "$T" | tr -d ' \t\r\n"')
 [ -z "$T" ] && { echo "Nessun token: mi fermo. Niente è cambiato."; exit 1; }
+come_fare() {
+  echo ""
+  echo "Come fare un token nuovo (2 minuti):"
+  echo " 1. apri nel browser: https://github.com/settings/tokens/new?scopes=public_repo&description=pangeo"
+  echo " 2. alla voce «Expiration» scegli «No expiration» (oppure un anno)"
+  echo " 3. in fondo alla pagina premi «Generate token»"
+  echo " 4. copia la riga che inizia con ghp_ (si vede una volta sola: premi l'icona dei due fogli accanto)"
+  echo " 5. torna qui, rilancia  bash github.sh  e incollala"
+}
+# si dice solo di che tipo è ciò che è stato incollato, mai che cosa c'è scritto
+case "$T" in
+  ghp_*|github_pat_*|gho_*|ghu_*) ;;
+  sk-ant-*) echo "Hai incollato la chiave di Claude (inizia con sk-ant-), non il token di GitHub. Niente è cambiato."; come_fare; exit 1 ;;
+  apikey_*) echo "Hai incollato l'ID di una chiave di Claude, non il token di GitHub. Niente è cambiato."; come_fare; exit 1 ;;
+  http*) echo "Hai incollato un indirizzo, non il token di GitHub. Niente è cambiato."; come_fare; exit 1 ;;
+  *) echo "Attenzione: i token di GitHub iniziano con ghp_ oppure github_pat_; questo no (${#T} caratteri). Provo lo stesso." ;;
+esac
 API=https://api.github.com
 H=(-H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json")
 U=$(curl -s "${H[@]}" "$API/user" | python -c 'import sys,json
 try: print(json.load(sys.stdin).get("login",""))
 except Exception: print("")')
 if [ -z "$U" ]; then
-  echo "GitHub non accetta questo token (scaduto o sbagliato). Niente è cambiato."
+  if ! curl -s -o /dev/null --max-time 15 https://api.github.com; then
+    echo "Non riesco a raggiungere GitHub: controlla la rete e riprova. Niente è cambiato."
+    exit 1
+  fi
+  echo "GitHub non accetta questo token: è sbagliato, scaduto o cancellato (${#T} caratteri incollati). Niente è cambiato."
+  echo "Un token vecchio non si può rileggere su GitHub: se non lo hai salvato da qualche parte, ne serve uno nuovo."
+  come_fare
   exit 1
 fi
 echo "Token valido: account $U."

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.20 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.21 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -25,6 +25,7 @@ Comandi:
   python castello.py salute                controlla che il cuore del programma sia sano
   python castello.py bot                   collega il tuo bot Telegram (dopo: chiave telegram_bot)
   python castello.py sincronizza           (facoltativo) scambia file con GitHub
+  python castello.py ricostruisci          dopo una reinstallazione: rimette pagina e dati presi da GitHub (le chiavi no)
   python castello.py istantanea index.html [origine] [--brief file.txt]
                                            mette i dati live (e un riassunto) dentro un file del Castello
   python castello.py ripristina index.html  riprende lo storico del cielo da un file del Castello
@@ -56,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.20"
+VERSIONE = "2.21"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -68,6 +69,11 @@ MAPPE = ["https://cdn.jsdelivr.net/npm/echarts@4.9.0/map/json/world.json",
          "https://cdn.jsdelivr.net/npm/echarts@4.9.0/map/js/world.js"]
 OPENSKY = "https://opensky-network.org/api/states/all"
 APP_FILE = ["manifest.webmanifest", "sw.js", "icona-192.png", "icona-512.png", "icona-maskable-512.png"]
+# copia di riserva su GitHub dei file di lavoro (una volta al giorno, dentro riserva.json). MAI chiavi.json: le chiavi
+# non escono dal telefono. Diario, memoria, sapere, piano e ultime notizie sono già nel repository per conto loro.
+RISERVA = ["fonti_auto.json", "fonti_mie.json", "ricerche.json", "cervello.json", "storico_stati.json",
+           "miglioratore.json", "impostazioni_auto.json", "canali.json", "lingue.json", "copertura.json"]
+RISERVA_STORICI = ["cielo_storico.json", "calore_storico.json"]  # serie di 7 giorni: nella riserva va un campione all'ora
 OPENSKY_AUTH = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
 
 # Parole di difesa e geopolitica: per le testate generaliste e le fonti scoperte da sole
@@ -3955,8 +3961,8 @@ def _aggiorna(leggero=False):
         print("  -", e)
     avvisa(cfg, segnali, dati_calore)
     avvisa_bot(chiavi, live, segnali)
-    if cfg.get("repo_git") or chiavi.get("repo_git"):
-        sincronizza(cfg, chiavi, solo_diario=leggero)
+    if cfg.get("repo_git") or chiavi.get("repo_git") or cfg.get("repo_pubblico"):
+        sincronizza(cfg, chiavi, solo_diario=leggero, nel_giro=True)
 
 
 def avvisa(cfg, segnali, dati_calore):
@@ -4126,20 +4132,381 @@ def ripristina(percorso):
     print("Storico del cielo e del calore ripreso dal Castello.")
 
 
+def _js_dati(percorso):
+    """Legge un file di dati del sito («window.NOME = {...};») e ne restituisce il contenuto."""
+    with open(percorso, encoding="utf-8") as f:
+        testo = f.read()
+    return json.loads(testo[testo.index("{"):testo.rindex("}") + 1])
+
+
+def _iso_da_mostra(testo, adesso):
+    """Il contrario di mostra_data: «19/11 16:08» (ora del telefono) torna una data ISO; l'anno è il più vicino nel passato."""
+    m = re.match(r"^(\d\d)/(\d\d) (\d\d):(\d\d)$", testo or "")
+    if not m:
+        return None
+    g, me, h, mi = map(int, m.groups())
+    qui = adesso.astimezone()
+    for anno in (qui.year, qui.year - 1):
+        try:
+            d = datetime(anno, me, g, h, mi).astimezone()
+        except (ValueError, OverflowError, OSError):
+            continue
+        if d <= qui + timedelta(hours=1):
+            return d.astimezone(timezone.utc).isoformat()
+    return None
+
+
+def ricostruisci(cartella="", dentro_giro=False):
+    """Dopo una reinstallazione (Termux disinstallato, telefono nuovo): rimette sul telefono la pagina e i dati che il
+    programma aveva già mandato su GitHub: diario, memoria degli Stati, sapere, ultime notizie con le loro traduzioni,
+    lavoro a piano, fonti scoperte, conto della spesa e la copia di riserva dei file di lavoro. Le chiavi no: non escono
+    mai dal telefono e vanno rimesse a mano. Ciò che il telefono ha di più nuovo resta: i dati si uniscono, non si
+    sostituiscono. Si può lanciare più volte senza danni."""
+    os.makedirs(DATI, exist_ok=True)
+    os.makedirs(WEB, exist_ok=True)
+    cfg = leggi_json(os.path.join(QUI, "config.json"), {})
+    # da dove: la cartella indicata, lo scambio con GitHub, il repository scaricato a mano; se no lo scarica (è pubblico)
+    candidati = [cartella, os.path.join(DATI, "repo"), os.path.dirname(QUI), os.path.expanduser("~/pangeo")]
+    R = next((os.path.abspath(c) for c in candidati if c and os.path.exists(os.path.join(c, "diario.json"))
+              and os.path.exists(os.path.join(c, "index.html"))), "")
+    if not R:
+        pubblico = cfg.get("repo_pubblico", "")
+        if not pubblico:
+            print("Non trovo i dati salvati. Indica la cartella del repository scaricato:  python castello.py ricostruisci ~/pangeo")
+            return False
+        R = os.path.join(DATI, "repo")
+        try:
+            os.environ.setdefault("GIT_TERMINAL_PROMPT", "0")
+            shutil.rmtree(R, ignore_errors=True)
+            subprocess.run(["git", "clone", "--depth", "1", pubblico, R], check=True)
+        except (OSError, subprocess.CalledProcessError) as e:
+            print("Non riesco a scaricare da GitHub i dati salvati (rete assente, o git non installato):", str(e)[:120])
+            return False
+    blocco = os.path.join(DATI, "aggiorna.lock")
+    if not dentro_giro:  # mai insieme a un giro: scriverebbero gli stessi file
+        avvisato = False
+        for _ in range(360):
+            try:
+                with open(blocco, encoding="utf-8") as f:
+                    chi_ = f.read().strip()
+                if time.time() - os.path.getmtime(blocco) >= 45 * 60 or (chi_.isdigit() and not _vivo_pid(chi_)):
+                    break
+            except OSError:
+                break
+            if not avvisato:
+                print("Un giro è in corso: aspetto che finisca, poi rimetto i dati (qualche minuto)...", flush=True)
+                avvisato = True
+            time.sleep(5)
+        else:
+            print("Il giro in corso non finisce: riprova tra qualche minuto.")
+            return False
+        with open(blocco, "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()))
+    try:
+        return _ricostruisci(R, cfg)
+    finally:
+        if not dentro_giro:
+            try:
+                os.remove(blocco)
+            except OSError:
+                pass
+
+
+def _ricostruisci(R, cfg):
+    adesso = datetime.now(timezone.utc)
+    fatto = []
+
+    def passo(nome, funzione):  # un pezzo che non riesce non ferma gli altri
+        try:
+            esito = funzione()
+            if esito:
+                fatto.append(esito)
+        except Exception as e:
+            print(f"  {nome}: non riuscito ({str(e)[:110]}). Il resto continua.")
+
+    D = leggi_json(os.path.join(DATI, "diario.json"), [])
+    noti_ = {x.get("iso") for x in D}
+    prima = sorted((x for x in leggi_json(os.path.join(R, "diario.json"), [])
+                    if isinstance(x, dict) and x.get("iso") and x["iso"] not in noti_), key=lambda x: x["iso"])
+    nuovo = bool(prima) and len(D) < 6  # telefono appena (re)installato: i suoi file di lavoro valgono meno della copia di riserva
+
+    def _pagina():
+        n = 0
+        for nome in ["index.html", "tabelle.html"] + APP_FILE:
+            if os.path.exists(os.path.join(R, nome)):
+                shutil.copyfile(os.path.join(R, nome), os.path.join(WEB, nome))
+                n += 1
+        if os.path.isdir(os.path.join(R, "tabelle")):
+            shutil.copytree(os.path.join(R, "tabelle"), os.path.join(WEB, "tabelle"), dirs_exist_ok=True)
+        return f"la pagina con le tabelle ({n} file)" if n else ""
+
+    def _diario():
+        if not prima:
+            return ""
+        scrivi_json(os.path.join(DATI, "diario.json"), sorted(D + prima, key=lambda x: x.get("iso") or "")[-120:])
+        shutil.copyfile(os.path.join(DATI, "diario.json"), os.path.join(WEB, "diario.json"))
+        return f"il diario ({len(prima)} giri di prima)"
+
+    def _conto():
+        # la spesa del cervello fatta prima della reinstallazione si somma a quella di adesso: i tetti restano veri.
+        # I contatori nel diario salgono soltanto: vale il più alto del mese (e di oggi) tra i giri che qui mancavano.
+        if not prima:
+            return ""
+        perc = os.path.join(DATI, "cervello.json")
+        conto = _conto_cervello()
+        if conto.get("ricostruito") == prima[-1]["iso"]:
+            return ""
+        mese, oggi_, del_mese, di_oggi = datetime.now().strftime("%Y-%m"), datetime.now().date(), 0.0, 0.0
+        for x in prima:
+            try:
+                quando_ = datetime.fromisoformat(x["iso"]).astimezone()
+            except ValueError:
+                continue
+            if quando_.strftime("%Y-%m") == mese:
+                del_mese = max(del_mese, x.get("usd_mese") or 0)
+            if quando_.date() == oggi_:
+                di_oggi = max(di_oggi, x.get("usd_oggi") or 0)
+        if conto.get("mese") != mese:
+            conto["mese"], conto["usd_mese"] = mese, 0.0
+        conto["usd_mese"] = round((conto.get("usd_mese") or 0.0) + del_mese, 5)
+        conto["usd_oggi"] = round((conto.get("usd_oggi") or 0.0) + di_oggi, 5)
+        conto["ricostruito"] = prima[-1]["iso"]
+        scrivi_json(perc, conto)
+        if not del_mese:
+            return ""
+        return f"il conto della spesa ({conto['usd_oggi']:.2f} $ oggi, {conto['usd_mese']:.2f} $ nel mese)"
+
+    def _sapere():
+        S_r = _js_dati(os.path.join(R, "sapere.js"))
+        S_ = leggi_json(os.path.join(DATI, "sapere.json"), {})
+        n = 0
+        for st_, v in S_r.items():
+            if not isinstance(v, dict):
+                continue
+            mio = S_.get(st_)
+            if not isinstance(mio, dict) or len(v) > len(mio):
+                S_[st_] = v
+                n += 1
+                continue
+            for k in ("forze", "storia", "factbook"):  # la stessa voce era già tradotta: la traduzione non si paga due volte
+                a, b = mio.get(k), v.get(k)
+                if isinstance(a, dict) and isinstance(b, dict) and b.get("testo_it") and not a.get("testo_it") \
+                        and a.get("testo") == b.get("testo"):
+                    a["testo_it"] = b["testo_it"]
+                    n += 1
+        if n:
+            scrivi_sapere(S_)
+        return f"il sapere ({sum(1 for v in S_.values() if len(v) > 1)} Stati studiati)" if n else ""
+
+    def _memoria():
+        M_r = _js_dati(os.path.join(R, "memoria.js"))
+        perc = os.path.join(DATI, "memoria.json")
+        M = leggi_json(perc, {})
+        n = 0
+        for st_, righe in M_r.items():
+            mie_ = list(M.get(st_, []))
+            url_ = {x[4] for x in mie_ if len(x) > 4 and x[4]}
+            parole_ = [set(x[5].split()) for x in mie_ if len(x) > 5]
+            for x in righe if isinstance(righe, list) else []:
+                if not isinstance(x, list) or len(x) < 5 or (x[4] and x[4] in url_):
+                    continue
+                p_ = parole(x[1])
+                if any(len(p_ & q) >= 0.4 * max(len(p_ | q), 1) for q in parole_):
+                    continue  # lo stesso fatto c'è già
+                mie_.append([x[0], x[1], x[2], x[3], x[4], " ".join(sorted(p_)), x[5] if len(x) > 5 else ""])
+                n += 1
+            if mie_:
+                M[st_] = sorted(mie_, key=lambda x: x[0], reverse=True)[:cfg.get("memoria_per_stato", 40)]
+        if n:
+            scrivi_json(perc, M)
+            with open(os.path.join(WEB, "memoria.js.tmp"), "w", encoding="utf-8") as f:
+                f.write("window.MEMORIA=" + json.dumps({k: [[x[0], x[1], x[2], x[3], x[4], x[6] if len(x) > 6 else ""] for x in l]
+                                                        for k, l in M.items()}, ensure_ascii=False, separators=(",", ":")) + ";")
+            os.replace(os.path.join(WEB, "memoria.js.tmp"), os.path.join(WEB, "memoria.js"))
+        return f"la memoria degli Stati ({n} fatti confermati)" if n else ""
+
+    def _archivio():
+        live_r = leggi_json(os.path.join(R, "live.json"), {})
+        perc = os.path.join(DATI, "archivio.json")
+        arch = leggi_json(perc, None)
+        if not isinstance(arch, dict) or "notizie" not in arch:
+            arch = {"notizie": {}, "video": {}, "attesa": {}}
+        limite = (adesso - timedelta(days=cfg.get("giorni_archivio", 7))).isoformat()
+        n = tradotte = 0
+        for tipo in ("notizie", "video"):
+            arch.setdefault(tipo, {})
+            for w in live_r.get(tipo) or []:
+                iso = _iso_da_mostra(w.get("data"), adesso)
+                if not iso or iso < limite or not w.get("u") or not w.get("t"):
+                    continue
+                k = hashlib.sha1((w["u"] + w["t"]).encode("utf-8")).hexdigest()[:16]
+                if k in arch[tipo]:
+                    if w.get("it") and not arch[tipo][k].get("it"):  # la traduzione fatta prima è già pagata: resta
+                        arch[tipo][k]["it"] = w["it"]
+                        tradotte += 1
+                    continue
+                v = {a: b for a, b in w.items() if a != "data"}
+                v["data_iso"], v["visto"] = iso, iso
+                arch[tipo][k] = v
+                (arch.get("attesa") or {}).pop(k, None)  # era già stata scelta dal cervello: non torna in sala d'attesa
+                n += 1
+        if n or tradotte:
+            scrivi_json(perc, arch)
+        if not os.path.exists(os.path.join(DATI, "live.json")) and live_r.get("notizie"):
+            # telefono senza ancora un giro: la pagina mostra subito gli ultimi dati salvati (segnati come vecchi, così il giro parte)
+            for nome, dove in (("live.json", DATI), ("live.js", WEB)):
+                if os.path.exists(os.path.join(R, nome)):
+                    shutil.copyfile(os.path.join(R, nome), os.path.join(dove, nome))
+                    os.utime(os.path.join(dove, nome), (time.time() - 7200, time.time() - 7200))
+        return f"le ultime notizie ({n}, con le traduzioni già fatte)" if n else ""
+
+    def _riserva():
+        ris = leggi_json(os.path.join(R, "riserva.json"), {})
+        n = 0
+        for nome, cont in (ris.get("file") or {}).items():
+            if nome not in RISERVA + RISERVA_STORICI or nome == "cervello.json" or not isinstance(cont, (dict, list)):
+                continue
+            perc = os.path.join(DATI, nome)
+            mio = leggi_json(perc, None)
+            if mio is None:
+                scrivi_json(perc, cont)
+            elif nome in RISERVA_STORICI and isinstance(mio, dict) and isinstance(cont, dict):
+                aggiunti = 0  # i campioni di prima tornano accanto a quelli nuovi: il confronto con «di solito» riparte subito
+                for p_, serie in cont.items():
+                    visti_ = {x[0] for x in mio.get(p_, [])}
+                    in_piu = [x for x in serie if isinstance(x, list) and len(x) == 2 and x[0] not in visti_]
+                    if in_piu:
+                        mio[p_] = sorted(mio.get(p_, []) + in_piu)
+                        aggiunti += len(in_piu)
+                if not aggiunti:
+                    continue
+                scrivi_json(perc, mio)
+            elif nome == "fonti_mie.json" and isinstance(mio, dict) and isinstance(cont, dict):
+                cambiato = False  # le fonti aggiunte da te si uniscono sempre
+                for tipo_, lista in cont.items():
+                    for voce in lista if isinstance(lista, list) else []:
+                        if voce not in mio.setdefault(tipo_, []):
+                            mio[tipo_].append(voce)
+                            cambiato = True
+                if not cambiato:
+                    continue
+                scrivi_json(perc, mio)
+            elif not nuovo or type(mio) is not type(cont):
+                continue
+            elif nome == "fonti_auto.json":
+                viste = {f.get("url") for f in cont.get("scoperte", [])}
+                cont["scoperte"] = cont.get("scoperte", []) + [f for f in mio.get("scoperte", []) if f.get("url") not in viste]
+                cont["stato"] = dict(cont.get("stato", {}), **mio.get("stato", {}))
+                scrivi_json(perc, cont)
+            elif nome == "storico_stati.json":
+                for p_, giorni in cont.items():
+                    d_ = mio.setdefault(p_, {})
+                    for g_, c_ in giorni.items():
+                        d_[g_] = max(d_.get(g_, 0), c_)
+                scrivi_json(perc, mio)
+            else:
+                scrivi_json(perc, cont)
+            n += 1
+        return f"la copia di riserva del {ris.get('giorno', '?')} ({n} file di lavoro)" if n else ""
+
+    def _scoperte():
+        # senza copia di riserva: le fonti trovate da solo si riprendono dall'elenco pubblicato con i dati live
+        live_r = leggi_json(os.path.join(R, "live.json"), {})
+        perc = os.path.join(DATI, "fonti_auto.json")
+        auto = leggi_json(perc, {})
+        auto.setdefault("scoperte", [])
+        mie = leggi_json(os.path.join(DATI, "fonti_mie.json"), {})
+        note = elenco_fonti(cfg, mie, auto)
+        url_, dom_ = {f["url"] for f in note}, {dominio(f["url"]) for f in note}
+        semi = {(st_, ente_) for st_, ente_, _u in cfg.get("scoperta", {}).get("semi", [])}
+        n = 0
+        for f in (live_r.get("fonti") or {}).get("scoperte") or []:
+            u = solo_http(f.get("url"))
+            if not u or u in url_ or dominio(u) in dom_:
+                continue
+            voce = {"nome": f.get("nome") or dominio(u), "url": u, "tema": "Scoperte automatiche (da valutare)",
+                    "aggiunta": f.get("aggiunta", "")}
+            m = re.match(r"^(.*) \(([^()]+)\)$", voce["nome"])
+            if m and (m.group(2), m.group(1)) in semi:  # voce ufficiale di uno Stato: torna com'era
+                voce.update(tema="Voci ufficiali e organismi internazionali", stato=m.group(2), lv="C", liv="di parte", ufficiale=True)
+                lg_ = lingue_di(m.group(2))
+                if lg_ and lg_[0][0] not in ("it", "en"):
+                    voce["lingua"] = lg_[0][0]
+            elif m and m.group(2) == "indirizzo nuovo":
+                orig = next((x for x in cfg.get("rss", []) + mie.get("rss", []) if x.get("nome") == m.group(1)), None)
+                if orig:
+                    voce.update(tema=orig.get("tema", voce["tema"]), sostituisce=orig["url"])
+                    if orig.get("stato"):
+                        voce["stato"] = orig["stato"]
+                    if orig.get("lv") in ("A", "B"):
+                        voce["promossa"] = True
+            auto["scoperte"].append(voce)
+            url_.add(u)
+            dom_.add(dominio(u))
+            n += 1
+        if n:
+            scrivi_json(perc, auto)
+        return f"le fonti trovate da solo ({n})" if n else ""
+
+    def _piano():
+        sorgente = os.path.join(R, "piano.js")
+        if not os.path.exists(sorgente):
+            return ""
+        P_r = _js_dati(sorgente)
+        perc = os.path.join(DATI, "piano.json")
+        P = leggi_json(perc, {})
+        if (P_r.get("passata", 1), len(P_r.get("stati") or {})) <= (P.get("passata", 1), len(P.get("stati") or {})):
+            return ""
+        P_n = {"stati": P_r.get("stati") or {}, "i": P_r.get("i", 0), "passata": P_r.get("passata", 1),
+               "ultimi": P_r.get("ultimi") or [], "agg": P_r.get("agg", ""), "inizio": P.get("inizio") or adesso.isoformat()}
+        for st_, v in (P.get("stati") or {}).items():  # ciò che il telefono ha lavorato dopo la reinstallazione resta
+            P_n["stati"].setdefault(st_, v)
+        scrivi_json(perc, P_n)
+        shutil.copyfile(sorgente, os.path.join(WEB, "piano.js"))
+        return f"il lavoro a piano (Stati già lavorati: {len(P_n['stati'])})"
+
+    def _storici():
+        if os.path.exists(os.path.join(WEB, "index.html")) and prima:
+            ripristina(os.path.join(WEB, "index.html"))
+        return ""
+
+    for nome_, funzione_ in (("pagina", _pagina), ("diario", _diario), ("conto della spesa", _conto), ("sapere", _sapere),
+                             ("memoria", _memoria), ("ultime notizie", _archivio), ("copia di riserva", _riserva),
+                             ("fonti scoperte", _scoperte), ("lavoro a piano", _piano), ("storici", _storici)):
+        passo(nome_, funzione_)
+    if fatto:
+        print("Rimesso dal salvataggio su GitHub: " + "; ".join(fatto) + ".")
+    else:
+        print("Niente da rimettere: il telefono ha già tutto ciò che c'è su GitHub.")
+    ch_ = leggi_json(os.path.join(DATI, "chiavi.json"), {})
+    mancano = [t_ for t_, k_ in (("la chiave di Claude  →  python castello.py chiave anthropic_key", "anthropic_key"),
+                                 ("il token di GitHub  →  bash github.sh", "repo_git")) if not ch_.get(k_)]
+    if mancano:
+        print("Le chiavi non stanno su GitHub (per sicurezza) e vanno rimesse a mano. Mancano: " + ";  ".join(mancano) + ".")
+    return True
+
+
 # ----------------------------------------------------------------------------- comandi
 
-def sincronizza(cfg=None, chiavi=None, solo_diario=False):
-    """Facoltativo: scambia file con un repository Git (es. GitHub).
-    Scarica l'ultima versione del Castello pubblicata lì e carica i dati live."""
+def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
+    """Scambia file con il repository su GitHub: scarica l'ultima versione della pagina e del programma e carica i dati
+    live. Senza token (dopo una reinstallazione, prima di  bash github.sh) lavora in sola lettura sul repository pubblico:
+    il telefono riceve pagina, tabelle e programma, ma non manda nulla."""
     cfg = cfg or leggi_json(os.path.join(QUI, "config.json"), {})
     chiavi = chiavi or leggi_json(os.path.join(DATI, "chiavi.json"), {})
-    repo = chiavi.get("repo_git") or cfg.get("repo_git")
+    repo = chiavi.get("repo_git") or cfg.get("repo_git") or cfg.get("repo_pubblico")
     if not repo:
-        print("Nessun repository: python castello.py chiave repo_git https://github.com/NOME/castello.git")
+        print("Nessun repository: bash github.sh")
         return
+    sola_lettura = "@" not in repo.split("//", 1)[-1].split("/", 1)[0]  # indirizzo senza token: si può solo leggere
+    os.environ.setdefault("GIT_TERMINAL_PROMPT", "0")  # un token scaduto dà un errore, mai una domanda che ferma il giro
     cartella = os.path.join(DATI, "repo")
+    os.makedirs(WEB, exist_ok=True)
     try:
+        if os.path.isdir(os.path.join(cartella, ".git")):  # il token può essere cambiato (o arrivato) dopo il primo scarico
+            subprocess.run(["git", "-C", cartella, "remote", "set-url", "origin", repo], check=False)
         if not os.path.isdir(os.path.join(cartella, ".git")):
+            shutil.rmtree(cartella, ignore_errors=True)
             subprocess.run(["git", "clone", "--depth", "1", repo, cartella], check=True)
         elif subprocess.run(["git", "-C", cartella, "pull", "--ff-only"]).returncode != 0:
             # la cartella di scambio si è disallineata (es. un invio non riuscito): si riallinea al repository.
@@ -4177,13 +4544,17 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False):
         if os.path.exists(nuova):
             # le nuove versioni del Castello arrivano dal repository (le pubblica Claude)
             shutil.copyfile(nuova, os.path.join(WEB, "index.html"))
-        else:
+        elif not sola_lettura and os.path.exists(os.path.join(WEB, "index.html")):
             # repository nuovo: ci mette il Castello del telefono, così il sito pubblico parte subito
             shutil.copyfile(os.path.join(WEB, "index.html"), nuova)
             subprocess.run(["git", "-C", cartella, "add", "index.html"], check=True)
-        # file dell'app (icona, installazione, funzionamento senza rete): li aggiunge se mancano
+        # file dell'app (icona, installazione, funzionamento senza rete): li aggiunge se mancano, da una parte o dall'altra
         for nome in APP_FILE:
             dest = os.path.join(cartella, nome)
+            if os.path.exists(dest) and not os.path.exists(os.path.join(WEB, nome)):
+                shutil.copyfile(dest, os.path.join(WEB, nome))
+            if sola_lettura:
+                continue
             if not os.path.exists(dest) and os.path.exists(os.path.join(WEB, nome)):
                 shutil.copyfile(os.path.join(WEB, nome), dest)
                 subprocess.run(["git", "-C", cartella, "add", nome], check=True)
@@ -4192,6 +4563,40 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False):
             shutil.copyfile(os.path.join(cartella, "tabelle.html"), os.path.join(WEB, "tabelle.html"))
             if os.path.isdir(os.path.join(cartella, "tabelle")):
                 shutil.copytree(os.path.join(cartella, "tabelle"), os.path.join(WEB, "tabelle"), dirs_exist_ok=True)
+        # telefono reinstallato: nel repository ci sono giri che qui mancano. Prima di mandare qualcosa si riprende ciò che
+        # era stato salvato (diario, memoria, sapere, notizie): il sito pubblico non perde mai la sua storia.
+        diario_qui = leggi_json(os.path.join(DATI, "diario.json"), [])
+        if len(diario_qui) < 120 and {x.get("iso") for x in leggi_json(os.path.join(cartella, "diario.json"), [])
+                                      if isinstance(x, dict)} - {x.get("iso") for x in diario_qui}:
+            ricostruisci(cartella, dentro_giro=nel_giro)
+        if sola_lettura:
+            print("Sincronizzazione in sola lettura: pagina e programma sono aggiornati. Per mandare i dati al sito pubblico "
+                  "serve il token:  bash github.sh")
+            return
+        # copia di riserva dei file di lavoro (niente chiavi), una volta al giorno o quando aggiungi una fonte tua:
+        # con questa e con i dati qui sotto,  python castello.py ricostruisci  rimette tutto dopo una reinstallazione
+        if not solo_diario:
+            try:
+                ris_v = leggi_json(os.path.join(cartella, "riserva.json"), {})
+                oggi_r = datetime.now().date().isoformat()
+                mie_r = leggi_json(os.path.join(DATI, "fonti_mie.json"), None)
+                if ris_v.get("giorno") != oggi_r or (ris_v.get("file") or {}).get("fonti_mie.json") != mie_r:
+                    ris_n = {"giorno": oggi_r, "versione": VERSIONE, "nota": "Copia di riserva dei file di lavoro di PanGeo "
+                             "(niente chiavi): serve a ripartire dopo una reinstallazione.", "file": {}}
+                    for nome in RISERVA:
+                        cont_r = leggi_json(os.path.join(DATI, nome), None)
+                        if cont_r is not None:
+                            ris_n["file"][nome] = cont_r
+                    for nome in RISERVA_STORICI:  # basta un campione all'ora per ritrovare «com'era di solito»
+                        cont_r = leggi_json(os.path.join(DATI, nome), None)
+                        if isinstance(cont_r, dict):
+                            ris_n["file"][nome] = {p_: list({x[0][:13]: x for x in serie}.values())
+                                                   for p_, serie in cont_r.items() if any(x[1] for x in serie)}
+                    with open(os.path.join(cartella, "riserva.json"), "w", encoding="utf-8") as f:
+                        json.dump(ris_n, f, ensure_ascii=False, separators=(",", ":"))
+                    subprocess.run(["git", "-C", cartella, "add", "riserva.json"], check=True)
+            except (OSError, ValueError, subprocess.CalledProcessError) as e:
+                print("Copia di riserva non riuscita (il resto va avanti):", str(e)[:80])
         # dopo un giro leggero su GitHub va solo il diario (pochi KB): i dati grossi ci vanno ogni 3 ore, così il
         # repository non cresce tre volte più in fretta
         for nome in (("diario.json",) if solo_diario else ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "diario.json")):
@@ -4451,8 +4856,15 @@ if __name__ == "__main__":
         cmd_chiave(a[1], a[2])
     elif comando == "chiave" and len(a) == 2:
         import getpass  # chiede la chiave senza mostrarla sullo schermo
-        valore = getpass.getpass(f"Incolla la chiave «{a[1]}» e premi Invio (non si vede, è normale): ").strip()
-        if valore:
+        valore = getpass.getpass(f"Incolla la chiave «{a[1]}» e premi Invio (non si vede, è normale): ").strip().strip("'\"")
+        if valore and a[1] == "anthropic_key" and not valore.startswith("sk-ant-"):
+            # si dice solo di che tipo è, mai che cosa c'è scritto
+            tipo_ = ("è l'ID della chiave (inizia con apikey_), non la chiave" if valore.startswith("apikey_") else
+                     "è un token di GitHub" if valore.startswith(("ghp_", "github_pat_")) else
+                     "è un indirizzo, non la chiave" if valore.startswith("http") else "non è una chiave di Claude")
+            print(f"Quello che hai incollato {tipo_}: NON l'ho salvato. La chiave vera inizia con sk-ant- e si vede una volta\n"
+                  "sola, quando la crei: https://platform.claude.com/settings/keys  →  «Create key»  →  «Copy». Poi rilancia questo comando.")
+        elif valore:
             cmd_chiave(a[1], valore)
         else:
             print("Nessuna chiave: niente è cambiato.")
@@ -4474,7 +4886,10 @@ if __name__ == "__main__":
             print("Nessuna chiave: python castello.py chiave anthropic_key")
         else:
             k_ = ch_["anthropic_key"]
-            print("Chiave salvata: inizia con", k_[:10] + "…", "(vanno bene sk-ant-api e sk-ant-usr; non l'ID che inizia con apikey_)")
+            # si dice solo di che tipo è, mai che cosa c'è scritto (lo schermo finisce spesso in una foto)
+            print("Chiave salvata:", "del tipo giusto (inizia con sk-ant-)" if k_.startswith("sk-ant-") else
+                  "NON è una chiave di Claude" + (": è l'ID (apikey_...), non la chiave" if k_.startswith("apikey_") else "")
+                  + ". Rimettila:  python castello.py chiave anthropic_key")
             try:
                 print("Risposta:", chiedi_claude(ch_, leggi_json(os.path.join(QUI, "config.json"), {}), "Rispondi solo: ok", 10))
                 print("Il cervello funziona.")
@@ -4496,6 +4911,8 @@ if __name__ == "__main__":
         bot_chat(leggi_json(os.path.join(DATI, "chiavi.json"), {}))
     elif comando == "sincronizza":
         sincronizza()
+    elif comando == "ricostruisci":
+        sys.exit(0 if ricostruisci(a[1] if len(a) > 1 else "") else 1)
     elif comando == "istantanea" and len(a) > 1:
         resto = a[2:]
         fb = None

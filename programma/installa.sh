@@ -1,10 +1,16 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Installa PanGeo in Termux. Si lancia una volta sola (e dopo ogni nuova versione):  bash installa.sh
+# Dopo una reinstallazione di Termux è più comodo  ripara.sh  (vedi LEGGIMI.txt): fa tutto in una riga.
 set -e
 cd "$(dirname "$0")"
-echo "PanGeo 2.7 · 1/5 Installo Python, git e cron (qualche minuto)..."
+echo "PanGeo · 1/5 Installo Python, git e cron (qualche minuto)..."
 pkg update -y
 pkg install -y python git cronie termux-api 2>/dev/null || pkg install -y python git cronie
+# reinstallazione (manca la pagina): prima rimette pagina e dati salvati su GitHub, poi fa il giro. Le chiavi vanno rimesse a mano.
+if [ ! -f web/index.html ]; then
+  echo "   Manca la pagina: rimetto pagina e dati salvati su GitHub..."
+  python castello.py ricostruisci || true
+fi
 echo "2/5 Prima raccolta: notizie, video, voci ufficiali, cielo (qualche minuto)..."
 python castello.py aggiorna || true
 echo "3/5 Aggiornamento automatico ogni 3 ore..."

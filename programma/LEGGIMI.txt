@@ -1,4 +1,4 @@
-PANGEO 2.7 (prima «Castello mentale») - programma e app per il telefono (Termux)
+PANGEO 2.21 (prima «Castello mentale») - programma e app per il telefono (Termux)
 La cartella resta ~/castello e il programma castello.py: cambia solo il nome che vedi.
 
 COSA FA
@@ -32,6 +32,26 @@ COSA FA
   GitHub, il telefono riceve da solo la nuova versione.
 - Ogni Stato del Castello ha la cartella «Dal vivo»: Flightradar24, navi (MarineTraffic) e
   incendi da satellite (NASA) già centrati su quel Paese, più il cielo e le notizie live.
+
+DOPO UNA REINSTALLAZIONE DI TERMUX, O SU UN TELEFONO NUOVO (dalla 2.21)
+ATTENZIONE: disinstallare Termux cancella tutta la cartella ~/castello, con i dati e con le chiavi. Prima di
+disinstallarlo (per esempio per passare dalla versione del Play Store a quella di F-Droid) non serve copiare nulla,
+ma bisogna sapere che dopo vanno rimesse le chiavi. Tutto il resto torna da GitHub con una riga sola:
+  pkg install -y git python && git clone https://github.com/54v0B3110CCH1/pangeo ~/pangeo && bash ~/pangeo/programma/ripara.sh
+Se ~/pangeo c'è già:
+  cd ~/pangeo && git pull && bash programma/ripara.sh
+Che cosa torna da solo: il programma, la pagina con le tabelle, il diario dei giri, la memoria degli Stati, il sapere,
+le ultime 1.500 notizie con le traduzioni già fatte, il lavoro a piano, le fonti trovate da solo, il conto della spesa
+e, dalla 2.21, la copia di riserva dei file di lavoro (riserva.json: fonti, ricerche, storici; una volta al giorno).
+Che cosa NON torna: le chiavi. Per sicurezza non escono mai dal telefono (GitHub è pubblico). Vanno rimesse a mano:
+  python castello.py chiave anthropic_key     la chiave di Claude (inizia con sk-ant-; si vede una volta sola, quando la crei:
+                                              https://platform.claude.com/settings/keys → «Create key» → «Copy»)
+  bash github.sh                              il token di GitHub (inizia con ghp_; lo script spiega come farne uno nuovo)
+  python castello.py chiave firms_key         facoltativa: la chiave NASA che avevi ricevuto per email (MAP_KEY)
+Non torna nemmeno ciò che non era ancora su GitHub: al massimo le ultime 3 ore di notizie e l'ultimo giorno dei file di lavoro.
+Senza token il programma lavora lo stesso e riceve pagina e aggiornamenti (sola lettura); non manda i dati al sito pubblico.
+  python castello.py ricostruisci             rifà solo la parte dei dati (si può lanciare più volte: unisce, non sostituisce)
+  python castello.py provacervello            dice se la chiave di Claude salvata funziona
 
 INSTALLAZIONE (in Termux)
   termux-setup-storage            (consenti l'accesso ai file; serve solo la prima volta)
@@ -376,3 +396,11 @@ NOVITÀ 2.20 (19 novembre, pomeriggio)
 7. Un comando di Termux:API che non risponde non resta più appeso (lasciava processi in giro). Un giro interrotto a
    metà non blocca più i giri dopo per 45 minuti.
 Dopo «approva», da questa versione in poi non serve più «bash avvia.sh»: il guardiano cambia la pagina da solo.
+
+NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANNE LE CHIAVI
+- ripara.sh e «python castello.py ricostruisci»: rimettono pagina e dati presi da GitHub (vedi sopra, «DOPO UNA REINSTALLAZIONE»).
+- Copia di riserva: una volta al giorno il telefono manda su GitHub anche i file di lavoro (riserva.json), mai le chiavi.
+- Senza token GitHub il programma non resta più isolato: legge il repository pubblico (pagina, tabelle, versioni nuove).
+- Un telefono reinstallato non può più svuotare il sito pubblico: prima di mandare i dati riprende quelli salvati.
+- Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
+  subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
