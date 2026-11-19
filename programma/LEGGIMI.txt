@@ -342,3 +342,9 @@ NOVITÀ 2.19 – REVISIONE GENERALE: MENO RUMORE, TUTTO IN ITALIANO, IN ORDINE D
   giorno per giorno; argomenti in ordine fisso; nelle schede degli Stati notizie in ordine di data.
 - Tabelle: righe in ordine (per Stato, e per data dalla più recente), date scritte tutte allo stesso modo,
   tabella nuova «Cronologia degli eventi» letta dal telefono.
+
+NOVITÀ del 19 novembre, ore 16:10 (solo config.json, non serve approva)
+Savino ha deciso di spendere di più per il cervello e ricaricare quando serve.
+Tetti nel programma: 1,50 $ al giorno e 45 $ al mese (prima 1 e 20), 1.500 richieste al giorno.
+La sala d'attesa smaltisce 12 lotti a giro (prima 8), per ridurre la coda.
+Il tetto nella console di Anthropic resta quello che imposta Savino.
