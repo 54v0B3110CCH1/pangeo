@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.18 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.18.1 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -51,7 +51,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.18"
+VERSIONE = "2.18.1"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -2236,6 +2236,20 @@ def _pausa(motivo, tel):
             pass
 
 
+def ripara_fonti(stato, errori):
+    """Se molte fonti risultano «ferme» tutte insieme non sono i siti: era la rete (o il DNS) del telefono.
+    Succede dopo una notte senza rete con una versione vecchia, che contava ogni tentativo come un errore del sito:
+    le fonti restavano poi lette una volta al giorno. Qui si rimettono tutte in lettura."""
+    ferme = [u for u, st in stato.items() if st.get("fila", 0) >= 3]
+    if len(ferme) >= 20 and len(ferme) >= 0.3 * max(1, len(stato)):
+        for u in ferme:
+            stato[u]["fila"] = 0
+            stato[u].pop("prossimo", None)
+        errori.append(f"{len(ferme)} fonti erano segnate come ferme tutte insieme: era la rete, non i siti. Rimesse in lettura da questo giro.")
+        return len(ferme)
+    return 0
+
+
 def passo_minuti(cfg):
     """Ogni quanti minuti parte un giro: 180 senza giro leggero, altrimenti giro_leggero.ogni_minuti (10, 15, 20, 30 o 60).
     Sta in config.json, che il telefono prende da solo a ogni giro: per cambiare ritmo non serve «approva»."""
@@ -2765,6 +2779,7 @@ def _aggiorna(leggero=False):
         return True
 
     saltate_ritmo = invariate = 0
+    ripara_fonti(auto["stato"], errori)
     for f in elenco_fonti(cfg, mie, auto):
         st = auto["stato"].get(f["url"], {})
         if da_saltare(f, st, adesso, leggero):

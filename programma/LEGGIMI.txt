@@ -299,7 +299,7 @@ NOVITÀ 2.17 – UN GIRO OGNI MEZZ'ORA, E IL RITMO SI CAMBIA SENZA «APPROVA»
 - La pagina riceve gli ultimi 60 giri (30 ore): nel Diario c'è il riepilogo delle 24 ore, con quanti giri completi,
   leggeri e senza rete e l'intervallo più lungo tra due giri (se è molto più di mezz'ora, lì il telefono era fermo).
 
-NOVITÀ 2.18 – SI FERMA SOLO PER TRE MOTIVI, CONSUMA MENO DATI, E CONTA GIUSTO
+NOVITÀ 2.18 e 2.18.1 – SI FERMA SOLO PER TRE MOTIVI, CONSUMA MENO DATI, E CONTA GIUSTO
 - Il programma salta un giro solo per: telefono caldo, batteria quasi scarica, tetto di spesa del cervello.
   Caldo: sopra 42 gradi (batteria) va in pausa e riparte sotto 38. Batteria: sotto il 15% e non in carica.
   Tetto di spesa: si ferma solo il cervello (traduzioni, riassunto), la raccolta continua. Le pause finiscono nel
@@ -315,3 +315,6 @@ NOVITÀ 2.18 – SI FERMA SOLO PER TRE MOTIVI, CONSUMA MENO DATI, E CONTA GIUSTO
   rado (fino a 2 ore) se tace; Telegram, YouTube e cielo ogni 30 minuti; il cervello al suo ritmo. Si accende
   da config.json, senza «approva», dopo aver visto temperatura e dati di una giornata.
 - python castello.py giri   mostra anche gradi, batteria e MB di ogni giro, e il motivo delle pause.
+- 2.18.1, riparazione dopo la notte senza rete: la versione 2.14 aveva contato ogni tentativo fallito come un
+  errore dei siti, e la 2.15 rileggeva quelle fonti (221, le più importanti) solo una volta al giorno. Ora, se
+  molte fonti risultano ferme tutte insieme, il programma capisce che era la rete e le rimette subito in lettura.
