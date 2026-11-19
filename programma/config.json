@@ -1530,6 +1530,959 @@
    "filtra": true,
    "lv": "B",
    "stato": "Belize"
+  },
+  {
+   "nome": "Le Monde",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.lemonde.fr/rss/une.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fr",
+   "stato": "Francia"
+  },
+  {
+   "nome": "VRT (Belgio)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.vrt.be/vrtnws/nl.rss.articles.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "nl",
+   "stato": "Belgio"
+  },
+  {
+   "nome": "RTVE (Spagna)",
+   "tema": "Notizie dal mondo",
+   "url": "https://api2.rtve.es/rss/temas_noticias.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Spagna"
+  },
+  {
+   "nome": "RTP (Portogallo)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.rtp.pt/noticias/rss",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "pt",
+   "stato": "Portogallo"
+  },
+  {
+   "nome": "El País (Spagna)",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Spagna"
+  },
+  {
+   "nome": "Der Spiegel (Germania)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.spiegel.de/schlagzeilen/index.rss",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "de",
+   "stato": "Germania"
+  },
+  {
+   "nome": "RTBF (Belgio)",
+   "tema": "Notizie dal mondo",
+   "url": "https://rss.rtbf.be/article/rss/highlight_rtbf_info.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fr",
+   "stato": "Belgio"
+  },
+  {
+   "nome": "Tagesschau (Germania)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.tagesschau.de/index~rss2.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "de",
+   "stato": "Germania"
+  },
+  {
+   "nome": "France Info",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.francetvinfo.fr/titres.rss",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fr",
+   "stato": "Francia"
+  },
+  {
+   "nome": "SRF (Svizzera)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.srf.ch/news/bnf/rss/1646",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "de",
+   "stato": "Svizzera"
+  },
+  {
+   "nome": "NOS (Paesi Bassi)",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.nos.nl/nosnieuwsalgemeen",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "nl",
+   "stato": "Paesi Bassi"
+  },
+  {
+   "nome": "NRK (Norvegia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.nrk.no/toppsaker.rss",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "no",
+   "stato": "Norvegia"
+  },
+  {
+   "nome": "DR (Danimarca)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.dr.dk/nyheder/service/feeds/senestenyt",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "da",
+   "stato": "Danimarca"
+  },
+  {
+   "nome": "RTS (Svizzera)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.rts.ch/info/?format=rss/news",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fr",
+   "stato": "Svizzera"
+  },
+  {
+   "nome": "ERR (Estonia, in estone)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.err.ee/rss",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "et",
+   "stato": "Estonia"
+  },
+  {
+   "nome": "TVN24 (Polonia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://tvn24.pl/najnowsze.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "pl",
+   "stato": "Polonia"
+  },
+  {
+   "nome": "ORF (Austria)",
+   "tema": "Notizie dal mondo",
+   "url": "https://rss.orf.at/news.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "de",
+   "stato": "Austria"
+  },
+  {
+   "nome": "Yle (Finlandia, in finlandese)",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.yle.fi/uutiset/v1/majorHeadlines/YLE_UUTISET.rss",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fi",
+   "stato": "Finlandia"
+  },
+  {
+   "nome": "LSM (Lettonia, in lettone)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.lsm.lv/rss/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "lv",
+   "stato": "Lettonia"
+  },
+  {
+   "nome": "SVT (Svezia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.svt.se/nyheter/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "sv",
+   "stato": "Svezia"
+  },
+  {
+   "nome": "SME (Slovacchia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.sme.sk/rss-title",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "sk",
+   "stato": "Slovacchia"
+  },
+  {
+   "nome": "Index.hr (Croazia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.index.hr/rss",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "hr",
+   "stato": "Croazia"
+  },
+  {
+   "nome": "N1 (Serbia, in serbo)",
+   "tema": "Notizie dal mondo",
+   "url": "https://n1info.rs/feed/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "sr",
+   "stato": "Serbia"
+  },
+  {
+   "nome": "Dnevnik (Bulgaria)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.dnevnik.bg/rss/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "bg",
+   "stato": "Bulgaria"
+  },
+  {
+   "nome": "Ukrainska Pravda (in ucraino)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.pravda.com.ua/rss/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "uk",
+   "stato": "Ucraina"
+  },
+  {
+   "nome": "Hürriyet (Turchia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.hurriyet.com.tr/rss/anasayfa",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "tr",
+   "stato": "Turchia"
+  },
+  {
+   "nome": "ČT24 (Repubblica Ceca)",
+   "tema": "Notizie dal mondo",
+   "url": "https://ct24.ceskatelevize.cz/rss/hlavni-zpravy",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "cs",
+   "stato": "Repubblica Ceca"
+  },
+  {
+   "nome": "Digi24 (Romania)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.digi24.ro/rss",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ro",
+   "stato": "Romania"
+  },
+  {
+   "nome": "TRT Haber (Turchia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.trthaber.com/sondakika.rss",
+   "filtra": true,
+   "lv": "C",
+   "lingua": "tr",
+   "liv": "di parte",
+   "stato": "Turchia"
+  },
+  {
+   "nome": "Meduza (in russo)",
+   "tema": "Notizie dal mondo",
+   "url": "https://meduza.io/rss/all",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ru",
+   "stato": "Russia"
+  },
+  {
+   "nome": "Index.hu (Ungheria)",
+   "tema": "Notizie dal mondo",
+   "url": "https://index.hu/24ora/rss/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "hu",
+   "stato": "Ungheria"
+  },
+  {
+   "nome": "Al Jazeera (in arabo)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.aljazeera.net/aljazeerarss/a7c186be-1baa-4bd4-9d80-a84db769f779/73d0e1b4-532f-45ef-b135-bfdff8b8cab9",
+   "filtra": true,
+   "lv": "C",
+   "lingua": "ar",
+   "liv": "di parte"
+  },
+  {
+   "nome": "Sky News Arabia",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.skynewsarabia.com/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ar"
+  },
+  {
+   "nome": "BBC in arabo",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/arabic/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ar"
+  },
+  {
+   "nome": "BBC in persiano",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/persian/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fa",
+   "stato": "Iran"
+  },
+  {
+   "nome": "TASS (in russo)",
+   "tema": "Notizie dal mondo",
+   "url": "https://tass.ru/rss/v2.xml",
+   "filtra": true,
+   "lv": "C",
+   "lingua": "ru",
+   "liv": "di parte",
+   "stato": "Russia"
+  },
+  {
+   "nome": "BBC in hindi",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/hindi/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "hi",
+   "stato": "India"
+  },
+  {
+   "nome": "RTV SLO (Slovenia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.rtvslo.si/feeds/00.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "sl",
+   "stato": "Slovenia"
+  },
+  {
+   "nome": "BBC in swahili",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/swahili/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "sw"
+  },
+  {
+   "nome": "BBC in hausa",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/hausa/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ha",
+   "stato": "Nigeria"
+  },
+  {
+   "nome": "BBC Mundo (in spagnolo)",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/mundo/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es"
+  },
+  {
+   "nome": "BBC in somalo",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/somali/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "so",
+   "stato": "Somalia"
+  },
+  {
+   "nome": "BBC in urdu",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/urdu/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ur",
+   "stato": "Pakistan"
+  },
+  {
+   "nome": "BBC in russo",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/russian/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ru"
+  },
+  {
+   "nome": "Kommersant (Russia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.kommersant.ru/RSS/news.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ru",
+   "stato": "Russia"
+  },
+  {
+   "nome": "BBC in amarico",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/amharic/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "am",
+   "stato": "Etiopia"
+  },
+  {
+   "nome": "BBC Brasil",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/portuguese/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "pt",
+   "stato": "Brasile"
+  },
+  {
+   "nome": "BBC in turco",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/turkce/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "tr",
+   "stato": "Turchia"
+  },
+  {
+   "nome": "BBC in birmano",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/burmese/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "my",
+   "stato": "Myanmar"
+  },
+  {
+   "nome": "BBC in indonesiano",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/indonesia/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "id",
+   "stato": "Indonesia"
+  },
+  {
+   "nome": "BBC in cinese",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "zh",
+   "stato": "Cina"
+  },
+  {
+   "nome": "BBC in vietnamita",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/vietnamese/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "vi",
+   "stato": "Vietnam"
+  },
+  {
+   "nome": "BBC in coreano",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/korean/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ko"
+  },
+  {
+   "nome": "BBC in ucraino",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/ukrainian/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "uk",
+   "stato": "Ucraina"
+  },
+  {
+   "nome": "BBC in bengalese",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/bengali/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "bn",
+   "stato": "Bangladesh"
+  },
+  {
+   "nome": "BBC Afrique (in francese)",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/afrique/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fr"
+  },
+  {
+   "nome": "BBC in pashto",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/pashto/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ps",
+   "stato": "Afghanistan"
+  },
+  {
+   "nome": "BBC in serbo",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/serbian/lat/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "sr",
+   "stato": "Serbia"
+  },
+  {
+   "nome": "BBC in azero",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/azeri/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "az",
+   "stato": "Azerbaigian"
+  },
+  {
+   "nome": "BBC in nepalese",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/nepali/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ne",
+   "stato": "Nepal"
+  },
+  {
+   "nome": "BBC in thailandese",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/thai/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "th",
+   "stato": "Thailandia"
+  },
+  {
+   "nome": "BBC in tigrino",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/tigrinya/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ti",
+   "stato": "Eritrea"
+  },
+  {
+   "nome": "BBC in kirghiso",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/kyrgyz/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ky",
+   "stato": "Kirghizistan"
+  },
+  {
+   "nome": "BBC in singalese",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/sinhala/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "si",
+   "stato": "Sri Lanka"
+  },
+  {
+   "nome": "Quotidiano del Popolo (Cina)",
+   "tema": "Notizie dal mondo",
+   "url": "http://www.people.com.cn/rss/politics.xml",
+   "filtra": true,
+   "lv": "C",
+   "lingua": "zh",
+   "liv": "di parte",
+   "stato": "Cina"
+  },
+  {
+   "nome": "Prothom Alo (Bangladesh)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.prothomalo.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "bn",
+   "stato": "Bangladesh"
+  },
+  {
+   "nome": "NHK (in giapponese)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www3.nhk.or.jp/rss/news/cat0.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ja",
+   "stato": "Giappone"
+  },
+  {
+   "nome": "Tempo (Indonesia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://rss.tempo.co/nasional",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "id",
+   "stato": "Indonesia"
+  },
+  {
+   "nome": "Clarín (Argentina)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.clarin.com/rss/lo-ultimo/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Argentina"
+  },
+  {
+   "nome": "Aaj Tak (India)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.aajtak.in/rssfeeds/?id=home",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "hi",
+   "stato": "India"
+  },
+  {
+   "nome": "BBC in uzbeco",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.bbci.co.uk/uzbek/rss.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "uz",
+   "stato": "Uzbekistan"
+  },
+  {
+   "nome": "La Nación (Argentina)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Argentina"
+  },
+  {
+   "nome": "El Tiempo (Colombia)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.eltiempo.com/rss/colombia.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Colombia"
+  },
+  {
+   "nome": "El Universal (Messico)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.eluniversal.com.mx/arc/outboundfeeds/rss/?outputType=xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Messico"
+  },
+  {
+   "nome": "Antara (in indonesiano)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.antaranews.com/rss/terkini.xml",
+   "filtra": true,
+   "lv": "C",
+   "lingua": "id",
+   "liv": "di parte",
+   "stato": "Indonesia"
+  },
+  {
+   "nome": "VnExpress (in vietnamita)",
+   "tema": "Notizie dal mondo",
+   "url": "https://vnexpress.net/rss/thoi-su.rss",
+   "filtra": true,
+   "lv": "C",
+   "lingua": "vi",
+   "liv": "di parte",
+   "stato": "Vietnam"
+  },
+  {
+   "nome": "Yonhap (in coreano)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.yna.co.kr/rss/news.xml",
+   "filtra": true,
+   "lv": "A",
+   "lingua": "ko",
+   "stato": "Corea del Sud"
+  },
+  {
+   "nome": "El Comercio (Perù)",
+   "tema": "Notizie dal mondo",
+   "url": "https://elcomercio.pe/arcio/rss/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Perù"
+  },
+  {
+   "nome": "El Nacional (Venezuela)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.elnacional.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Venezuela"
+  },
+  {
+   "nome": "ABC Color (Paraguay)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.abc.com.py/arc/outboundfeeds/rss/?outputType=xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Paraguay"
+  },
+  {
+   "nome": "Folha (Brasile)",
+   "tema": "Notizie dal mondo",
+   "url": "https://feeds.folha.uol.com.br/mundo/rss091.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "pt",
+   "stato": "Brasile"
+  },
+  {
+   "nome": "Prensa Libre (Guatemala)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.prensalibre.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Guatemala"
+  },
+  {
+   "nome": "La Tercera (Cile)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.latercera.com/arc/outboundfeeds/rss/?outputType=xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Cile"
+  },
+  {
+   "nome": "G1 (Brasile)",
+   "tema": "Notizie dal mondo",
+   "url": "https://g1.globo.com/rss/g1/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "pt",
+   "stato": "Brasile"
+  },
+  {
+   "nome": "El País (Uruguay)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.elpais.com.uy/rss/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Uruguay"
+  },
+  {
+   "nome": "El Universo (Ecuador)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.eluniverso.com/arc/outboundfeeds/rss/?outputType=xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Ecuador"
+  },
+  {
+   "nome": "Jeune Afrique",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.jeuneafrique.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fr"
+  },
+  {
+   "nome": "RFI Afrique",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.rfi.fr/fr/afrique/rss",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fr"
+  },
+  {
+   "nome": "14ymedio (Cuba)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.14ymedio.com/rss/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Cuba"
+  },
+  {
+   "nome": "La Nación (Costa Rica)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.nacion.com/arc/outboundfeeds/rss/?outputType=xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Costa Rica"
+  },
+  {
+   "nome": "TSA (Algeria)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.tsa-algerie.com/feed/",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fr",
+   "stato": "Algeria"
+  },
+  {
+   "nome": "Diario Libre (Rep. Dominicana)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.diariolibre.com/rss/portada.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es",
+   "stato": "Repubblica Dominicana"
+  },
+  {
+   "nome": "Ynet (Israele, in ebraico)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.ynet.co.il/Integration/StoryRss2.xml",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "he",
+   "stato": "Israele"
+  },
+  {
+   "nome": "RFI (in francese)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.rfi.fr/fr/rss",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "fr"
+  },
+  {
+   "nome": "Consiglio dell'Unione europea",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://www.consilium.europa.eu/en/rss/pressreleases.ashx",
+   "filtra": false,
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "DW in russo",
+   "tema": "Notizie dal mondo",
+   "url": "https://rss.dw.com/rdf/rss-ru-all",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ru"
+  },
+  {
+   "nome": "DW in spagnolo",
+   "tema": "Notizie dal mondo",
+   "url": "https://rss.dw.com/rdf/rss-sp-all",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "es"
+  },
+  {
+   "nome": "Youm7 (Egitto)",
+   "tema": "Notizie dal mondo",
+   "url": "https://www.youm7.com/rss/SectionRss?SectionID=65",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ar",
+   "stato": "Egitto"
+  },
+  {
+   "nome": "ONU, comunicati",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://press.un.org/en/rss.xml",
+   "filtra": false,
+   "lv": "A"
+  },
+  {
+   "nome": "AIEA",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://www.iaea.org/feeds/news",
+   "filtra": false,
+   "lv": "A"
+  },
+  {
+   "nome": "Ministero degli Esteri britannico",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://www.gov.uk/government/organisations/foreign-commonwealth-development-office.atom",
+   "filtra": false,
+   "lv": "C",
+   "liv": "di parte"
+  },
+  {
+   "nome": "DW in arabo",
+   "tema": "Notizie dal mondo",
+   "url": "https://rss.dw.com/rdf/rss-ar-all",
+   "filtra": true,
+   "lv": "B",
+   "lingua": "ar"
+  },
+  {
+   "nome": "Human Rights Watch",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://www.hrw.org/rss/news",
+   "filtra": false,
+   "lv": "B"
+  },
+  {
+   "nome": "OCCRP",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://www.occrp.org/en/feed",
+   "filtra": false,
+   "lv": "B"
+  },
+  {
+   "nome": "ECOWAS",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://www.ecowas.int/feed/",
+   "filtra": false,
+   "lv": "B"
+  },
+  {
+   "nome": "Amnesty International",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://www.amnesty.org/en/feed/",
+   "filtra": false,
+   "lv": "B"
+  },
+  {
+   "nome": "ICIJ",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://www.icij.org/feed/",
+   "filtra": false,
+   "lv": "B"
+  },
+  {
+   "nome": "Croce Rossa internazionale",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://www.icrc.org/en/rss/news",
+   "filtra": false,
+   "lv": "A"
+  },
+  {
+   "nome": "ASEAN",
+   "tema": "Voci ufficiali e organismi internazionali",
+   "url": "https://asean.org/feed/",
+   "filtra": false,
+   "lv": "B"
   }
  ],
  "youtube": [
@@ -1751,7 +2704,7 @@
  "cervello": {
   "attivo": true,
   "modello": "claude-haiku-5-5",
-  "max_al_giorno": 150,
+  "max_al_giorno": 500,
   "brief_ore": 4,
   "max_usd_giorno": 1.0,
   "max_usd_mese": 20,
@@ -1759,7 +2712,9 @@
   "pensiero": "spento",
   "traduzioni_per_giro": 6,
   "traduzioni_lotto": 30,
-  "sapere_per_giro": 8
+  "sapere_per_giro": 8,
+  "attesa_per_giro": 10,
+  "attesa_lotto": 40
  },
  "ricerca": {
   "attiva": true,

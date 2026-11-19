@@ -2,7 +2,7 @@
 // che si legge senza login: sul telefono (127.0.0.1:8080/tabelle.html) e sul sito GitHub Pages.
 // Uso: node tools/tabelle.js index.html cartella_uscita
 const fs = require('fs'), vm = require('vm'), path = require('path');
-const [, , base, dest] = process.argv;
+const [, , base, dest, cfgArg] = process.argv;
 const h = fs.readFileSync(base, 'utf8');
 const s0 = h.indexOf('<script>') + 8, js = h.slice(s0, h.indexOf('</script>', s0));
 const el = () => ({ innerHTML: '', value: '', style: {}, dataset: {}, addEventListener() {}, setAttribute() {}, appendChild() {}, querySelectorAll() { return []; }, classList: { add() {}, remove() {}, toggle() {} } });
@@ -24,49 +24,86 @@ function tabella(nome, titolo, descr, colonne, righe) {
 }
 const SCHEDE = G('SCHEDE'), P = G('P'), PROPR = G('PROPR') || {}, APPALTI = G('APPALTI') || [], PMC = G('PMC') || [], UNITA = G('UNITA') || [], FORZE = G('FORZE') || {}, FZ = G('FZ_CAMPI') || [], SITI = G('SITI') || {}, FONTI = G('FONTI') || [], WD = G('WD_BASI') || {}, POP = G('POPWB') || {};
 const coer = n => { try { const c = vm.runInContext('coerenza(' + JSON.stringify(n) + ')', ctx); return c ? c.txt : ''; } catch (e) { return ''; } };
+// Nomi fissi, uguali in tutte le tabelle. «Controllo» dice su che cosa poggia la riga, «Coerenza» se è stata confrontata con un altro dato.
+const nFonti = ks => new Set((ks || []).map(k => /^https?:/.test(k) ? k : (Array.isArray(F[k]) ? F[k][1] : F[k] ? k : '')).filter(Boolean)).size;
+const ctrl = ks => { const n = nFonti(ks); return n >= 2 ? 'più fonti' : n === 1 ? 'una fonte' : 'senza fonte'; };
+const NC = 'non confrontata';
 const STAB = { 1: 'stabile', 2: 'tensioni', 3: 'instabile', 4: 'crisi o guerra' };
 tabella('stati', 'Stati: governo, stabilità, riserve', 'Una riga per Stato: capo dello Stato, governo, sistema, stabilità (1–4), riserve, trattati, fonti.',
-  ['Stato', 'Capo dello Stato', 'Governo', 'Sistema', 'Stabilità (1–4)', 'Stabilità, perché', 'Riserve', 'Trattati', 'Fonti'],
-  Object.entries(SCHEDE).map(([n, s]) => [n, (s.gov || {}).capo, (s.gov || {}).governo, (s.gov || {}).sistema, (s.stab || [])[0] ? (s.stab[0] + ' ' + STAB[s.stab[0]]) : '', (s.stab || [])[1], s.ris, (s.tr || []).join(' | '), fonti([...(s.f || []), ...(s.rf || [])])]));
+  ['Stato', 'Capo dello Stato', 'Governo', 'Sistema', 'Stabilità (1–4)', 'Stabilità, perché', 'Riserve', 'Trattati', 'Controllo', 'Coerenza', 'Fonti'],
+  Object.entries(SCHEDE).map(([n, s]) => [n, (s.gov || {}).capo, (s.gov || {}).governo, (s.gov || {}).sistema, (s.stab || [])[0] ? (s.stab[0] + ' ' + STAB[s.stab[0]]) : '', (s.stab || [])[1], s.ris, (s.tr || []).join(' | '), ctrl([...(s.f || []), ...(s.rf || [])]), coer(n) || NC, fonti([...(s.f || []), ...(s.rf || [])])]));
 tabella('notizie_stati', 'Notizie per Stato (datate)', 'Le notizie verificate dentro le schede degli Stati, con data e fonti.',
-  ['Stato', 'Data', 'Notizia', 'Fonti'], Object.entries(SCHEDE).flatMap(([n, s]) => (s.nz || []).map(z => [n, z[0], z[1], fonti(z[2])])));
+  ['Stato', 'Data', 'Notizia', 'Controllo', 'Coerenza', 'Fonti'], Object.entries(SCHEDE).flatMap(([n, s]) => (s.nz || []).map(z => [n, z[0], z[1], ctrl(z[2]), NC, fonti(z[2])])));
 tabella('storia_stati', 'Storia militare e politica per Stato', 'Date chiave di ogni Stato.',
   ['Stato', 'Anno', 'Fatto'], Object.entries(SCHEDE).flatMap(([n, s]) => (s.st || []).map(z => [n, z[0], z[1]])));
 tabella('basi', 'Basi e presenze militari (livello città)', 'Basi nazionali e straniere, solo a livello di città o regione. «Wikidata» indica se la voce è confermata anche dalla banca dati aperta Wikidata.',
-  ['Stato ospite · città', 'Chi la usa', 'Nome', 'Che cosa è', 'Coordinate del centro città (lon, lat)', 'Anche in Wikidata', 'Fonti'],
-  P.filter(x => x.l === 'basi').map(x => [x.p, x.o, x.n, x.t, (x.c || []).join(' '), WD[x.n] ? 'sì <https://www.wikidata.org/wiki/' + WD[x.n] + '>' : '', fonti(x.f)]));
+  ['Stato ospite · città', 'Chi la usa', 'Nome', 'Che cosa è', 'Coordinate del centro città (lon, lat)', 'Anche in Wikidata', 'Controllo', 'Coerenza', 'Fonti'],
+  P.filter(x => x.l === 'basi').map(x => [x.p, x.o, x.n, x.t, (x.c || []).join(' '), WD[x.n] ? 'sì <https://www.wikidata.org/wiki/' + WD[x.n] + '>' : '', WD[x.n] ? 'più fonti' : ctrl(x.f), WD[x.n] ? 'coerente' : NC, fonti(x.f)]));
 tabella('punti_mappa', 'Conflitti, stretti, aziende, proteste sulla mappa', 'Gli altri punti del planisfero.',
-  ['Tipo', 'Dove', 'Nome', 'Descrizione', 'Fonti'], P.filter(x => x.l !== 'basi').map(x => [x.l, x.p, x.n, x.t, fonti(x.f)]));
+  ['Tipo', 'Dove', 'Nome', 'Descrizione', 'Controllo', 'Coerenza', 'Fonti'], P.filter(x => x.l !== 'basi').map(x => [x.l, x.p, x.n, x.t, ctrl(x.f), NC, fonti(x.f)]));
 tabella('aziende_proprieta', 'Aziende della difesa: chi le possiede', 'Soci e quote, controllo e proprietà finale, con la data del dato e la fonte. Sintesi neutre, non consigli di investimento.',
-  ['Azienda', 'Socio', 'Quota', 'Nota', 'Flottante', 'Controllo', 'Proprietà finale', 'Borsa', 'Data del dato', 'Da verificare', 'Fonti'],
-  Object.entries(PROPR).flatMap(([n, p]) => (p.q && p.q.length ? p.q : [['', '', '']]).map(q => [n, q[0], q[1], q[2], p.fl, p.c, p.fin, p.b, p.d, p.v || '', fonti(p.f)])));
+  ['Azienda', 'Socio', 'Quota', 'Nota', 'Flottante', 'Controllo', 'Proprietà finale', 'Borsa', 'Data del dato', 'Da verificare', 'Controllo', 'Coerenza', 'Fonti'],
+  Object.entries(PROPR).flatMap(([n, p]) => (p.q && p.q.length ? p.q : [['', '', '']]).map(q => [n, q[0], q[1], q[2], p.fl, p.c, p.fin, p.b, p.d, p.v || '', ctrl(p.f), p.v ? 'da verificare' : NC, fonti(p.f)])));
 tabella('appalti', 'Appalti e contratti della difesa', 'Grandi contratti firmati o annunciati, soprattutto nel 2026. Le vendite USA «DSCA» sono autorizzazioni, non contratti firmati.',
-  ['Data', 'Stato acquirente', 'Oggetto', 'Fornitore (Stato)', 'Valore', 'Fonti'], APPALTI.map(a => [a[0], a[1], a[2], a[3], a[4], fonti(a[5])]));
+  ['Data', 'Stato acquirente', 'Oggetto', 'Fornitore (Stato)', 'Valore', 'Controllo', 'Coerenza', 'Fonti'], APPALTI.map(a => [a[0], a[1], a[2], a[3], a[4], ctrl(a[5]), NC, fonti(a[5])]));
 tabella('sicurezza_privata', 'Sicurezza privata e mercenari', 'Una riga per ogni Paese in cui opera una compagnia. Accuse sempre con la replica.',
-  ['Nome', 'Tipo', 'Stato d’origine', 'Sede', 'Chi la controlla', 'Dimensione', 'Dove opera', 'Anni', 'Che cosa fa lì', 'Fonti di questa riga', 'Accuse e repliche', 'Fonti generali'],
-  PMC.flatMap(x => (x.dove && x.dove.length ? x.dove : [['', '', '', []]]).map(d => [x.n, x.tipo, x.orig, x.sede, x.prop, x.dim, d[0], d[1], d[2], fonti(d[3]), (x.acc || []).map(a => a[0] + ' – Replica: ' + (a[1] || 'nessuna')).join(' | '), fonti(x.f)])));
+  ['Nome', 'Tipo', 'Stato d’origine', 'Sede', 'Chi la controlla', 'Dimensione', 'Dove opera', 'Anni', 'Che cosa fa lì', 'Fonti di questa riga', 'Accuse e repliche', 'Controllo', 'Coerenza', 'Fonti generali'],
+  PMC.flatMap(x => (x.dove && x.dove.length ? x.dove : [['', '', '', []]]).map(d => [x.n, x.tipo, x.orig, x.sede, x.prop, x.dim, d[0], d[1], d[2], fonti(d[3]), (x.acc || []).map(a => a[0] + ' – Replica: ' + (a[1] || 'nessuna')).join(' | '), ctrl([...(d[3] || []), ...(x.f || [])]), NC, fonti(x.f)])));
 tabella('unita', 'Guardie nazionali, forze speciali, unità d’élite', 'Quadro generale e pubblico: niente dettagli operativi.',
-  ['Stato', 'Unità', 'Tipo', 'Da chi dipende', 'Compito', 'Dimensione stimata', 'Sede', 'Fonti'], UNITA.map(u => [u[0], u[1], u[2], u[3], u[4], u[5], u[6], fonti(u[7])]));
+  ['Stato', 'Unità', 'Tipo', 'Da chi dipende', 'Compito', 'Dimensione stimata', 'Sede', 'Controllo', 'Coerenza', 'Fonti'], UNITA.map(u => [u[0], u[1], u[2], u[3], u[4], u[5], u[6], ctrl(u[7]), NC, fonti(u[7])]));
 const NOMI = { att: 'Militari attivi', ris: 'Riservisti', par: 'Paramilitari', es: 'Esercito', ma: 'Marina', ae: 'Aeronautica', pop: 'Popolazione', disp: 'In età da servizio', ido: 'Idonei', leva: 'Nuovi in età militare ogni anno', aerei: 'Aerei ed elicotteri', caccia: 'Caccia', attacco: 'Aerei d’attacco', trasp: 'Aerei da trasporto', elic: 'Elicotteri', elat: 'Elicotteri d’attacco', carri: 'Carri armati', blind: 'Blindati', semov: 'Artiglieria semovente', train: 'Artiglieria trainata', mlrs: 'Lanciarazzi', navi: 'Navi', porta: 'Portaerei', portael: 'Portaelicotteri', cct: 'Cacciatorpediniere', freg: 'Fregate', corv: 'Corvette', sott: 'Sottomarini', patt: 'Pattugliatori', mine: 'Cacciamine', bil: 'Bilancio difesa ($)' };
-tabella('forze', 'Uomini e mezzi per Stato (stime)', 'Stime di Global Firepower 2026 con la data di revisione della scheda, giovani maschi 15–24 anni (Banca Mondiale) e coerenza con la serie storica 2008–2020.',
-  ['Stato', ...FZ.map(k => NOMI[k] || k), 'Scheda rivista il', 'Giovani maschi 15–24', 'Coerenza con i dati storici', 'Fonti'],
-  Object.entries(FORZE).map(([n, a]) => [n, ...a.slice(0, FZ.length), a[FZ.length], (POP[n] || [])[2] || '', coer(n), fonte('qd_gfp') + ' ; ' + fonte('qd_wb') + ' ; scheda <https://www.globalfirepower.com/country-military-strength-detail.php?country_id=' + a[FZ.length + 1] + '>']));
+tabella('forze', 'Uomini e mezzi per Stato (stime)', 'Stime di Global Firepower 2026 con la data di revisione della scheda, giovani maschi 15–24 anni (Banca Mondiale) e coerenza con la serie storica 2008–2020 della Banca Mondiale (colonna «Coerenza»).',
+  ['Stato', ...FZ.map(k => NOMI[k] || k), 'Scheda rivista il', 'Giovani maschi 15–24', 'Controllo', 'Coerenza', 'Fonti'],
+  Object.entries(FORZE).map(([n, a]) => [n, ...a.slice(0, FZ.length), a[FZ.length], (POP[n] || [])[2] || '', 'stima pubblica', coer(n) || NC, fonte('qd_gfp') + ' ; ' + fonte('qd_wb') + ' ; scheda <https://www.globalfirepower.com/country-military-strength-detail.php?country_id=' + a[FZ.length + 1] + '>']));
 tabella('siti_ufficiali', 'Siti ufficiali di forze armate e polizie', 'Indirizzi provati il 18 novembre 2026. Sono la voce dello Stato: fonti di parte.',
-  ['Stato', 'Ente', 'Sito'], Object.entries(SITI).flatMap(([n, l]) => l.map(x => [n, x[0], x[1]])));
-const SAP = G('SAPERE_BASE') || {};
+  ['Stato', 'Ente', 'Sito', 'Controllo', 'Coerenza'], Object.entries(SITI).flatMap(([n, l]) => l.map(x => [n, x[0], x[1], 'voce dello Stato', NC])));
+let SAP = G('SAPERE_BASE') || {};
+// se accanto alla pagina c'è il sapere scritto dal telefono (sapere.js), vale quello: è più completo
+try { const t = fs.readFileSync(path.join(path.dirname(base), 'sapere.js'), 'utf8'); const o = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); if (Object.keys(o).length > Object.keys(SAP).length) SAP = o; } catch (e) {}
 tabella('sapere', 'Sapere: forze armate e storia da Wikipedia', 'Voci lette dal programma su Wikipedia per ogni Stato, con la data di lettura e l’indirizzo. Enciclopedia aperta (CC BY-SA): utile per orientarsi, da confermare.',
-  ['Stato', 'Argomento', 'Titolo della voce', 'Inizio del testo', 'Lingua', 'Letta il', 'Indirizzo'],
-  Object.entries(SAP).flatMap(([n, v]) => ['forze', 'storia', 'factbook'].filter(k => v[k]).map(k => [n, k === 'forze' ? 'Forze armate (Wikipedia)' : k === 'storia' ? 'Storia (Wikipedia)' : 'Forze armate e sicurezza (World Factbook)', v[k].titolo, v[k].testo_it || v[k].testo, v[k].testo_it ? 'it (tradotto da ' + v[k].lingua + ')' : v[k].lingua, v.data, v[k].url])));
+  ['Stato', 'Argomento', 'Titolo della voce', 'Inizio del testo', 'Lingua', 'Letta il', 'Controllo', 'Coerenza', 'Indirizzo'],
+  Object.entries(SAP).flatMap(([n, v]) => ['forze', 'storia', 'factbook'].filter(k => v[k]).map(k => [n, k === 'forze' ? 'Forze armate (Wikipedia)' : k === 'storia' ? 'Storia (Wikipedia)' : 'Forze armate e sicurezza (World Factbook)', v[k].titolo, v[k].testo_it || v[k].testo, v[k].testo_it ? 'it (tradotto da ' + v[k].lingua + ')' : v[k].lingua, v.data, k === 'factbook' ? 'banca dati aperta' : 'enciclopedia aperta', NC, v[k].url])));
 tabella('copertura', 'Copertura: che cosa c’è per ogni Stato', 'Per ogni Stato, quante voci ci sono in ogni sezione. Zero vuol dire «ancora da fare» oppure «non esiste» (per esempio Stati senza esercito).',
   ['Stato', 'Governo', 'Notizie datate', 'Righe di storia', 'Trattati', 'Uomini e mezzi (stima)', 'Personale (Banca Mondiale)', 'Basi', 'Siti ufficiali', 'Unità', 'Appalti', 'Sicurezza privata', 'Sapere (Wikipedia)'],
   Object.entries(SCHEDE).map(([n, d]) => [n, d.gov ? 'sì' : 'no', (d.nz || []).length, (d.st || []).length, (d.tr || []).length, FORZE[n] ? 'sì' : 'no', POP[n] ? 'sì' : 'no', vm.runInContext('(STATI[' + JSON.stringify(n) + '].items.basi||[]).length', ctx), (SITI[n] || []).length, UNITA.filter(u => u[0] === n).length, vm.runInContext('appaltiDi(' + JSON.stringify(n) + ').length', ctx), vm.runInContext('pmcDi(' + JSON.stringify(n) + ').length', ctx), SAP[n] ? Object.keys(SAP[n]).length - 1 : 0]));
 const DIP = G('DIPLO') || {}, SF = G('SOC_FEDI') || {}, SE = G('SOC_ETNIE') || {}, SG = G('SOC_GINI') || {};
 tabella('sedi_diplomatiche', 'Ambasciate: quale Stato ha una sede in quale Stato', 'Ambasciate, alte commissioni e nunziature, una riga per coppia di Stati. Elenco aperto di Wikidata letto il 18 novembre 2026, senza le sedi segnate come chiuse; non comprende i consolati, può avere buchi e sedi sospese o chiuse da poco.',
-  ['Stato che invia', 'Stato che ospita', 'Reciproca nell’elenco', 'Fonte'],
-  Object.entries(DIP).flatMap(([a, d]) => d.fuori.map(b => [a, b, (DIP[b] && DIP[b].fuori.includes(a)) ? 'sì' : 'no', fonte('qh_wd_sedi')])));
+  ['Stato che invia', 'Stato che ospita', 'Reciproca nell’elenco', 'Controllo', 'Coerenza', 'Fonte'],
+  Object.entries(DIP).flatMap(([a, d]) => d.fuori.map(b => [a, b, (DIP[b] && DIP[b].fuori.includes(a)) ? 'sì' : 'no', 'banca dati aperta', NC, fonte('qh_wd_sedi')])));
 tabella('societa', 'Fedi, etnie e disuguaglianze per Stato', 'Composizione religiosa ed etnica (copia d’archivio del World Factbook, con gli anni della fonte) e indice di Gini della Banca Mondiale.',
-  ['Stato', 'Fedi religiose', 'Etnie e minoranze (testo originale in inglese)', 'Indice di Gini', 'Anno del Gini', 'Fonti'],
-  Object.keys(SCHEDE).filter(n => SF[n] || SE[n] || SG[n]).map(n => [n, SF[n] || '', SE[n] || '', SG[n] ? SG[n][0] : '', SG[n] ? SG[n][1] : '', fonti(['qh_factbook', 'qh_gini'])]));
+  ['Stato', 'Fedi religiose', 'Etnie e minoranze (testo originale in inglese)', 'Indice di Gini', 'Anno del Gini', 'Controllo', 'Coerenza', 'Fonti'],
+  Object.keys(SCHEDE).filter(n => SF[n] || SE[n] || SG[n]).map(n => [n, SF[n] || '', SE[n] || '', SG[n] ? SG[n][0] : '', SG[n] ? SG[n][1] : '', 'banca dati aperta', NC, fonti(['qh_factbook', 'qh_gini'])]));
+const basiDi = n => { try { return vm.runInContext('(STATI[' + JSON.stringify(n) + '].items.basi||[]).map(x=>x.n)', ctx); } catch (e) { return []; } };
+const VOTO = p => p >= 5 ? 'solido' : p >= 3 ? 'discreto' : p >= 1 ? 'debole' : 'da fare';
+tabella('controlli', 'Controlli: quanto è solida la scheda di ogni Stato', 'Una riga per Stato con sei controlli: almeno due fonti nella scheda; almeno metà delle notizie datate con più fonti; uomini e mezzi coerenti con la serie storica; almeno una base confermata anche da Wikidata; almeno un sito ufficiale provato; sapere letto dal programma. Il nome di controllo riassume quanti sono passati: solido (5–6), discreto (3–4), debole (1–2), da fare (0).',
+  ['Stato', 'Controllo', 'Coerenza', 'Controlli passati su 6', 'Fonti della scheda', 'Notizie datate', 'di cui con più fonti', 'Basi', 'di cui confermate da Wikidata', 'Siti ufficiali', 'Sapere letto il', 'Ambasciate inviate', 'di cui reciproche', 'Che cosa manca'],
+  Object.entries(SCHEDE).map(([n, s]) => {
+    const nf = nFonti([...(s.f || []), ...(s.rf || [])]), nz = s.nz || [], nzp = nz.filter(z => nFonti(z[2]) >= 2).length, b = basiDi(n), bw = b.filter(x => WD[x]).length, c = coer(n), si = (SITI[n] || []).length, sa = SAP[n], d = DIP[n] ? DIP[n].fuori : [], dr = d.filter(x => DIP[x] && DIP[x].fuori.includes(n)).length;
+    const prove = [[nf >= 2, 'seconda fonte nella scheda'], [nz.length > 0 && nzp * 2 >= nz.length, 'notizie con più fonti'], [c === 'coerente', FORZE[n] ? 'uomini e mezzi da riconfrontare' : 'stima di uomini e mezzi'], [bw > 0, b.length ? 'conferma delle basi' : 'basi'], [si > 0, 'sito ufficiale'], [!!sa, 'sapere']];
+    const p = prove.filter(x => x[0]).length;
+    return [n, VOTO(p), c || NC, p, nf, nz.length, nzp, b.length, bw, si, sa ? sa.data : '', d.length, dr, prove.filter(x => !x[0]).map(x => x[1]).join(', ')];
+  }));
+let CFG = null; for (const f of [cfgArg, path.join(path.dirname(base), 'programma', 'config.json'), path.join(__dirname, '..', 'programma', 'config.json')]) { if (f && fs.existsSync(f)) { try { CFG = JSON.parse(fs.readFileSync(f, 'utf8')); break; } catch (e) {} } }
+const LVN = { A: 'agenzia o ente', B: 'testata seria', C: 'voce di parte', D: 'non classificata' }, LN = G('LINGUE_NOME') || {};
+if (CFG && CFG.rss) tabella('fonti_del_programma', 'Fonti che il programma legge a ogni giro', 'I feed fissi di giornali, televisioni, agenzie ed enti che il programma legge da solo, con Stato, lingua e livello. Le testate in lingua locale passano dalla «sala d’attesa»: i titoli vengono scelti e tradotti in italiano prima di entrare. A queste si aggiungono le ricerche per tema e per Stato e le fonti che il programma trova da solo.',
+  ['Nome', 'Stato', 'Lingua', 'Tema', 'Livello', 'Come entrano i titoli', 'Controllo', 'Coerenza', 'Indirizzo del feed'],
+  CFG.rss.map(f => { const l = f.lingua || ''; return [f.nome, f.stato || '', l ? (LN[l] || l) : '', f.tema, (f.lv || '') + (LVN[f.lv] ? ' ' + LVN[f.lv] : ''), !f.filtra ? 'tutti' : l && l !== 'it' && l !== 'en' ? 'scelti e tradotti (sala d’attesa)' : 'solo quelli con parole di difesa e politica estera', f.lv === 'C' ? 'voce di parte' : f.lv === 'A' ? 'agenzia o ente' : 'testata seria', 'si confronta a ogni giro con le altre fonti', f.url]; }));
+tabella('nomi_di_controllo', 'Legenda: i nomi di controllo e di coerenza', 'I nomi usati nelle colonne «Controllo» e «Coerenza» di tutte le tabelle, sempre gli stessi.',
+  ['Colonna', 'Nome', 'Che cosa vuol dire'],
+  [['Controllo', 'più fonti', 'La riga poggia su almeno due fonti con indirizzi diversi (per le basi: la fonte citata più Wikidata).'],
+   ['Controllo', 'una fonte', 'C’è una sola fonte: il dato è da prendere con riserva finché non ne arriva una seconda.'],
+   ['Controllo', 'senza fonte', 'Nessuna fonte indicata nella riga: da completare.'],
+   ['Controllo', 'stima pubblica', 'Numero stimato da un osservatorio (uomini, mezzi): ordine di grandezza, non conteggio.'],
+   ['Controllo', 'banca dati aperta', 'Dato preso in blocco da una banca dati pubblica (Wikidata, World Factbook, Banca Mondiale): può avere buchi e ritardi.'],
+   ['Controllo', 'enciclopedia aperta', 'Testo di Wikipedia: utile per orientarsi, da confermare.'],
+   ['Controllo', 'voce dello Stato', 'Sito ufficiale di governo, forze armate o polizia: è la versione dell’interessato.'],
+   ['Controllo', 'agenzia o ente · testata seria · voce di parte', 'Livello dato a una fonte di notizie che il programma legge (A, B, C); le fonti nuove partono da «non classificata» (D).'],
+   ['Controllo', 'solido · discreto · debole · da fare', 'Solo nella tabella «Controlli»: quanti dei sei controlli passa la scheda di uno Stato (5–6, 3–4, 1–2, 0).'],
+   ['Coerenza', 'coerente', 'Confrontato con un secondo dato indipendente e in accordo (uomini e mezzi: entro il 25% della serie storica; basi: presenti anche in Wikidata).'],
+   ['Coerenza', 'da verificare', 'Il confronto dà uno scarto ampio ma spiegabile, oppure la riga porta una nota «da verificare».'],
+   ['Coerenza', 'discordante', 'Il confronto dà uno scarto troppo ampio: uno dei due dati è sbagliato, vecchio o conta cose diverse.'],
+   ['Coerenza', 'non confrontata', 'Nessun secondo dato con cui fare il confronto: non vuol dire che sia sbagliata.'],
+   ['Coerenza', 'si confronta a ogni giro con le altre fonti', 'Per le fonti di notizie: a ogni giro il programma segna quali fatti sono riportati da più fonti e cerca conferme per quelli di parte.']]);
 tabella('fonti_gratuite', 'Fonti gratuite da seguire', 'Banche dati, osservatori, centri studi, libri e corsi, con affidabilità e limiti.',
   ['Tema', 'Nome', 'Indirizzo', 'Che cosa offre', 'Come si accede', 'Affidabilità', 'Limiti'], FONTI.map(f => f.slice(0, 7)));
 tabella('registro_fonti', 'Registro di tutte le fonti citate', 'Ogni chiave di fonte usata nelle altre tabelle, con descrizione e indirizzo.',
@@ -88,8 +125,8 @@ if(location.hash.length>1&&location.hash!=='#diario'&&location.hash!=='#memoria'
 const NT={temi:'ricerche per tema',stati:'rotazione degli Stati',ricerca:'ricerca autonoma',feed:'feed delle testate',telegram:'Telegram',video:'YouTube',altro:'altro'};
 function vedi(d){T=d;document.getElementById('vista').innerHTML='<h2>'+esc(d.titolo)+'</h2><input id="q" placeholder="Cerca (Stato, nome, parola)…" oninput="mostra()"><div class="s" id="n"></div><div class="wrap" id="tab"></div>';mostra();document.getElementById('vista').scrollIntoView();}
 let DIARIO=null;
-function apriDiario(){if(!DIARIO)return;location.hash='diario';vedi({titolo:'Diario del programma: un giro per riga',colonne:['Quando','Versione','Minuti','Voci nuove','Da dove','Notizie (3 giorni)','Confermate %','Non classificate %','Stati senza notizie','Feed attivi','Feed trovati da solo','Stati studiati','Fatti in memoria','Domande di seguito (notizie)','Verifiche cercate (confermate)','Richieste ai siti','Rifiuti per troppe richieste','Avvisi','Spesa del mese $'],
-righe:DIARIO.slice().reverse().map(x=>{const l=x.livelli||{},t=(l.A||0)+(l.B||0)+(l.C||0)+(l.D||0);return [x.quando,x.v,Math.round(x.durata/60),x.nuove,Object.keys(x.da||{}).map(k=>(NT[k]||k)+' '+x.da[k]).join(', '),x.live,Math.round(100*x.quota),t?Math.round(100*(l.D||0)/t):0,x.scoperti,x.fonti[0]+'/'+x.fonti[1],(x.fonti_nuove||[]).join(', '),x.sapere||0,(x.memoria||[0,0])[1],(x.seguiti||[0,0])[0]+' ('+(x.seguiti||[0,0])[1]+')',(x.verifiche||[0,0])[0]+' ('+(x.verifiche||[0,0])[1]+')',x.richieste,Object.keys(x.rifiuti||{}).map(k=>k+' '+x.rifiuti[k]).join(', '),x.errori,(x.usd_mese||0).toFixed(2)];})});}
+function apriDiario(){if(!DIARIO)return;location.hash='diario';vedi({titolo:'Diario del programma: un giro per riga',colonne:['Quando','Tipo di giro','Versione','Minuti','Voci nuove','Da dove','Notizie (3 giorni)','Confermate %','Non classificate %','Stati senza notizie','Feed attivi','Feed trovati da solo','Stati studiati','Fatti in memoria','Domande di seguito (notizie)','Verifiche cercate (confermate)','Testate locali: titoli entrati / scartati / in coda','Senza rete: conferme in più','Richieste ai siti','Rifiuti per troppe richieste','Avvisi','Spesa del mese $'],
+righe:DIARIO.slice().reverse().map(x=>{const l=x.livelli||{},t=(l.A||0)+(l.B||0)+(l.C||0)+(l.D||0);return [x.quando,x.tipo||'completo',x.v,Math.round(x.durata/60),x.nuove,Object.keys(x.da||{}).map(k=>(NT[k]||k)+' '+x.da[k]).join(', '),x.live,Math.round(100*x.quota),t?Math.round(100*(l.D||0)/t):0,x.scoperti,x.fonti[0]+'/'+x.fonti[1],(x.fonti_nuove||[]).join(', '),x.sapere||0,(x.memoria||[0,0])[1],(x.seguiti||[0,0])[0]+' ('+(x.seguiti||[0,0])[1]+')',(x.verifiche||[0,0])[0]+' ('+(x.verifiche||[0,0])[1]+')',x.attesa?x.attesa.join(' / '):'',x.offline?x.offline[0]:'',x.richieste,Object.keys(x.rifiuti||{}).map(k=>k+' '+x.rifiuti[k]).join(', '),x.errori,(x.usd_mese||0).toFixed(2)];})});}
 function apriMemoria(){location.hash='memoria';const righe=[];Object.keys(window.MEMORIA||{}).sort().forEach(s=>window.MEMORIA[s].forEach(x=>righe.push([s,x[0],x[1],x[2],x[3],x[4]])));vedi({titolo:'Fatti confermati per Stato (memoria del programma)',colonne:['Stato','Data','Fatto (titolo)','Prima fonte','Numero di fonti','Indirizzo'],righe});}
 fetch('diario.json?v='+Date.now()).then(r=>r.json()).then(D=>{if(!D.length)return;DIARIO=D;const z=D[D.length-1],lim=new Date(Date.parse(z.iso)-24*3600e3).toISOString(),g=D.filter(x=>x.iso>=lim),i0=D.indexOf(g[0]),a=i0>0?D[i0-1]:g[0],tot=k=>g.reduce((s,x)=>s+(x[k]||0),0);
 document.getElementById('prog').insertAdjacentHTML('afterbegin','<div class="t"><b>Diario del programma</b> <span class="s">('+D.length+' giri)</span><div class="s">Ultime 24 ore: '+g.length+' giri, '+tot('nuove')+' voci nuove; notizie degli ultimi 3 giorni da '+a.live+' a '+z.live+'; confermate da più fonti dal '+Math.round(100*a.quota)+'% al '+Math.round(100*z.quota)+'%; Stati senza notizie da '+a.scoperti+' a '+z.scoperti+'; feed attivi da '+a.fonti[0]+' a '+z.fonti[0]+'. Ultimo giro: '+esc(z.quando)+', versione '+esc(z.v)+'.</div><button onclick="apriDiario()">Guarda tutti i giri</button><a href="diario.json">JSON</a></div>');

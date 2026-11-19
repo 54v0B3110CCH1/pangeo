@@ -241,3 +241,29 @@ NOVITÀ 2.14 – UN GIRO OGNI ORA, E PARTE ANCHE SE CRON NON FUNZIONA
   delle 18:17 non sono partiti. La riga di cron viene riscritta con i percorsi completi e portata a «ogni ora».
 - Dopo un giro leggero su GitHub va solo il diario; i dati grossi ci vanno ogni 3 ore.
 - python castello.py giri   mostra anche il tipo di ogni giro e se l'orologio interno è acceso.
+
+NOVITÀ 2.15 – CAPISCE QUANDO MANCA LA RETE, E INTANTO LAVORA SU QUELLO CHE HA
+- L'errore «No address associated with hostname» voleva dire: il telefono non trova il sito, quasi sempre perché
+  manca la rete. Prima il programma provava lo stesso tutte le fonti, riempiva gli avvisi e le penalizzava.
+  Adesso, prima di ogni giro, controlla se internet risponde (cinque indirizzi diversi, due secondi l'uno).
+- Senza rete non raccoglie e non penalizza nessuna fonte. Lavora sull'archivio che ha già: rilegge le notizie
+  degli ultimi 7 giorni, cerca quali raccontano lo stesso fatto (conferme tra fonti), mette in memoria i fatti
+  confermati, salva una copia. Lo fa al massimo una volta l'ora e lo scrive nel diario come giro «senza rete».
+- Quando la rete torna parte subito un giro completo, senza aspettare l'ora: l'orologio interno controlla ogni minuto.
+- Se la rete cade a metà giro, il giro si ferma lì, tiene quello che ha preso e non penalizza le fonti saltate.
+- Se il DNS del telefono non conosce un sito ma la rete c'è (succedeva con Premium Times e Vanguard), il programma
+  chiede l'indirizzo a un DNS pubblico (Cloudflare, poi Google) e riprova.
+- Avvisi in italiano: «il sito non si trova», «tempo scaduto», «troppe richieste», «l'indirizzo non esiste più»…
+  Tanti errori di rete uguali diventano una riga sola.
+- Nessuna fonte viene più bloccata. Una fonte che non risponde viene riprovata a ogni giro le prime 3 volte,
+  poi solo nei giri completi, e dopo 10 fallimenti di fila una volta al giorno: appena risponde torna normale.
+  Intanto il programma cerca il suo indirizzo nuovo e fonti nuove, come prima.
+- Prima nella lingua del posto, dalle emittenti locali: 98 radio, televisioni e giornali nazionali nella loro
+  lingua (47 lingue) più 11 enti (Nazioni Unite, AIEA, ASEAN, Unione Africana…): 299 feed fissi. I loro titoli
+  entrano in una «sala d'attesa»: il cervello sceglie quelli che riguardano difesa, sicurezza e politica estera,
+  li traduce in italiano e scarta gli altri (40 titoli a richiesta, al massimo 10 richieste a giro).
+- python castello.py giri   mostra «RETE ASSENTE dal…» e i giri fatti senza rete.
+- Tabelle: colonne «Controllo» e «Coerenza» con nomi fissi in tutte le tabelle, più tre tabelle nuove:
+  «Controlli» (sei controlli per ogni Stato), «Fonti che il programma legge», «Legenda dei nomi».
+- WikiLeaks: non ha un feed, quindi il programma non può leggerlo da solo. È tra le fonti, e nella storia di
+  ogni Stato c'è il collegamento per cercarlo a mano. UCDP e ReliefWeb (API) ora chiedono un codice di accesso.

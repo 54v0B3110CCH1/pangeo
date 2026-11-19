@@ -1,0 +1,15 @@
+﻿Colonna,Nome,Che cosa vuol dire
+Controllo,più fonti,La riga poggia su almeno due fonti con indirizzi diversi (per le basi: la fonte citata più Wikidata).
+Controllo,una fonte,C’è una sola fonte: il dato è da prendere con riserva finché non ne arriva una seconda.
+Controllo,senza fonte,Nessuna fonte indicata nella riga: da completare.
+Controllo,stima pubblica,"Numero stimato da un osservatorio (uomini, mezzi): ordine di grandezza, non conteggio."
+Controllo,banca dati aperta,"Dato preso in blocco da una banca dati pubblica (Wikidata, World Factbook, Banca Mondiale): può avere buchi e ritardi."
+Controllo,enciclopedia aperta,"Testo di Wikipedia: utile per orientarsi, da confermare."
+Controllo,voce dello Stato,"Sito ufficiale di governo, forze armate o polizia: è la versione dell’interessato."
+Controllo,agenzia o ente · testata seria · voce di parte,"Livello dato a una fonte di notizie che il programma legge (A, B, C); le fonti nuove partono da «non classificata» (D)."
+Controllo,solido · discreto · debole · da fare,"Solo nella tabella «Controlli»: quanti dei sei controlli passa la scheda di uno Stato (5–6, 3–4, 1–2, 0)."
+Coerenza,coerente,"Confrontato con un secondo dato indipendente e in accordo (uomini e mezzi: entro il 25% della serie storica; basi: presenti anche in Wikidata)."
+Coerenza,da verificare,"Il confronto dà uno scarto ampio ma spiegabile, oppure la riga porta una nota «da verificare»."
+Coerenza,discordante,"Il confronto dà uno scarto troppo ampio: uno dei due dati è sbagliato, vecchio o conta cose diverse."
+Coerenza,non confrontata,Nessun secondo dato con cui fare il confronto: non vuol dire che sia sbagliata.
+Coerenza,si confronta a ogni giro con le altre fonti,Per le fonti di notizie: a ogni giro il programma segna quali fatti sono riportati da più fonti e cerca conferme per quelli di parte.

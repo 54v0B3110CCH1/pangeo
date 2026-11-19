@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.14 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.15 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -38,6 +38,7 @@ import os
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -49,7 +50,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import datetime, timedelta, timezone
 
-VERSIONE = "2.14"
+VERSIONE = "2.15"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -118,7 +119,112 @@ _ULTIMA = {}
 RICHIESTE, RIFIUTI = {}, {}  # richieste fatte e rifiuti (429) per sito, nel giro in corso
 
 
+RETE = {"su": True, "falliti": 0, "controllo": 0.0}
+_GAI = socket.getaddrinfo
+_DNS = {}
+
+
+class SenzaRete(OSError):
+    """La rete non c'è: non è colpa della fonte, e la fonte non va penalizzata."""
+
+
+def rete_ok(forza=False):
+    """C'è la rete? Prova a collegarsi a tre indirizzi numerici (così non serve il DNS). Il risultato vale un minuto."""
+    if not forza and time.time() - RETE["controllo"] < 60:
+        return RETE["su"]
+    su = False
+    for ip in ("1.1.1.1", "8.8.8.8", "9.9.9.9", "github.com", "www.wikipedia.org"):
+        try:
+            socket.create_connection((ip, 443), timeout=5).close()
+            su = True
+            break
+        except OSError:
+            continue
+    RETE.update(su=su, controllo=time.time(), falliti=0)
+    return su
+
+
+def _errore_di_rete(e):
+    """Vero se l'errore viene dalla rete (nome non trovato, rete irraggiungibile), non dal sito."""
+    t = str(e).lower()
+    return any(k in t for k in ("no address associated", "name or service not known", "temporary failure in name resolution",
+                                "network is unreachable", "no route to host", "nodename nor servname", "rete assente"))
+
+
+def _risolvi_fuori(host):
+    """Il DNS del telefono non trova il sito: l'indirizzo si chiede a un DNS pubblico via HTTPS (Cloudflare, poi Google)."""
+    for url in ("https://1.1.1.1/dns-query?name=%s&type=A", "https://8.8.8.8/resolve?name=%s&type=A"):
+        try:
+            req = urllib.request.Request(url % urllib.parse.quote(host), headers={"accept": "application/dns-json", "User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                for a in json.loads(r.read().decode("utf-8", "replace")).get("Answer", []):
+                    if a.get("type") == 1:
+                        return a.get("data")
+        except Exception:
+            continue
+    return None
+
+
+def _getaddrinfo(host, *a, **k):
+    try:
+        return _GAI(host, *a, **k)
+    except socket.gaierror:
+        if not isinstance(host, str) or re.fullmatch(r"[0-9a-fA-F.:]+", host) or not RETE["su"] or _DNS.get(host) == "":
+            raise
+        ip = _DNS.get(host) or _risolvi_fuori(host)
+        _DNS[host] = ip or ""  # se nemmeno il DNS pubblico lo trova, in questo giro non si riprova
+        if not ip:
+            raise
+        return _GAI(ip, *a, **k)
+
+
+socket.getaddrinfo = _getaddrinfo
+
+ERRORI_IT = [
+    (r"<urlopen error \[Errno 7\] No address associated with hostname>|<urlopen error \[Errno -2\] Name or service not known>|"
+     r"<urlopen error \[Errno -3\] Temporary failure in name resolution>|<urlopen error \[Errno 8\] nodename nor servname[^>]*>",
+     "il sito non si trova (né il DNS del telefono né quello pubblico lo conoscono: forse ha cambiato indirizzo)"),
+    (r"<urlopen error \[Errno 101\] Network is unreachable>|<urlopen error \[Errno 113\] No route to host>", "rete assente"),
+    (r"<urlopen error timed out>|<urlopen error _ssl\.c:\d+: The handshake operation timed out>|The read operation timed out|timed out",
+     "tempo scaduto: il sito non ha risposto"),
+    (r"HTTP Error 401: \w+(?: \w+)*", "accesso negato: servono credenziali valide (401)"),
+    (r"HTTP Error 403: \w+(?: \w+)*", "il sito rifiuta l'accesso ai programmi (403)"),
+    (r"HTTP Error 404: \w+(?: \w+)*", "l'indirizzo non esiste più (404)"),
+    (r"HTTP Error 410: \w+(?: \w+)*", "l'indirizzo è stato tolto (410)"),
+    (r"HTTP Error 429: \w+(?: \w+)*", "troppe richieste: il sito chiede di rallentare (429)"),
+    (r"HTTP Error 5\d\d: \w+(?: \w+)*", "il sito ha un guasto suo (errore 500 e simili)"),
+    (r"<urlopen error \[Errno 111\] Connection refused>|Connection refused", "collegamento rifiutato dal sito"),
+    (r"<urlopen error \[Errno 104\] Connection reset by peer>|Connection reset by peer|Remote end closed connection without response",
+     "collegamento interrotto dal sito"),
+    (r"<urlopen error \[SSL[^>]*>", "certificato di sicurezza del sito non valido"),
+    (r"not well-formed \(invalid token\): line \d+, column \d+|syntax error: line \d+, column \d+|mismatched tag: line \d+, column \d+|"
+     r"no element found: line \d+, column \d+|junk after document element: line \d+, column \d+",
+     "il feed non è leggibile (pagina di blocco o formato cambiato)"),
+    (r"undefined entity: line \d+, column \d+|XML or text declaration not at start of entity: line \d+, column \d+",
+     "il feed non è leggibile (formato non valido)"),
+    (r"feed vuoto", "il feed è vuoto"),
+    (r"<urlopen error ([^>]*)>", r"errore di collegamento (\1)"),
+]
+
+
+def in_italiano(testo):
+    for modello, it in ERRORI_IT:
+        testo = re.sub(modello, it, testo)
+    return testo
+
+
+def riassumi_errori(errori):
+    """Gli avvisi in italiano; quelli di rete, tanti e tutti uguali, diventano una riga sola."""
+    di_rete = [e for e in errori if _errore_di_rete(e)]
+    if len(di_rete) < 5:
+        return [in_italiano(e) for e in errori]
+    return [f"Rete assente o instabile durante il giro: {len(di_rete)} fonti non raggiunte. Non vengono penalizzate: "
+            "il programma le rilegge da solo appena la rete torna."] + [in_italiano(e) for e in errori if e not in di_rete]
+
+
 def scarica(url, timeout=25, intestazioni=None, corpo=None):
+    if not RETE["su"]:
+        raise SenzaRete("rete assente")
     # rispetto dei siti: tra due richieste allo stesso sito passano almeno 2 secondi
     d_ = urllib.parse.urlparse(url).netloc
     attesa_ = 2.0 - (time.time() - _ULTIMA.get(d_, 0))
@@ -136,7 +242,16 @@ def scarica(url, timeout=25, intestazioni=None, corpo=None):
     except urllib.error.HTTPError as e:
         if e.code == 429:
             RIFIUTI[d_] = RIFIUTI.get(d_, 0) + 1
+        RETE["falliti"] = 0
         raise
+    except OSError as e:
+        # errore di rete e non del sito: dopo 5 di fila si guarda se la rete c'è ancora
+        if _errore_di_rete(e):
+            RETE["falliti"] += 1
+            if RETE["falliti"] >= 5 and not rete_ok(forza=True):
+                raise SenzaRete("rete assente") from e
+        raise
+    RETE["falliti"] = 0
     # alcuni siti (es. UN News dal novembre 2026) mandano il feed compresso anche se non lo si chiede
     try:
         if dati_[:2] == b"\x1f\x8b":
@@ -227,7 +342,14 @@ def leggi_rss(contenuto):
         # feed scritti male: «&» non codificati e caratteri di controllo
         pulito = re.sub(rb"&(?!(?:[a-zA-Z]{2,8}|#\d{1,6}|#x[0-9a-fA-F]{1,6});)", b"&amp;", contenuto)
         pulito = re.sub(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]", b"", pulito)
-        radice = ET.fromstring(pulito)
+        try:
+            radice = ET.fromstring(pulito)
+        except ET.ParseError:
+            # entità del linguaggio delle pagine web (&nbsp; &eacute; …) che in un feed non sono ammesse: si scrivono per esteso
+            testo_ = pulito.decode("utf-8", "replace")
+            testo_ = re.sub(r"&(?!(?:amp|lt|gt|quot|apos);)([a-zA-Z]{2,8});",
+                            lambda m: html.unescape(m.group(0)) if html.unescape(m.group(0)) != m.group(0) else " ", testo_)
+            radice = ET.fromstring(testo_.encode("utf-8"))
     voci = []
     for tag in ("item", RSS1 + "item"):
         ns = RSS1 if tag.startswith("{") else ""
@@ -924,10 +1046,9 @@ def miglioratore(cfg, chiavi, analisi, auto, errori):
     # 3. fonti fisse rotte da molti giri: le salta per una settimana
     for f in cfg.get("rss", []):
         st = auto.get("stato", {}).get(f["url"], {})
-        if st.get("fila", 0) >= (18 if cfg.get("giro_leggero", {}).get("attivo", True) else 6) and f["url"] not in imp.get("in_pausa", {}):
-            imp.setdefault("in_pausa", {})[f["url"]] = (adesso + timedelta(days=7)).date().isoformat()
-            fatte.append(f"«{f['nome']}» non risponde da {st['fila']} giri: messa in pausa per 7 giorni.")
-    imp["in_pausa"] = {u: g for u, g in imp.get("in_pausa", {}).items() if g >= adesso.date().isoformat()}
+        if st.get("fila", 0) == 10:
+            fatte.append(f"«{f['nome']}» non risponde da 10 giri: la riprovo una volta al giorno e cerco un sostituto.")
+    imp["in_pausa"] = {}  # dalla 2.15 nessuna fonte resta bloccata
     scrivi_json(os.path.join(DATI, "impostazioni_auto.json"), imp)
     # richieste: cose che il programma non può fare da solo
     if prima and giro["quota"] < prima["quota"] - 0.03:
@@ -1122,12 +1243,55 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
                     for p in ric.trova(v["it"]):
                         if p not in v["paesi"]:
                             v["paesi"].append(p)
+                    if not v["paesi"] and v.get("rip"):
+                        v["paesi"] = [v["rip"]]  # notizia locale che non nomina nessuno Stato: è del Paese della testata
             if not presi_:
                 errori.append(f"Claude (traduzioni): risposta senza righe numerate ({len(risposta)} caratteri)")
                 break
         except Exception as e:
             errori.append(f"Claude (traduzioni): {re.sub(r'sk-ant-[A-Za-z0-9_-]+', '***', str(e))}")
             break
+    # 1a. sala d'attesa: titoli delle testate nella lingua del posto. Il cervello traduce quelli che riguardano i temi di
+    # PanGeo e scarta gli altri (sport, spettacolo, cronaca minuta) con un trattino: così costa poco.
+    attesa = archivio.setdefault("attesa", {})
+    in_coda = sorted(((k, v) for k, v in attesa.items() if not v.get("no")), key=lambda kv: kv[1].get("data_iso") or "", reverse=True)
+    lotto_a, lotti_a, entrate_, scartate_ = impost.get("attesa_lotto", 40), 0, 0, 0
+    while in_coda and conto["chiamate"] < tetto and lotti_a < impost.get("attesa_per_giro", 10):
+        gruppo, in_coda = in_coda[:lotto_a], in_coda[lotto_a:]
+        lotti_a += 1
+        domanda = ("Sono titoli di giornali e televisioni di molti Paesi, in lingue diverse. Per ciascuno: se riguarda difesa, forze "
+                   "armate, guerre, sicurezza, terrorismo, politica estera, governo e crisi politiche, elezioni, proteste, sanzioni, "
+                   "commercio tra Stati, energia, confini, migrazioni, disastri o salute pubblica, scrivi la traduzione in italiano; "
+                   "altrimenti (sport, spettacolo, cronaca locale minuta, meteo, costume) scrivi solo un trattino. Una riga per titolo, "
+                   "nello stesso ordine e con lo stesso numero davanti, senza commenti:\n" +
+                   "\n".join(f"{i + 1}. {v['t']}" for i, (k, v) in enumerate(gruppo)))
+        try:
+            risposta = chiedi_claude(chiavi, cfg, domanda, 2500, conto)
+            conto["chiamate"] += 1
+            viste_ = set()
+            for riga in risposta.splitlines():
+                m = numerata.match(riga)
+                if not m or not 0 < int(m.group(1)) <= len(gruppo):
+                    continue
+                k, v = gruppo[int(m.group(1)) - 1]
+                viste_.add(k)
+                testo_ = pulisci(m.group(2), 300)
+                if len(testo_) < 8 or testo_.strip(" -–—.") == "":
+                    v["no"] = True  # non riguarda PanGeo: resta in attesa solo per non rileggerlo
+                    scartate_ += 1
+                    continue
+                v["it"] = testo_
+                v["paesi"] = list(dict.fromkeys(v.get("paesi", []) + ric.trova(testo_))) or ([v["rip"]] if v.get("rip") else [])
+                archivio["notizie"][k] = v
+                attesa[k] = {"no": True, "data_iso": v.get("data_iso"), "t": "", "u": ""}
+                entrate_ += 1
+            if not viste_:
+                errori.append(f"Claude (titoli in attesa): risposta senza righe numerate ({len(risposta)} caratteri)")
+                break
+        except Exception as e:
+            errori.append(f"Claude (titoli in attesa): {re.sub(r'sk-ant-[A-Za-z0-9_-]+', '***', str(e))}")
+            break
+    conto["attesa"] = [entrate_, scartate_, sum(1 for v in attesa.values() if not v.get("no"))]
     # 1b. il «sapere» letto in inglese (Wikipedia in inglese, World Factbook) diventa italiano
     S_ = leggi_json(os.path.join(DATI, "sapere.json"), {})
     da_s = [(st_, k) for st_, v in S_.items() for k in ("forze", "storia", "factbook")
@@ -1440,12 +1604,12 @@ def sapere(cfg, paesi, errori, adesso):
 
 # ----------------------------------------------------------------------------- memoria e diario
 
-def memoria_stati(archivio, adesso, cfg):
+def memoria_stati(archivio, adesso, cfg, ore=30):
     """La memoria che cresce da sola: per ogni Stato i fatti confermati da più fonti, tenuti 120 giorni
     (al massimo 40 per Stato). È ciò che resta quando le notizie escono dall'archivio di 7 giorni."""
     perc = os.path.join(DATI, "memoria.json")
     M = leggi_json(perc, {})
-    da_ = (adesso - timedelta(hours=30)).isoformat()
+    da_ = (adesso - timedelta(hours=ore)).isoformat()
     limite = (adesso - timedelta(days=cfg.get("memoria_giorni", 120))).date().isoformat()
     nuovi, visti = 0, set()
     ordine = {"A": 0, "B": 1, "C": 2, "D": 3}
@@ -1668,7 +1832,11 @@ def giri(quanti=12):
     if oggi_:
         print(f"Ultime 24 ore: {len(oggi_)} giri, durata media {round(sum(x['durata'] for x in oggi_) / len(oggi_) / 60)} minuti, "
               f"{sum(x['nuove'] for x in oggi_)} voci nuove in tutto.")
-    print("quando        tipo      min  nuove  tradotti  senza  richieste  rifiuti  avvisi  versione")
+    giu_ = leggi_json(os.path.join(DATI, "rete.json"), {}).get("giu_dal")
+    if giu_:
+        print("RETE ASSENTE dal", datetime.fromisoformat(giu_).astimezone().strftime("%d/%m %H:%M") + ": il programma lavora su quello che ha "
+              "e riparte da solo quando torna.")
+    print("quando        tipo        min  nuove  tradotti  senza  richieste  rifiuti  avvisi  versione")
     prima = None
     for x in diario[-quanti:]:
         if prima and x.get("iso") and prima.get("iso"):
@@ -1678,7 +1846,7 @@ def giri(quanti=12):
                     print(f"   — buco di {buco:.1f} ore: in questo intervallo il programma era fermo —")
             except ValueError:
                 pass
-        print(f"{x['quando']:<12}  {x.get('tipo', 'completo'):<8} {max(1, round(x['durata'] / 60)):>4} {x['nuove']:>6} {x.get('tradotti', 0):>9} {x['scoperti']:>6} "
+        print(f"{x['quando']:<12}  {x.get('tipo', 'completo'):<10} {max(1, round(x['durata'] / 60)):>3} {x['nuove']:>6} {x.get('tradotti', 0):>9} {x['scoperti']:>6} "
               f"{x['richieste']:>10} {sum(x.get('rifiuti', {}).values()):>8} {x['errori']:>7}  {x['v']}")
         prima = x
     z = diario[-1]
@@ -1704,12 +1872,13 @@ def _riserva_cron():
         time.sleep(60)
         try:
             leggero_ = leggi_json(os.path.join(QUI, "config.json"), {}).get("giro_leggero", {}).get("attivo", True)
-            ultimo = (leggi_json(os.path.join(DATI, "diario.json"), []) or [{}])[-1].get("iso", "")
+            ultimo = (leggi_json(os.path.join(DATI, "diario.json"), []) or [{}])[-1].get("iso", "")  # conta anche il lavoro senza rete
             try:
                 eta = (datetime.now(timezone.utc) - datetime.fromisoformat(ultimo)).total_seconds() / 60 if ultimo else 1e9
             except ValueError:
                 eta = 1e9
-            if eta >= (62 if leggero_ else 185):
+            giu_ = leggi_json(os.path.join(DATI, "rete.json"), {}).get("giu_dal")
+            if eta >= (62 if leggero_ else 185) or (giu_ and rete_ok(forza=True)):
                 with open(os.path.join(DATI, "log.txt"), "a", encoding="utf-8") as log:
                     subprocess.run([sys.executable, os.path.join(QUI, "castello.py"), "aggiorna", "auto"], stdout=log,
                                    stderr=subprocess.STDOUT, check=False)
@@ -1732,15 +1901,16 @@ def elenco_fonti(cfg, mie, auto):
     return fonti
 
 
-def da_saltare(f, st, adesso):
-    """Le candidate mai riuscite (3 tentativi) e le fonti che falliscono 8 volte di fila
-    si riprovano solo dopo una settimana."""
-    if f["tipo"] in ("fissa", "mia") or not st:
+def da_saltare(f, st, adesso, leggero=False):
+    """Una fonte che non risponde non viene mai bloccata: viene riprovata sempre più di rado.
+    Fino a 3 errori di fila, a ogni giro; da 3 a 9, solo nei giri completi (ogni 3 ore); da 10 in su, una volta al giorno.
+    Gli errori dovuti alla rete assente non contano."""
+    fila = (st or {}).get("fila", 0)
+    if fila < 3:
         return False
-    rotta = (st.get("ok", 0) == 0 and st.get("fila", 0) >= 3) or st.get("fila", 0) >= 8
-    if not rotta:
-        return False
-    return st.get("ultimo", "") >= (adesso - timedelta(days=7)).isoformat()
+    if fila < 10:
+        return leggero
+    return st.get("ultimo", "") >= (adesso - timedelta(hours=24)).isoformat()
 
 
 def programma_cron(cfg):
@@ -1761,10 +1931,78 @@ def programma_cron(cfg):
         return ""
 
 
+def _senza_rete():
+    """La rete non c'è: niente raccolta e nessuna fonte penalizzata. Il programma lavora su quello che ha già:
+    rifà gruppi e conferme su tutti i 7 giorni dell'archivio (non solo sugli ultimi 3), consolida la memoria dei fatti
+    confermati, fa una copia di sicurezza e scrive nel diario da quando la rete manca. Al ritorno parte subito un giro completo."""
+    adesso = datetime.now(timezone.utc)
+    inizio = time.time()
+    perc_r = os.path.join(DATI, "rete.json")
+    st_r = leggi_json(perc_r, {})
+    if not st_r.get("giu_dal"):
+        st_r = {"giu_dal": adesso.isoformat(), "tentativi": 0}
+    st_r["tentativi"] = st_r.get("tentativi", 0) + 1
+    da_ = datetime.fromisoformat(st_r["giu_dal"]).astimezone().strftime("%d/%m %H:%M")
+    if st_r.get("lavoro", "") >= (adesso - timedelta(minutes=55)).isoformat():
+        scrivi_json(perc_r, st_r)
+        print(f"Rete assente dal {da_}. Il lavoro senza rete è già stato fatto in quest'ora: riprovo al prossimo giro.")
+        return
+    cfg = leggi_json(os.path.join(QUI, "config.json"), {})
+    auto = leggi_json(os.path.join(DATI, "fonti_auto.json"), {})
+    archivio = leggi_json(os.path.join(DATI, "archivio.json"), {"notizie": {}, "video": {}})
+    voci = {k: v for k, v in archivio.get("notizie", {}).items()
+            if (v.get("data_iso") or "") >= (adesso - timedelta(days=7)).isoformat()}
+    confermate_prima = sum(1 for v in voci.values() if v.get("conf"))
+    if voci:
+        gruppi, esito = raggruppa(voci)
+        for k, v in voci.items():
+            fonti = gruppi[esito[k]]["fonti"]
+            v["nf"], v["gr"] = len(fonti), esito[k]
+            v["conf"] = any(l in ("A", "B") for f, l in fonti.items() if f != v.get("fonte"))
+    confermate_dopo = sum(1 for v in voci.values() if v.get("conf"))
+    nuovi_m, tot_m = memoria_stati(archivio, adesso, cfg, ore=7 * 24)
+    try:
+        shutil.copyfile(os.path.join(DATI, "archivio.json"), os.path.join(DATI, "archivio.copia.json"))
+    except OSError:
+        pass
+    scrivi_json(os.path.join(DATI, "archivio.json"), archivio)
+    # diario e pagina: si vede che la rete manca e che cosa è stato fatto intanto
+    diario = leggi_json(os.path.join(DATI, "diario.json"), [])
+    base = dict(next((x for x in reversed(diario) if x.get("tipo") != "senza rete"), {}))
+    base.update({"quando": datetime.now().strftime("%d/%m %H:%M"), "iso": adesso.isoformat(), "v": VERSIONE, "tipo": "senza rete",
+                 "durata": int(time.time() - inizio), "nuove": 0, "da": {}, "fonti_nuove": [], "richieste": 0, "siti": [],
+                 "rifiuti": {}, "errori": 0, "seguiti": [0, 0], "verifiche": [0, 0], "lingue": {}, "ricerche": [],
+                 "memoria": [nuovi_m, tot_m], "senza_rete_dal": st_r["giu_dal"],
+                 "offline": [confermate_dopo - confermate_prima, nuovi_m]})
+    for campo, valore in (("live", len(voci)), ("quota", 0), ("livelli", {}), ("scoperti", 0), ("senza", []), ("fonti", [0, 0]),
+                          ("sapere", 0), ("tradotti", 0), ("usd_oggi", 0), ("usd_mese", 0), ("confermate", confermate_dopo)):
+        base.setdefault(campo, valore)
+    diario.append(base)
+    scrivi_json(os.path.join(DATI, "diario.json"), diario[-120:])
+    live = leggi_json(os.path.join(DATI, "live.json"), {})
+    if live:
+        live["rete"] = {"giu_dal": st_r["giu_dal"]}
+        live["diario"] = [{k: v for k, v in x.items() if k not in ("ricerche", "siti")} for x in diario[-10:]]
+        scrivi_json(os.path.join(DATI, "live.json"), live)
+        try:
+            with open(os.path.join(WEB, "live.js.tmp"), "w", encoding="utf-8") as f:
+                f.write("window.LIVE = " + json.dumps(live, ensure_ascii=False) + ";\n")
+            os.replace(os.path.join(WEB, "live.js.tmp"), os.path.join(WEB, "live.js"))
+            shutil.copyfile(os.path.join(DATI, "diario.json"), os.path.join(WEB, "diario.json"))
+        except OSError:
+            pass
+    st_r["lavoro"] = adesso.isoformat()
+    scrivi_json(perc_r, st_r)
+    print(f"Rete assente dal {da_}: nessuna raccolta e nessuna fonte penalizzata. Intanto ho lavorato su quello che ho: "
+          f"{len(voci)} notizie di 7 giorni rilette, {confermate_dopo - confermate_prima:+d} conferme, {nuovi_m} fatti nuovi in memoria "
+          f"({tot_m} in tutto). Appena la rete torna parte un giro completo.")
+
+
 def aggiorna(tipo=""):
     """Il cuore: un solo giro alla volta. Se cron e avvia.sh partono insieme, il secondo aspetta il prossimo turno:
     così due giri non scrivono mai gli stessi file nello stesso momento."""
     os.makedirs(DATI, exist_ok=True)
+    os.makedirs(WEB, exist_ok=True)
     blocco = os.path.join(DATI, "aggiorna.lock")
     try:
         if time.time() - os.path.getmtime(blocco) < 45 * 60:
@@ -1774,29 +2012,36 @@ def aggiorna(tipo=""):
         pass
     with open(blocco, "w", encoding="utf-8") as f:
         f.write(str(os.getpid()))
-    _tieni_sveglio()  # ogni giro si assicura che il prossimo parta
-    cfg_ = leggi_json(os.path.join(QUI, "config.json"), {})
-    nuovo_passo = programma_cron(cfg_)
-    if nuovo_passo:
-        print("Giro automatico portato a:", "ogni ora" if nuovo_passo == "17 * * * *" else "ogni 3 ore", f"({nuovo_passo})")
-    # giro completo ogni 3 ore; nelle ore in mezzo un giro leggero (solo feed, Telegram, YouTube, cielo): lo decide il
-    # tempo passato dall'ultimo giro completo. Si può forzare:  python castello.py aggiorna completo | leggero
-    if tipo == "auto":
-        ultimo_ = (leggi_json(os.path.join(DATI, "diario.json"), []) or [{}])[-1].get("iso", "")
-        passo_ = 50 if cfg_.get("giro_leggero", {}).get("attivo", True) else 170
-        if ultimo_ >= (datetime.now(timezone.utc) - timedelta(minutes=passo_)).isoformat():
-            try:
-                os.remove(blocco)
-            except OSError:
-                pass
-            return  # un giro c'è appena stato (l'ha fatto cron o l'hai lanciato tu): l'orologio interno non raddoppia
-    if tipo not in ("completo", "leggero"):
-        gl_ = cfg_.get("giro_leggero", {})
-        ultimo_c = next((x.get("iso", "") for x in reversed(leggi_json(os.path.join(DATI, "diario.json"), []))
-                         if x.get("tipo", "completo") == "completo"), "")
-        soglia = (datetime.now(timezone.utc) - timedelta(minutes=gl_.get("minuti_completo", 170))).isoformat()
-        tipo = "leggero" if gl_.get("attivo", True) and ultimo_c >= soglia else "completo"
     try:
+        _tieni_sveglio()  # ogni giro si assicura che il prossimo parta
+        cfg_ = leggi_json(os.path.join(QUI, "config.json"), {})
+        nuovo_passo = programma_cron(cfg_)
+        if nuovo_passo:
+            print("Giro automatico portato a:", "ogni ora" if nuovo_passo == "17 * * * *" else "ogni 3 ore", f"({nuovo_passo})")
+        if not rete_ok(forza=True):
+            _senza_rete()  # niente rete: lavora su quello che ha e aspetta
+            return
+        st_r = leggi_json(os.path.join(DATI, "rete.json"), {})
+        tornata = bool(st_r.get("giu_dal"))
+        if tornata:
+            scrivi_json(os.path.join(DATI, "rete.json"), {"tornata": datetime.now(timezone.utc).isoformat(), "era_giu_dal": st_r["giu_dal"]})
+            print("La rete è tornata: giro completo per recuperare.")
+            if tipo in ("", "auto"):
+                tipo = "completo"
+        diario_ = leggi_json(os.path.join(DATI, "diario.json"), [])
+        veri_ = [x for x in diario_ if x.get("tipo") != "senza rete"]
+        if tipo == "auto":
+            ultimo_ = (veri_ or [{}])[-1].get("iso", "")
+            passo_ = 50 if cfg_.get("giro_leggero", {}).get("attivo", True) else 170
+            if ultimo_ >= (datetime.now(timezone.utc) - timedelta(minutes=passo_)).isoformat():
+                return  # un giro c'è appena stato (l'ha fatto cron o l'hai lanciato tu): l'orologio interno non raddoppia
+        # giro completo ogni 3 ore; nelle ore in mezzo un giro leggero (solo feed, Telegram, YouTube, cielo): lo decide il
+        # tempo passato dall'ultimo giro completo. Si può forzare:  python castello.py aggiorna completo | leggero
+        if tipo not in ("completo", "leggero"):
+            gl_ = cfg_.get("giro_leggero", {})
+            ultimo_c = next((x.get("iso", "") for x in reversed(veri_) if x.get("tipo", "completo") == "completo"), "")
+            soglia = (datetime.now(timezone.utc) - timedelta(minutes=gl_.get("minuti_completo", 170))).isoformat()
+            tipo = "leggero" if gl_.get("attivo", True) and ultimo_c >= soglia else "completo"
         _aggiorna(tipo == "leggero")
     finally:
         try:
@@ -1827,6 +2072,8 @@ def _aggiorna(leggero=False):
     it2en = leggi_json(os.path.join(QUI, "mappa.json"), {})
     ric = Riconoscitore(paesi)
     archivio = leggi_json(os.path.join(DATI, "archivio.json"), None)
+    if isinstance(archivio, dict):
+        archivio.setdefault("attesa", {})
     if not isinstance(archivio, dict) or "notizie" not in archivio:
         archivio = leggi_json(os.path.join(DATI, "archivio.copia.json"), {"notizie": {}, "video": {}})  # file rovinato: riparte dalla copia
     elif len(archivio["notizie"]) > 50:
@@ -1835,6 +2082,7 @@ def _aggiorna(leggero=False):
         except OSError:
             pass
     archivio.setdefault("video", {})
+    archivio.setdefault("attesa", {})
     canali = leggi_json(os.path.join(DATI, "canali.json"), {})
     errori, contati, citati = [], 0, {}
     citati_stato, tappe, _prima, inizio_ = {}, {}, [0], time.time()
@@ -1862,12 +2110,13 @@ def _aggiorna(leggero=False):
             archivio[tipo][chiave] = voce
             contati += 1
 
-    def notizia(tema, titolo, link, data, fonte, sito="", filtra=False, livello="", lv="", forza=None, ripiego=None, lingua=""):
+    def notizia(tema, titolo, link, data, fonte, sito="", filtra=False, livello="", lv="", forza=None, ripiego=None, lingua="",
+                attesa=False):
         if RUMORE.search(" " + (fonte or "") + " "):
             return
         if APPRESI.get(fonte) == "scarto":
             return
-        if filtra and not FILTRO.search(titolo):
+        if filtra and not attesa and not FILTRO.search(titolo):
             return
         if sito:
             d = dominio(sito)
@@ -1876,18 +2125,25 @@ def _aggiorna(leggero=False):
                 if forza:
                     cs_ = citati_stato.setdefault(d, {})
                     cs_[forza] = cs_.get(forza, 0) + 1
-        trovati = ric.trova(titolo)
+        trovati, rip_ = ric.trova(titolo), None
         if forza and forza not in trovati:
             trovati = [forza] + trovati[:4]
         if ripiego and not trovati:
-            trovati = [ripiego]  # testata nazionale («stato» in config.json): le notizie locali non nominano il Paese
+            if lingua and lingua not in ("it", "en"):
+                rip_ = ripiego  # titolo in un'altra lingua: prima si traduce, poi si vede di quale Stato parla
+            else:
+                trovati = [ripiego]  # testata nazionale («stato» in config.json): le notizie locali non nominano il Paese
         v = {"t": titolo, "u": solo_http(link), "data_iso": data or adesso.isoformat(), "fonte": fonte,
              "tema": tema, "paesi": trovati, "lv": livello_di(fonte, lv)}
         if livello:
             v["liv"] = livello
         if lingua and lingua not in ("it", "en"):
             v["lg"] = lingua  # titolo in un'altra lingua: il cervello lo traduce
-        aggiungi("notizie", v)
+            if rip_:
+                v["rip"] = rip_
+        # testata generalista in un'altra lingua: il titolo aspetta in «attesa» finché il cervello non lo traduce
+        # e dice se riguarda i temi di PanGeo (il filtro a parole funziona solo in italiano e in inglese)
+        aggiungi("attesa" if attesa else "notizie", v)
 
     # 1. Google News e GDELT: ricerche per tema
     meta_ = (adesso.hour // 3) % 2
@@ -2140,10 +2396,12 @@ def _aggiorna(leggero=False):
         scrivi_json(perc_l, st_l)
     tappa("lingue")
     # 2. Feed RSS: fissi, candidati, scoperti da soli, aggiunti a mano
+    cadute_rete = []
     for f in elenco_fonti(cfg, mie, auto):
         st = auto["stato"].get(f["url"], {})
-        if da_saltare(f, st, adesso) or leggi_json(os.path.join(DATI, "impostazioni_auto.json"), {}).get("in_pausa", {}).get(f["url"]):
+        if da_saltare(f, st, adesso, leggero):
             continue
+        prima_ult = st.get("ultimo", "")
         st["ultimo"] = adesso.isoformat()
         try:
             voci = leggi_rss(scarica(f["url"]))
@@ -2154,10 +2412,21 @@ def _aggiorna(leggero=False):
                         filtra=f.get("filtra", False),
                         livello="da valutare" if f["tipo"] == "scoperta" and not f.get("promossa") else f.get("liv", ""),
                         lv=("B" if f.get("promossa") else "D") if f["tipo"] == "scoperta" else f.get("lv", ""),
-                        ripiego=f.get("stato"))
+                        ripiego=f.get("stato"), lingua=f.get("lingua", ""),
+                        attesa=bool(f.get("filtra")) and f.get("lingua", "it") not in ("it", "en"))
             st["ok"], st["fila"] = st.get("ok", 0) + 1, 0
+        except SenzaRete:
+            # la rete è caduta: questa fonte e quelle fallite per lo stesso motivo non vengono penalizzate
+            st["ultimo"] = prima_ult
+            auto["stato"][f["url"]] = st
+            for u_ in cadute_rete:
+                auto["stato"][u_]["fila"] = max(auto["stato"][u_].get("fila", 1) - 1, 0)
+            errori.append("rete assente: lettura dei feed interrotta")
+            break
         except Exception as e:
             st["fila"] = st.get("fila", 0) + 1
+            if _errore_di_rete(e):
+                cadute_rete.append(f["url"])
             if f["tipo"] in ("fissa", "mia") or st.get("ok", 0):
                 errori.append(f"{f.get('nome', f['url'])}: {e}")
         auto["stato"][f["url"]] = st
@@ -2284,13 +2553,18 @@ def _aggiorna(leggero=False):
 
     # 7. Archivio e uscita per il Castello
     limite = (adesso - timedelta(days=cfg.get("giorni_archivio", 7))).isoformat()
-    for tipo in ("notizie", "video"):
-        archivio[tipo] = {k: v for k, v in archivio[tipo].items() if (v.get("data_iso") or "") >= limite}
+    for tipo in ("notizie", "video", "attesa"):
+        archivio[tipo] = {k: v for k, v in archivio.get(tipo, {}).items() if (v.get("data_iso") or "") >= limite}
     scrivi_json(os.path.join(DATI, "archivio.json"), archivio)
     scrivi_json(os.path.join(DATI, "canali.json"), canali)
     recente = (adesso - timedelta(hours=cfg.get("ore_live", 72))).isoformat()
     rotte_ = [(f.get("nome", f["url"]), auto["stato"].get(f["url"], {}).get("fila", 0))
               for f in elenco_fonti(cfg, mie, auto) if f["tipo"] in ("fissa", "mia")]
+    # titoli in altre lingue rimasti senza traduzione da più di 6 ore: vanno al Paese della loro testata
+    sei_ore_ = (adesso - timedelta(hours=6)).isoformat()
+    for v_ in archivio["notizie"].values():
+        if v_.get("rip") and not v_.get("paesi") and (v_.get("visto") or "") < sei_ore_:
+            v_["paesi"] = [v_["rip"]]
     analisi = analizza(archivio, recente, auto, cfg, chiavi, dati_cielo, paesi, rotte_)
     scrivi_json(os.path.join(DATI, "fonti_auto.json"), auto)
     brief = cervello(chiavi, cfg, archivio, recente, ric, errori)
@@ -2330,6 +2604,11 @@ def _aggiorna(leggero=False):
 
     tutte = elenco_fonti(cfg, mie, auto)
     attive = [f for f in tutte if auto["stato"].get(f["url"], {}).get("ok")]
+    errori[:] = riassumi_errori(errori)
+    if not RETE["su"]:
+        st_r = leggi_json(os.path.join(DATI, "rete.json"), {})
+        if not st_r.get("giu_dal"):
+            scrivi_json(os.path.join(DATI, "rete.json"), {"giu_dal": adesso.isoformat(), "tentativi": 1})
     live = {
         "versione": VERSIONE,
         "agg": datetime.now().strftime("%d/%m/%Y %H:%M"),
@@ -2371,6 +2650,7 @@ def _aggiorna(leggero=False):
         "memoria": [mem_nuovi, mem_totale], "ricerche": live["ricerca"]["ultime"],
         "seguiti": [n_seguiti, nuove_seguiti], "verifiche": ver_giro,
         "lingue": {k_: v_ for k_, v_ in sorted(lingue_nuove.items(), key=lambda x: -x[1])[:25]},
+        "attesa": conto_c.get("attesa", [0, 0, len([1 for v_ in archivio.get("attesa", {}).values() if not v_.get("no")])]),
         "richieste": sum(RICHIESTE.values()), "siti": sorted(RICHIESTE.items(), key=lambda x: -x[1])[:6],
         "rifiuti": dict(RIFIUTI), "errori": len(errori), "usd_oggi": conto_c.get("usd_oggi", 0),
         "usd_mese": conto_c.get("usd_mese", 0), "tradotti": sum(1 for v in archivio["notizie"].values() if v.get("it")),

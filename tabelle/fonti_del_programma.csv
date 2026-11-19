@@ -1,0 +1,300 @@
+﻿Nome,Stato,Lingua,Tema,Livello,Come entrano i titoli,Controllo,Coerenza,Indirizzo del feed
+UN News,,,Alleanze e diplomazia,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://news.un.org/feed/subscribe/en/news/all/rss.xml
+Defense News,,,Difesa e forze armate,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml
+Breaking Defense,,,Industria e appalti,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://breakingdefense.com/feed/
+War on the Rocks,,,Difesa e forze armate,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://warontherocks.com/feed/
+Analisi Difesa,,,Difesa e forze armate,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.analisidifesa.it/feed/
+EUvsDisinfo,,,Propaganda e disinformazione,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://euvsdisinfo.eu/feed/
+BBC World,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/news/world/rss.xml
+Al Jazeera,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.aljazeera.com/xml/rss/all.xml
+France 24,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.france24.com/en/rss
+The Guardian World,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.theguardian.com/world/rss
+New York Times World,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://rss.nytimes.com/services/xml/rss/nyt/World.xml
+ANSA Mondo,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml
+Bellingcat,,,Inchieste OSINT,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.bellingcat.com/feed/
+The Aviationist,,,Difesa e forze armate,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://theaviationist.com/feed/
+Defense One,,,Difesa e forze armate,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.defenseone.com/rss/all/
+The Diplomat,,,Alleanze e diplomazia,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://thediplomat.com/feed/
+USGS terremoti M4.5+,,,Disastri ed emergenze,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.atom
+TASS (agenzia statale russa),,,Media statali (voce dei governi),C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://tass.com/rss/v2.xml
+Pentagono – contratti del giorno,,,Industria e appalti,C voce di parte,tutti,voce di parte,si confronta a ogni giro con le altre fonti,https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=400&Site=945&max=10
+Regno Unito – ministero della Difesa,,,Industria e appalti,C voce di parte,tutti,voce di parte,si confronta a ogni giro con le altre fonti,https://www.gov.uk/government/organisations/ministry-of-defence.atom
+Regno Unito – acquisti della difesa (DE&S),,,Industria e appalti,C voce di parte,tutti,voce di parte,si confronta a ogni giro con le altre fonti,https://www.gov.uk/government/organisations/defence-equipment-and-support.atom
+Army Technology,,,Industria e appalti,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.army-technology.com/feed/
+Airforce Technology,,,Industria e appalti,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.airforce-technology.com/feed/
+Naval Technology,,,Industria e appalti,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.naval-technology.com/feed/
+Defence Industry Europe,,,Industria e appalti,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://defence-industry.eu/feed/
+Defence24 (Polonia),,,Industria e appalti,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://defence24.com/_rss
+SIPRI,,,Difesa e forze armate,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://www.sipri.org/rss/combined.xml
+defenceWeb (Africa),,,Difesa e forze armate,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.defenceweb.co.za/feed/
+Military Africa,,,Difesa e forze armate,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.military.africa/feed/
+"ADF Magazine (Africa, comando USA)",,,Difesa e forze armate,C voce di parte,tutti,voce di parte,si confronta a ogni giro con le altre fonti,https://adf-magazine.com/feed/
+Zona Militar (America Latina),,,Difesa e forze armate,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.zona-militar.com/feed/
+Asian Military Review,,,Difesa e forze armate,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.asianmilitaryreview.com/feed/
+Ares Difesa,,,Difesa e forze armate,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://aresdifesa.it/feed/
+The Sentry,,,Sicurezza privata e mercenari,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://thesentry.org/feed/
+Global Initiative (crimine organizzato),,,Sicurezza privata e mercenari,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://globalinitiative.net/feed/
+Long War Journal,,,Conflitti e guerre,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.longwarjournal.org/feed
+Small Wars Journal,,,Conflitti e guerre,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://smallwarsjournal.com/feed/
+ONU – diritti umani (OHCHR),,,Sicurezza privata e mercenari,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://www.ohchr.org/en/rss.xml
+Crisis Group,,,Conflitti e guerre,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.crisisgroup.org/rss.xml
+ReliefWeb (ONU),,,Disastri ed emergenze,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://reliefweb.int/updates/rss.xml
+Africanews,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.africanews.com/feed/rss
+Al-Monitor,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.al-monitor.com/rss
+The Moscow Times,Russia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.themoscowtimes.com/rss/news
+Daily Maverick (Sudafrica),Sudafrica,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.dailymaverick.co.za/dmrss/
+The Japan Times,Giappone,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.japantimes.co.jp/feed/
+Channel News Asia,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml
+MercoPress (Sud America),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://en.mercopress.com/rss/
+Premium Times (Nigeria),Nigeria,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.premiumtimesng.com/feed
+InSight Crime,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://insightcrime.org/feed/
+Dawn (Pakistan),Pakistan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.dawn.com/feeds/home
+Kyiv Post,Ucraina,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.kyivpost.com/feed
+Middle East Monitor,,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://www.middleeastmonitor.com/feed/
+ABC Australia,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.abc.net.au/news/feed/51120/rss.xml
+RFI (in inglese),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.rfi.fr/en/rss
+Euractiv,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.euractiv.com/feed/
+South China Morning Post,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.scmp.com/rss/91/feed
+Times of Central Asia,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://timesca.com/feed/
+DW,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://rss.dw.com/rdf/rss-en-world
+Balkan Insight,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://balkaninsight.com/feed/
+Arab News,,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://www.arabnews.com/rss.xml
+Astana Times,Kazakistan,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://astanatimes.com/feed/
+Jerusalem Post,Israele,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.jpost.com/rss/rssfeedsfrontpage.aspx
+Asharq Al-Awsat,,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://english.aawsat.com/feed
+Yonhap (Corea del Sud),Corea del Sud,,Notizie dal mondo,A agenzia o ente,solo quelli con parole di difesa e politica estera,agenzia o ente,si confronta a ogni giro con le altre fonti,https://en.yna.co.kr/RSS/news.xml
+Iran International,Iran,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://www.iranintl.com/en/feed
+Nikkei Asia,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://asia.nikkei.com/rss/feed/nar
+El País (in inglese),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada
+Taipei Times,Taiwan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.taipeitimes.com/xml/index.rss
+Vanguard (Nigeria),Nigeria,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.vanguardngr.com/feed/
+The New Humanitarian,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.thenewhumanitarian.org/rss/all.xml
+Daily Star (Bangladesh),Bangladesh,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.thedailystar.net/frontpage/rss.xml
+Focus Taiwan,Taiwan,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://feeds.feedburner.com/rsscna/engnews
+NHK World,Giappone,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www3.nhk.or.jp/rss/news/cat6.xml
+The Irrawaddy (Myanmar),Myanmar,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.irrawaddy.com/feed
+Buenos Aires Times,Argentina,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.batimes.com.ar/feed
+Radio Free Asia,,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://www.rfa.org/english/rss2.xml
+Agência Brasil (in inglese),Brasile,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://agenciabrasil.ebc.com.br/en/rss/ultimasnoticias/feed.xml
+VnExpress International,Vietnam,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://e.vnexpress.net/rss/news.rss
+Post Courier (Papua Nuova Guinea),Papua Nuova Guinea,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.postcourier.com.pg/feed/
+Islands Business (Pacifico),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://islandsbusiness.com/feed/
+RNZ Pacific (Pacifico),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.rnz.co.nz/rss/pacific.xml
+Jamaica Gleaner (Giamaica),Giamaica,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://jamaica-gleaner.com/feed/rss.xml
+The Tribune (Bahamas),Bahamas,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.tribune242.com/rss/headlines/
+Tico Times (Costa Rica),Costa Rica,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://ticotimes.net/feed
+Dominican Today (Rep. Dominicana),Repubblica Dominicana,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://dominicantoday.com/feed/
+OMS (Organizzazione mondiale della sanità),,,"OMS, Interpol e organismi internazionali",A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://www.who.int/rss-feeds/news-english.xml
+OMS Africa,,,"OMS, Interpol e organismi internazionali",A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://www.afro.who.int/rss/featured-news.xml
+OPS/PAHO (OMS per le Americhe),,,"OMS, Interpol e organismi internazionali",A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://www.paho.org/en/rss.xml
+Europol,,,"OMS, Interpol e organismi internazionali",B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.europol.europa.eu/rss.xml
+The Standard (Kenya),Kenya,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.standardmedia.co.ke/rss/headlines.php
+NewsDay (Zimbabwe),Zimbabwe,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.newsday.co.zw/feed/
+Nile Post (Uganda),Uganda,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://nilepost.co.ug/feed
+MyJoyOnline (Ghana),Ghana,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.myjoyonline.com/feed/
+Channels TV (Nigeria),Nigeria,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.channelstv.com/feed/
+Punch (Nigeria),Nigeria,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://punchng.com/feed/
+Capital FM (Kenya),Kenya,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.capitalfm.co.ke/news/feed/
+Lusaka Times (Zambia),Zambia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.lusakatimes.com/feed/
+FrontPage Africa (Liberia),Liberia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://frontpageafricaonline.com/feed/
+Club of Mozambique,Mozambico,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://clubofmozambique.com/feed/
+Daily Trust (Nigeria),Nigeria,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://dailytrust.com/feed/
+Radio Okapi (RD Congo),RD Congo,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.radiookapi.net/rss.xml
+Gabonreview,Gabon,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.gabonreview.com/feed/
+Daily News (Tanzania),Tanzania,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://dailynews.co.tz/feed/
+KT Press (Ruanda),Ruanda,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.ktpress.rw/feed/
+LeFaso.net (Burkina Faso),Burkina Faso,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://lefaso.net/spip.php?page=backend
+Actualite.cd (RD Congo),RD Congo,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://actualite.cd/rss.xml
+The Reporter (Etiopia),Etiopia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.thereporterethiopia.com/feed/
+Midi Madagasikara,Madagascar,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://midi-madagasikara.mg/feed/
+Nyasa Times (Malawi),Malawi,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.nyasatimes.com/feed/
+Hespress English (Marocco),Marocco,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://en.hespress.com/feed
+Dabanga (Sudan),Sudan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.dabangasudan.org/en/feed
+Egypt Independent,Egitto,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.egyptindependent.com/feed/
+The National (Emirati),Emirati Arabi,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.thenationalnews.com/arc/outboundfeeds/rss/?outputType=xml
+Radio Tamazuj (Sud Sudan),Sud Sudan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.radiotamazuj.org/en/rss
+Iraqi News,Iraq,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.iraqinews.com/feed/
+Eye Radio (Sud Sudan),Sud Sudan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.eyeradio.org/feed/
+Doha News (Qatar),Qatar,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://dohanews.co/feed/
+Daily Sabah (Turchia),Turchia,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://www.dailysabah.com/rssFeed/10
+Civil.ge (Georgia),Georgia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://civil.ge/feed
+Libya Herald,Libia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://libyaherald.com/feed/
+OC Media (Caucaso),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://oc-media.org/feed/
+JAMnews (Caucaso),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://jam-news.net/feed/
+Iwacu (Burundi),Burundi,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.iwacu-burundi.org/feed/
+24.kg (Kirghizistan),Kirghizistan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://24.kg/english/rss/
+Amu TV (Afghanistan),Afghanistan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://amu.tv/feed/
+The Express Tribune (Pakistan),Pakistan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://tribune.com.pk/feed/home
+Daily News Egypt,Egitto,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.dailynewsegypt.com/feed/
+Cyprus Mail,Cipro,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://cyprus-mail.com/feed/
+EconomyNext (Sri Lanka),Sri Lanka,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://economynext.com/feed/
+The Bhutanese,Bhutan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://thebhutanese.bt/feed/
+Myanmar Now,Myanmar,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://myanmar-now.org/en/feed/
+The Straits Times (Asia),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.straitstimes.com/news/asia/rss.xml
+Free Malaysia Today,Malesia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.freemalaysiatoday.com/feed/
+Laotian Times,Laos,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://laotiantimes.com/feed/
+Khaama Press (Afghanistan),Afghanistan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.khaama.com/feed/
+CamboJA News (Cambogia),Cambogia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://cambojanews.com/feed/
+Inquirer (Filippine),Filippine,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://newsinfo.inquirer.net/feed
+The Mainichi (Giappone),Giappone,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://mainichi.jp/rss/etc/english_latest.rss
+Sarajevo Times,Bosnia ed Erzegovina,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://sarajevotimes.com/feed/
+N1 (Serbia),Serbia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://n1info.rs/english/feed/
+Asia-Plus (Tagikistan),Tagikistan,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://asiaplustj.info/en/rss
+Tatoli (Timor Est),Timor Est,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://en.tatoli.tl/feed/
+Online Khabar (Nepal),Nepal,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://english.onlinekhabar.com/feed
+Notes from Poland,Polonia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://notesfrompoland.com/feed/
+Total Croatia News,Croazia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://total-croatia-news.com/feed/
+Daily News Hungary,Ungheria,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://dailynewshungary.com/feed/
+ERR News (Estonia),Estonia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://news.err.ee/rss
+Yle News (Finlandia),Finlandia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://yle.fi/rss/news
+Tirana Times (Albania),Albania,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.tiranatimes.com/?feed=rss2
+LSM English (Lettonia),Lettonia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://eng.lsm.lv/rss/
+Antara (Indonesia),Indonesia,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://en.antaranews.com/rss/news.xml
+LRT English (Lituania),Lituania,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.lrt.lt/en/news-in-english?rss
+RTÉ News (Irlanda),Irlanda,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.rte.ie/feeds/rss/?index=/news/
+NK News (Corea del Nord),Corea del Nord,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.nknews.org/feed/
+The Local (Norvegia),Norvegia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.thelocal.no/feeds/rss.php
+The Portugal News,Portogallo,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.theportugalnews.com/rss
+The Local (Svezia),Svezia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.thelocal.se/feeds/rss.php
+DutchNews (Paesi Bassi),Paesi Bassi,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.dutchnews.nl/feed/
+The Local (Danimarca),Danimarca,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.thelocal.dk/feeds/rss.php
+Ukrainska Pravda (in inglese),Ucraina,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.pravda.com.ua/eng/rss/
+Times of Malta,Malta,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://timesofmalta.com/rss
+Vatican News,Vaticano,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://www.vaticannews.va/en.rss.xml
+Novinite (Bulgaria),Bulgaria,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.novinite.com/services/news_rdf.php
+The War Zone,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.twz.com/feed
+Mexico News Daily,Messico,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://mexiconewsdaily.com/feed/
+Ukrinform (Ucraina),Ucraina,,Notizie dal mondo,C voce di parte,solo quelli con parole di difesa e politica estera,voce di parte,si confronta a ogni giro con le altre fonti,https://www.ukrinform.net/rss/block-lastnews
+CBC World (Canada),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.cbc.ca/webfeed/rss/rss-world
+The Haitian Times,Haiti,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://haitiantimes.com/feed/
+Barbados Today,Barbados,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://barbadostoday.bb/feed/
+Jamaica Observer,Giamaica,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.jamaicaobserver.com/feed/
+St Kitts & Nevis Observer,Saint Kitts e Nevis,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.thestkittsnevisobserver.com/feed/
+Kaieteur News (Guyana),Guyana,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.kaieteurnewsonline.com/feed/
+Antigua Observer,Antigua e Barbuda,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://antiguaobserver.com/feed/
+Prishtina Insight (Kosovo),Kosovo,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://prishtinainsight.com/feed/
+Caribbean News Global,,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.caribbeannewsglobal.com/feed/
+Confidencial (Nicaragua),Nicaragua,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://confidencial.digital/english/feed/
+The Rio Times (Brasile),Brasile,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.riotimesonline.com/feed/
+Caracas Chronicles (Venezuela),Venezuela,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.caracaschronicles.com/feed/
+IPN (Moldavia),Moldavia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.ipn.md/en/feed/
+Colombia Reports,Colombia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://colombiareports.com/feed/
+WIC News (Caraibi),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://wicnews.com/feed/
+Havana Times (Cuba),Cuba,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://havanatimes.org/feed/
+Marshall Islands Journal,Isole Marshall,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://marshallislandsjournal.com/feed/
+Matangi Tonga,Tonga,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://matangitonga.to/rss.xml
+Island Times (Palau),Palau,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://islandtimes.org/feed/
+Samoa Global News,Samoa,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://samoaglobalnews.com/feed/
+Stuff (Nuova Zelanda),Nuova Zelanda,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.stuff.co.nz/rss
+Breaking Belize News,Belize,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.breakingbelizenews.com/feed/
+SBS News (Australia),Australia,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.sbs.com.au/news/feed
+Amandala (Belize),Belize,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://amandala.com.bz/news/feed/
+Le Monde,Francia,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.lemonde.fr/rss/une.xml
+VRT (Belgio),Belgio,olandese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.vrt.be/vrtnws/nl.rss.articles.xml
+RTVE (Spagna),Spagna,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://api2.rtve.es/rss/temas_noticias.xml
+RTP (Portogallo),Portogallo,portoghese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.rtp.pt/noticias/rss
+El País (Spagna),Spagna,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada
+Der Spiegel (Germania),Germania,tedesco,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.spiegel.de/schlagzeilen/index.rss
+RTBF (Belgio),Belgio,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://rss.rtbf.be/article/rss/highlight_rtbf_info.xml
+Tagesschau (Germania),Germania,tedesco,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.tagesschau.de/index~rss2.xml
+France Info,Francia,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.francetvinfo.fr/titres.rss
+SRF (Svizzera),Svizzera,tedesco,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.srf.ch/news/bnf/rss/1646
+NOS (Paesi Bassi),Paesi Bassi,olandese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.nos.nl/nosnieuwsalgemeen
+NRK (Norvegia),Norvegia,norvegese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.nrk.no/toppsaker.rss
+DR (Danimarca),Danimarca,danese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.dr.dk/nyheder/service/feeds/senestenyt
+RTS (Svizzera),Svizzera,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.rts.ch/info/?format=rss/news
+"ERR (Estonia, in estone)",Estonia,estone,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.err.ee/rss
+TVN24 (Polonia),Polonia,polacco,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://tvn24.pl/najnowsze.xml
+ORF (Austria),Austria,tedesco,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://rss.orf.at/news.xml
+"Yle (Finlandia, in finlandese)",Finlandia,finlandese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.yle.fi/uutiset/v1/majorHeadlines/YLE_UUTISET.rss
+"LSM (Lettonia, in lettone)",Lettonia,lettone,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.lsm.lv/rss/
+SVT (Svezia),Svezia,svedese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.svt.se/nyheter/rss.xml
+SME (Slovacchia),Slovacchia,slovacco,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.sme.sk/rss-title
+Index.hr (Croazia),Croazia,croato,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.index.hr/rss
+"N1 (Serbia, in serbo)",Serbia,serbo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://n1info.rs/feed/
+Dnevnik (Bulgaria),Bulgaria,bulgaro,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.dnevnik.bg/rss/
+Ukrainska Pravda (in ucraino),Ucraina,ucraino,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.pravda.com.ua/rss/
+Hürriyet (Turchia),Turchia,turco,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.hurriyet.com.tr/rss/anasayfa
+ČT24 (Repubblica Ceca),Repubblica Ceca,ceco,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://ct24.ceskatelevize.cz/rss/hlavni-zpravy
+Digi24 (Romania),Romania,rumeno,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.digi24.ro/rss
+TRT Haber (Turchia),Turchia,turco,Notizie dal mondo,C voce di parte,scelti e tradotti (sala d’attesa),voce di parte,si confronta a ogni giro con le altre fonti,https://www.trthaber.com/sondakika.rss
+Meduza (in russo),Russia,russo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://meduza.io/rss/all
+Index.hu (Ungheria),Ungheria,ungherese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://index.hu/24ora/rss/
+Al Jazeera (in arabo),,arabo,Notizie dal mondo,C voce di parte,scelti e tradotti (sala d’attesa),voce di parte,si confronta a ogni giro con le altre fonti,https://www.aljazeera.net/aljazeerarss/a7c186be-1baa-4bd4-9d80-a84db769f779/73d0e1b4-532f-45ef-b135-bfdff8b8cab9
+Sky News Arabia,,arabo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.skynewsarabia.com/rss.xml
+BBC in arabo,,arabo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/arabic/rss.xml
+BBC in persiano,Iran,persiano,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/persian/rss.xml
+TASS (in russo),Russia,russo,Notizie dal mondo,C voce di parte,scelti e tradotti (sala d’attesa),voce di parte,si confronta a ogni giro con le altre fonti,https://tass.ru/rss/v2.xml
+BBC in hindi,India,hindi,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/hindi/rss.xml
+RTV SLO (Slovenia),Slovenia,sloveno,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.rtvslo.si/feeds/00.xml
+BBC in swahili,,swahili,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/swahili/rss.xml
+BBC in hausa,Nigeria,ha,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/hausa/rss.xml
+BBC Mundo (in spagnolo),,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/mundo/rss.xml
+BBC in somalo,Somalia,somalo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/somali/rss.xml
+BBC in urdu,Pakistan,urdu,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/urdu/rss.xml
+BBC in russo,,russo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/russian/rss.xml
+Kommersant (Russia),Russia,russo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.kommersant.ru/RSS/news.xml
+BBC in amarico,Etiopia,am,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/amharic/rss.xml
+BBC Brasil,Brasile,portoghese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/portuguese/rss.xml
+BBC in turco,Turchia,turco,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/turkce/rss.xml
+BBC in birmano,Myanmar,my,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/burmese/rss.xml
+BBC in indonesiano,Indonesia,indonesiano,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/indonesia/rss.xml
+BBC in cinese,Cina,cinese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/zhongwen/simp/rss.xml
+BBC in vietnamita,Vietnam,vietnamita,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/vietnamese/rss.xml
+BBC in coreano,,coreano,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/korean/rss.xml
+BBC in ucraino,Ucraina,ucraino,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/ukrainian/rss.xml
+BBC in bengalese,Bangladesh,bengalese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/bengali/rss.xml
+BBC Afrique (in francese),,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/afrique/rss.xml
+BBC in pashto,Afghanistan,ps,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/pashto/rss.xml
+BBC in serbo,Serbia,serbo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/serbian/lat/rss.xml
+BBC in azero,Azerbaigian,azero,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/azeri/rss.xml
+BBC in nepalese,Nepal,nepalese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/nepali/rss.xml
+BBC in thailandese,Thailandia,thailandese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/thai/rss.xml
+BBC in tigrino,Eritrea,ti,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/tigrinya/rss.xml
+BBC in kirghiso,Kirghizistan,ky,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/kyrgyz/rss.xml
+BBC in singalese,Sri Lanka,singalese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/sinhala/rss.xml
+Quotidiano del Popolo (Cina),Cina,cinese,Notizie dal mondo,C voce di parte,scelti e tradotti (sala d’attesa),voce di parte,si confronta a ogni giro con le altre fonti,http://www.people.com.cn/rss/politics.xml
+Prothom Alo (Bangladesh),Bangladesh,bengalese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.prothomalo.com/feed/
+NHK (in giapponese),Giappone,giapponese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www3.nhk.or.jp/rss/news/cat0.xml
+Tempo (Indonesia),Indonesia,indonesiano,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://rss.tempo.co/nasional
+Clarín (Argentina),Argentina,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.clarin.com/rss/lo-ultimo/
+Aaj Tak (India),India,hindi,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.aajtak.in/rssfeeds/?id=home
+BBC in uzbeco,Uzbekistan,uz,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.bbci.co.uk/uzbek/rss.xml
+La Nación (Argentina),Argentina,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml
+El Tiempo (Colombia),Colombia,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.eltiempo.com/rss/colombia.xml
+El Universal (Messico),Messico,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.eluniversal.com.mx/arc/outboundfeeds/rss/?outputType=xml
+Antara (in indonesiano),Indonesia,indonesiano,Notizie dal mondo,C voce di parte,scelti e tradotti (sala d’attesa),voce di parte,si confronta a ogni giro con le altre fonti,https://www.antaranews.com/rss/terkini.xml
+VnExpress (in vietnamita),Vietnam,vietnamita,Notizie dal mondo,C voce di parte,scelti e tradotti (sala d’attesa),voce di parte,si confronta a ogni giro con le altre fonti,https://vnexpress.net/rss/thoi-su.rss
+Yonhap (in coreano),Corea del Sud,coreano,Notizie dal mondo,A agenzia o ente,scelti e tradotti (sala d’attesa),agenzia o ente,si confronta a ogni giro con le altre fonti,https://www.yna.co.kr/rss/news.xml
+El Comercio (Perù),Perù,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://elcomercio.pe/arcio/rss/
+El Nacional (Venezuela),Venezuela,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.elnacional.com/feed/
+ABC Color (Paraguay),Paraguay,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.abc.com.py/arc/outboundfeeds/rss/?outputType=xml
+Folha (Brasile),Brasile,portoghese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.folha.uol.com.br/mundo/rss091.xml
+Prensa Libre (Guatemala),Guatemala,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.prensalibre.com/feed/
+La Tercera (Cile),Cile,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.latercera.com/arc/outboundfeeds/rss/?outputType=xml
+G1 (Brasile),Brasile,portoghese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://g1.globo.com/rss/g1/
+El País (Uruguay),Uruguay,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.elpais.com.uy/rss/
+El Universo (Ecuador),Ecuador,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.eluniverso.com/arc/outboundfeeds/rss/?outputType=xml
+Jeune Afrique,,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.jeuneafrique.com/feed/
+RFI Afrique,,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.rfi.fr/fr/afrique/rss
+14ymedio (Cuba),Cuba,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.14ymedio.com/rss/
+La Nación (Costa Rica),Costa Rica,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.nacion.com/arc/outboundfeeds/rss/?outputType=xml
+TSA (Algeria),Algeria,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.tsa-algerie.com/feed/
+Diario Libre (Rep. Dominicana),Repubblica Dominicana,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.diariolibre.com/rss/portada.xml
+"Ynet (Israele, in ebraico)",Israele,ebraico,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.ynet.co.il/Integration/StoryRss2.xml
+RFI (in francese),,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.rfi.fr/fr/rss
+Consiglio dell'Unione europea,,,Voci ufficiali e organismi internazionali,C voce di parte,tutti,voce di parte,si confronta a ogni giro con le altre fonti,https://www.consilium.europa.eu/en/rss/pressreleases.ashx
+DW in russo,,russo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://rss.dw.com/rdf/rss-ru-all
+DW in spagnolo,,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://rss.dw.com/rdf/rss-sp-all
+Youm7 (Egitto),Egitto,arabo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.youm7.com/rss/SectionRss?SectionID=65
+"ONU, comunicati",,,Voci ufficiali e organismi internazionali,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://press.un.org/en/rss.xml
+AIEA,,,Voci ufficiali e organismi internazionali,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://www.iaea.org/feeds/news
+Ministero degli Esteri britannico,,,Voci ufficiali e organismi internazionali,C voce di parte,tutti,voce di parte,si confronta a ogni giro con le altre fonti,https://www.gov.uk/government/organisations/foreign-commonwealth-development-office.atom
+DW in arabo,,arabo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://rss.dw.com/rdf/rss-ar-all
+Human Rights Watch,,,Voci ufficiali e organismi internazionali,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.hrw.org/rss/news
+OCCRP,,,Voci ufficiali e organismi internazionali,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.occrp.org/en/feed
+ECOWAS,,,Voci ufficiali e organismi internazionali,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.ecowas.int/feed/
+Amnesty International,,,Voci ufficiali e organismi internazionali,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.amnesty.org/en/feed/
+ICIJ,,,Voci ufficiali e organismi internazionali,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.icij.org/feed/
+Croce Rossa internazionale,,,Voci ufficiali e organismi internazionali,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://www.icrc.org/en/rss/news
+ASEAN,,,Voci ufficiali e organismi internazionali,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://asean.org/feed/
