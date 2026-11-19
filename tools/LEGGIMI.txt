@@ -18,5 +18,9 @@ poi tabelle.js; solo dopo si pubblica.
                                                  di ogni Stato, il collegamento all'archivio WikiLeaks; i nomi inglesi
                                                  degli Stati sono in tools/dati/en.json. La catena diventa:
                                                  … → build23.js → build24.js → istantanea
+                                                 Dal 19 novembre la base è la pagina pubblicata (dentro ha già i blocchi
+                                                 notturni): si scarica, ci si passa sopra solo lo script nuovo
+                                                 (build24.js salta ciò che c'è già) e non si riparte più da zero,
+                                                 altrimenti il lavoro delle notti va perso.
   node tools/tabelle.js index.html . programma/config.json
                                                  il terzo argomento serve per la tabella «Fonti che il programma legge»

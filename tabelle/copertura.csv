@@ -9,9 +9,9 @@ Regno Unito,sì,8,7,5,sì,sì,3,8,4,4,2,3
 Italia,sì,5,7,5,sì,sì,8,7,4,5,0,3
 Spagna,sì,6,6,3,sì,sì,2,7,2,2,0,0
 Polonia,sì,4,6,3,sì,sì,6,6,1,2,0,0
-Paesi Bassi,sì,3,5,3,sì,sì,4,1,1,2,0,0
+Paesi Bassi,sì,4,5,3,sì,sì,4,1,1,2,0,0
 Ungheria,sì,5,6,3,sì,sì,4,2,0,0,0,0
-Serbia,sì,3,6,3,sì,sì,1,3,1,0,0,0
+Serbia,sì,4,6,3,sì,sì,1,3,1,0,0,0
 Svezia,sì,6,5,4,sì,sì,1,4,2,3,0,0
 Danimarca,sì,5,4,3,sì,sì,3,2,1,1,0,0
 Finlandia,sì,4,4,3,sì,sì,2,8,0,0,0,0
@@ -24,20 +24,20 @@ Arabia Saudita,sì,5,6,3,sì,sì,2,5,2,4,0,0
 Emirati Arabi,sì,4,4,2,sì,sì,3,0,1,2,2,0
 Qatar,sì,4,4,4,sì,sì,3,1,1,2,0,0
 Egitto,sì,4,6,2,sì,sì,3,3,2,1,0,0
-Siria,sì,4,5,3,sì,sì,6,1,0,0,2,0
+Siria,sì,5,5,3,sì,sì,6,1,0,0,2,0
 Libano,sì,5,6,3,sì,sì,3,2,1,1,0,0
 Yemen,sì,4,4,2,sì,sì,2,0,0,0,0,0
 Palestina,sì,4,4,3,no,sì,1,0,1,0,2,0
 India,sì,6,7,4,sì,sì,1,6,4,3,0,0
 Pakistan,sì,5,5,3,sì,sì,2,7,1,3,1,0
-Giappone,sì,3,7,4,sì,sì,10,6,1,2,0,0
+Giappone,sì,4,7,4,sì,sì,10,6,1,2,0,0
 Corea del Sud,sì,4,5,3,sì,sì,5,7,1,7,0,0
 Corea del Nord,sì,5,5,4,sì,sì,0,0,2,0,0,0
-Taiwan,sì,4,5,3,sì,no,1,6,1,2,0,0
-Venezuela,sì,4,5,1,sì,sì,0,1,1,0,0,0
+Taiwan,sì,5,5,3,sì,no,1,6,1,2,0,0
+Venezuela,sì,5,5,1,sì,sì,0,1,1,0,0,0
 Messico,sì,5,4,2,sì,sì,0,3,1,1,0,0
 Brasile,sì,4,6,2,sì,sì,2,4,2,3,0,0
-Perù,sì,4,4,4,sì,sì,1,4,0,2,0,0
+Perù,sì,6,4,4,sì,sì,1,4,0,2,0,0
 Nepal,sì,4,4,3,sì,sì,0,3,2,0,0,0
 Bangladesh,sì,4,3,1,sì,sì,2,7,1,1,0,0
 Bielorussia,sì,4,4,3,sì,sì,1,3,1,0,0,0
@@ -46,7 +46,7 @@ Filippine,sì,5,4,3,sì,sì,9,7,2,2,0,0
 Sudan,sì,4,4,3,sì,sì,2,1,1,0,3,0
 RD Congo,sì,4,1,1,sì,sì,3,0,1,0,7,0
 Somalia,sì,4,6,2,sì,no,10,2,1,1,6,0
-Myanmar,sì,3,4,2,sì,sì,0,4,0,0,0,0
+Myanmar,sì,4,4,2,sì,sì,0,4,0,0,0,0
 Haiti,sì,4,5,2,no,sì,1,1,0,0,2,0
 Mali,sì,4,5,3,sì,sì,2,3,1,0,2,0
 Burkina Faso,sì,4,2,3,sì,sì,2,1,1,0,2,0
@@ -55,9 +55,9 @@ Nigeria,sì,4,2,2,sì,sì,1,3,0,0,0,0
 Afghanistan,sì,4,3,2,sì,sì,1,2,0,0,2,0
 Madagascar,sì,4,3,2,sì,sì,1,0,2,0,0,0
 Cambogia,sì,4,3,3,sì,sì,1,3,1,0,0,0
-Thailandia,sì,4,3,1,sì,sì,1,5,1,1,0,0
-Bulgaria,sì,3,2,1,sì,sì,2,1,1,0,0,0
-Marocco,sì,3,1,1,sì,sì,1,2,2,1,0,0
+Thailandia,sì,5,3,1,sì,sì,1,5,1,1,0,0
+Bulgaria,sì,5,2,1,sì,sì,2,1,1,0,0,0
+Marocco,sì,4,1,1,sì,sì,1,2,2,1,0,0
 Groenlandia,sì,4,3,3,no,sì,1,0,0,0,0,0
 Cipro,sì,4,2,2,no,sì,4,4,0,0,0,0
 Gibuti,sì,4,1,2,no,sì,2,1,0,0,0,0
@@ -96,7 +96,7 @@ Botswana,sì,5,4,4,sì,sì,0,1,0,0,0,0
 Guatemala,sì,6,5,5,sì,sì,0,2,0,0,0,0
 Belize,sì,6,5,4,sì,sì,1,1,0,0,0,0
 Honduras,sì,6,6,4,sì,sì,1,1,0,0,0,0
-Norvegia,sì,6,5,5,sì,sì,2,6,2,2,0,0
+Norvegia,sì,7,5,5,sì,sì,2,6,2,2,0,0
 Estonia,sì,8,6,4,sì,sì,3,5,0,1,0,0
 Lettonia,sì,5,6,4,sì,sì,3,2,0,0,0,0
 Nuova Zelanda,sì,7,5,4,sì,sì,1,8,1,1,0,0
@@ -126,7 +126,7 @@ Cuba,sì,8,6,4,sì,sì,1,0,0,0,1,0
 Ecuador,sì,6,5,4,sì,sì,0,4,0,1,1,0
 Bolivia,sì,6,6,4,sì,sì,0,3,0,0,0,0
 Indonesia,sì,5,6,4,sì,sì,1,2,4,3,0,0
-Vietnam,sì,3,6,4,sì,sì,1,3,0,1,0,0
+Vietnam,sì,4,6,4,sì,sì,1,3,0,1,0,0
 Mongolia,sì,6,5,3,sì,sì,1,4,0,0,0,0
 Sri Lanka,sì,5,6,4,sì,sì,1,5,2,0,0,0
 Brunei,sì,5,4,3,no,sì,1,7,2,0,0,0
@@ -135,17 +135,17 @@ Bosnia ed Erzegovina,sì,5,5,4,no,sì,1,2,0,0,0,0
 Albania,sì,6,6,4,sì,sì,0,3,1,0,0,0
 Macedonia del Nord,sì,5,6,4,sì,sì,0,2,1,0,0,0
 Montenegro,sì,5,5,4,sì,sì,0,2,0,0,0,0
-Kirghizistan,sì,4,6,4,sì,sì,2,2,1,0,0,0
+Kirghizistan,sì,5,6,4,sì,sì,2,2,1,0,0,0
 Tagikistan,sì,8,6,4,sì,sì,3,1,1,0,0,0
 Georgia,sì,5,6,4,sì,sì,2,3,0,0,0,0
 Armenia,sì,5,6,4,sì,sì,2,2,0,0,0,0
 Azerbaigian,sì,7,6,4,sì,sì,0,3,1,2,0,0
-Moldavia,sì,3,6,4,sì,sì,1,3,1,0,0,0
+Moldavia,sì,6,6,4,sì,sì,1,3,1,0,0,0
 Repubblica Ceca,sì,5,6,4,sì,sì,1,3,0,1,0,0
 Slovacchia,sì,4,6,4,sì,sì,2,2,0,2,0,0
 Irlanda,sì,5,6,4,sì,sì,1,2,1,1,0,0
 Portogallo,sì,4,5,5,sì,sì,2,6,1,0,0,0
-Svizzera,sì,3,5,4,sì,sì,1,4,0,1,0,0
+Svizzera,sì,4,5,4,sì,sì,1,4,0,1,0,0
 Lussemburgo,sì,5,4,4,sì,sì,0,3,0,0,0,0
 Malta,sì,4,4,4,no,sì,1,3,0,0,0,0
 Kosovo,sì,4,6,4,sì,sì,3,4,0,0,0,0
@@ -164,8 +164,8 @@ Barbados,sì,5,4,4,no,sì,0,1,0,0,0,0
 Paraguay,sì,5,6,4,sì,sì,0,3,0,0,0,0
 Uruguay,sì,4,4,5,sì,sì,1,5,0,0,0,0
 Guyana,sì,7,6,4,no,sì,0,0,0,0,0,0
-Suriname,sì,6,5,4,sì,sì,1,2,0,0,0,0
-Repubblica Dominicana,sì,5,5,4,sì,sì,0,4,0,0,0,0
+Suriname,sì,7,5,4,sì,sì,1,2,0,0,0,0
+Repubblica Dominicana,sì,6,5,4,sì,sì,0,4,0,0,0,0
 Giamaica,sì,6,4,4,no,sì,0,2,0,0,0,0
 Turkmenistan,sì,3,5,4,sì,sì,0,1,0,0,0,0
 Bhutan,sì,7,5,3,sì,sì,1,1,0,0,0,0
@@ -175,7 +175,7 @@ Isole Salomone,sì,5,4,4,no,sì,1,1,0,0,0,0
 Vanuatu,sì,3,4,3,no,sì,1,1,0,0,0,0
 Seychelles,sì,6,5,3,no,sì,1,2,0,0,0,0
 Antigua e Barbuda,sì,5,4,3,no,sì,0,0,0,0,0,0
-Dominica,sì,6,4,3,no,sì,0,0,0,0,0,0
+Dominica,sì,7,4,3,no,sì,0,0,0,0,0,0
 Grenada,sì,5,4,3,no,sì,0,0,0,0,0,0
 Saint Kitts e Nevis,sì,4,4,4,no,sì,1,1,0,0,0,0
 Saint Lucia,sì,5,4,3,no,sì,0,1,0,0,0,0
