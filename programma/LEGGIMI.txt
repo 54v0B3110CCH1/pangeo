@@ -318,3 +318,27 @@ NOVITÀ 2.18 e 2.18.1 – SI FERMA SOLO PER TRE MOTIVI, CONSUMA MENO DATI, E CON
 - 2.18.1, riparazione dopo la notte senza rete: la versione 2.14 aveva contato ogni tentativo fallito come un
   errore dei siti, e la 2.15 rileggeva quelle fonti (221, le più importanti) solo una volta al giorno. Ora, se
   molte fonti risultano ferme tutte insieme, il programma capisce che era la rete e le rimette subito in lettura.
+
+NOVITÀ 2.19 – REVISIONE GENERALE: MENO RUMORE, TUTTO IN ITALIANO, IN ORDINE DI TEMPO
+- Scelta delle notizie: tutte le testate generaliste (anche quelle in inglese e in italiano) ora passano dal
+  cervello, che tiene solo difesa, guerre, rapporti tra Stati, sanzioni e dazi, terrorismo e spionaggio, crisi
+  di governo e proteste, tensioni etniche e religiose, organismi internazionali. Il resto (cronaca, processi,
+  politica di tutti i giorni, sport) viene scartato. Prima un filtro a parole lasciava passare «defense witness»
+  di un processo. Se il cervello è spento o ha finito il budget, torna il filtro a parole.
+- Argomento giusto: il cervello dà a ogni notizia tenuta il suo argomento, così non finisce più tutto in
+  «Notizie dal mondo».
+- Tutto in italiano: vengono tradotti anche i titoli in inglese, non solo quelli in altri alfabeti. Lotti più
+  grandi (80 titoli a richiesta per la scelta, 60 per le traduzioni): più titoli con la stessa spesa.
+- Ordine di tempo: alcune testate scrivono l'ora nel loro fuso senza dirlo, e le notizie finivano «nel futuro»
+  in cima alla lista. Ora una notizia non può avere un'ora successiva a quella in cui è stata letta.
+- Nessuna testata riempie la lista da sola: al massimo 60 notizie per fonte nella pagina (le confermate sempre).
+- «Da sapere adesso» riscritto: un fatto per riga, dal più recente, senza frasi corrette a metà; ogni 3 ore.
+- Sala d'attesa: un titolo non scelto entro 36 ore viene lasciato cadere, così la coda non cresce all'infinito.
+- Canali nuovi: il programma prova da solo i siti ufficiali di governi, ministeri e forze armate già elencati
+  nella pagina (274 siti di 158 Stati, 8 a giro completo). Dove trova un feed lo aggiunge come «voce ufficiale»
+  (di parte), nella lingua del posto, con lo Stato giusto. Tetto delle fonti trovate da solo: 350.
+- Pagina: «Niente di nuovo» non compare più da solo (se dall'ultima visita non c'è stato un giro si vede che
+  cosa ha raccolto nelle ultime 24 ore); in Live la «Cronologia degli eventi confermati», un fatto per riga,
+  giorno per giorno; argomenti in ordine fisso; nelle schede degli Stati notizie in ordine di data.
+- Tabelle: righe in ordine (per Stato, e per data dalla più recente), date scritte tutte allo stesso modo,
+  tabella nuova «Cronologia degli eventi» letta dal telefono.

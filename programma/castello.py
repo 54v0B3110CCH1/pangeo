@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.18.1 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.19 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -51,7 +51,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.18.1"
+VERSIONE = "2.19"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -1449,7 +1449,9 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
     voci = [(k, v) for k, v in archivio["notizie"].items() if (v.get("data_iso") or "") >= recente]
     # 1. traduzioni
     # (titoli in altri alfabeti o trovati cercando in un'altra lingua; prima i più recenti, a lotti)
-    da_tradurre = sorted((v for _, v in voci if not v.get("it") and (NON_LATINO.search(v["t"]) or v.get("lg"))),
+    tutto_it = impost.get("traduci_tutto", True)  # anche l'inglese: nella pagina tutto si legge in italiano
+    da_tradurre = sorted((v for _, v in voci if not v.get("it") and not v.get("gia_it")
+                          and (NON_LATINO.search(v["t"]) or v.get("lg") or (tutto_it and lingua_titolo(v["t"]) != "it"))),
                          key=lambda v: v.get("data_iso") or "", reverse=True)
     lotto_, lotti_ = impost.get("traduzioni_lotto", 30), 0
     numerata = re.compile(r"\s*\**(\d+)\**\s*[.):\-]\s*\**\s*(.+)")
@@ -1459,10 +1461,11 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
         gruppo, da_tradurre = da_tradurre[:lotto_], da_tradurre[lotto_:]
         lotti_ += 1
         domanda = ("Traduci in italiano questi titoli di notizie (sono in lingue diverse), uno per riga, nello stesso ordine e "
-                   "con lo stesso numero davanti, senza commenti:\n" +
+                   "con lo stesso numero davanti, senza commenti. Traduzione fedele e completa, in italiano corretto e "
+                   "scorrevole; nomi di persone, luoghi, sigle e numeri restano come sono; non aggiungere e non togliere nulla:\n" +
                    "\n".join(f"{i + 1}. {v['t']}" for i, v in enumerate(gruppo)))
         try:
-            risposta = chiedi_claude(chiavi, cfg, domanda, 2500, conto)
+            risposta = chiedi_claude(chiavi, cfg, domanda, 4500, conto)
             conto["chiamate"] += 1
             presi_ = 0
             for riga in risposta.splitlines():
@@ -1470,7 +1473,12 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
                 if m and 0 < int(m.group(1)) <= len(gruppo):
                     v = gruppo[int(m.group(1)) - 1]
                     v["it"] = pulisci(m.group(2), 300)
+                    if v["it"].strip().lower() == v["t"].strip().lower():
+                        v["gia_it"] = True  # era già in italiano
+                        del v["it"]
                     presi_ += 1
+                    if "it" not in v:
+                        continue
                     for p in ric.trova(v["it"]):
                         if p not in v["paesi"]:
                             v["paesi"].append(p)
@@ -1490,14 +1498,29 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
     while in_coda and lotti_ok and conto["chiamate"] < tetto and lotti_a < impost.get("attesa_per_giro", 10):
         gruppo, in_coda = in_coda[:lotto_a], in_coda[lotto_a:]
         lotti_a += 1
-        domanda = ("Sono titoli di giornali e televisioni di molti Paesi, in lingue diverse. Per ciascuno: se riguarda difesa, forze "
-                   "armate, guerre, sicurezza, terrorismo, politica estera, governo e crisi politiche, elezioni, proteste, sanzioni, "
-                   "commercio tra Stati, energia, confini, migrazioni, disastri o salute pubblica, scrivi la traduzione in italiano; "
-                   "altrimenti (sport, spettacolo, cronaca locale minuta, meteo, costume) scrivi solo un trattino. Una riga per titolo, "
-                   "nello stesso ordine e con lo stesso numero davanti, senza commenti:\n" +
+        domanda = ("Sono titoli di giornali e televisioni di molti Paesi, in lingue diverse. Servono a un archivio di difesa e "
+                   "geopolitica: tieni SOLO i titoli che parlano di uno di questi argomenti, e davanti metti la sua lettera tra "
+                   "parentesi quadre:\n"
+                   "[G] guerre, attacchi, operazioni militari, tregue e negoziati di pace\n"
+                   "[D] forze armate, armi, esercitazioni, spesa militare, leva, basi e truppe all'estero\n"
+                   "[I] industria della difesa, appalti e vendite di armi\n"
+                   "[A] rapporti tra Stati: vertici, trattati, alleanze, ambasciate, crisi diplomatiche, confini\n"
+                   "[C] sanzioni, dazi, accordi commerciali tra Stati, energia e materie prime come arma politica\n"
+                   "[S] terrorismo, spionaggio, servizi segreti, attacchi informatici, colpi di Stato\n"
+                   "[P] crisi di governo, elezioni nazionali, proteste di massa, stati d'emergenza, nomine e dimissioni di capi di "
+                   "Stato, di governo, ministri della Difesa o degli Esteri, capi militari\n"
+                   "[T] tensioni e violenze etniche, religiose o sociali; profughi e migrazioni di massa\n"
+                   "[O] ONU, NATO, Unione europea, OMS, Interpol e altri organismi internazionali; epidemie ed emergenze "
+                   "che toccano più Stati\n"
+                   "Scarta tutto il resto scrivendo solo un trattino: cronaca nera e giudiziaria, processi, politica interna di "
+                   "tutti i giorni, economia e aziende senza legame con gli argomenti sopra, sport, spettacolo, meteo, salute, "
+                   "costume, incidenti. Nel dubbio scarta. Per i titoli tenuti scrivi, dopo la lettera, la traduzione in "
+                   "italiano: fedele, completa, in italiano corretto; nomi, sigle e numeri restano come sono (se il titolo è "
+                   "già in italiano riscrivilo uguale). Una riga per titolo, nello stesso ordine e con lo stesso numero "
+                   "davanti, senza commenti. Esempio: «3. [D] La Polonia compra 96 elicotteri Apache» oppure «4. -».\n" +
                    "\n".join(f"{i + 1}. {v['t']}" for i, (k, v) in enumerate(gruppo)))
         try:
-            risposta = chiedi_claude(chiavi, cfg, domanda, 2500, conto)
+            risposta = chiedi_claude(chiavi, cfg, domanda, 4500, conto)
             conto["chiamate"] += 1
             viste_ = set()
             for riga in risposta.splitlines():
@@ -1507,11 +1530,20 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
                 k, v = gruppo[int(m.group(1)) - 1]
                 viste_.add(k)
                 testo_ = pulisci(m.group(2), 300)
+                mt_ = re.match(r"^\[([A-Za-z])\]\s*(.*)$", testo_)
+                tema_ = TEMI_TRIAGE.get(mt_.group(1).upper()) if mt_ else None
+                if mt_:
+                    testo_ = mt_.group(2).strip()
                 if len(testo_) < 8 or testo_.strip(" -–—.") == "":
                     v["no"] = True  # non riguarda PanGeo: resta in attesa solo per non rileggerlo
                     scartate_ += 1
                     continue
-                v["it"] = testo_
+                if testo_.strip().lower() == v["t"].strip().lower():
+                    v["gia_it"] = True  # titolo già in italiano
+                else:
+                    v["it"] = testo_
+                if tema_ and v.get("tema") in ("Notizie dal mondo", "Scoperte automatiche (da valutare)", "", None):
+                    v["tema"] = tema_  # la testata è generalista: l'argomento lo dice il cervello
                 v["paesi"] = list(dict.fromkeys(v.get("paesi", []) + ric.trova(testo_))) or ([v["rip"]] if v.get("rip") else [])
                 archivio["notizie"][k] = v
                 attesa[k] = {"no": True, "data_iso": v.get("data_iso"), "t": "", "u": ""}
@@ -1547,13 +1579,17 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
     if conto["chiamate"] < tetto and vecchio < (datetime.now(timezone.utc) - timedelta(hours=impost.get("brief_ore", 6))).isoformat():
         conf = sorted((v for _, v in voci if v.get("conf")), key=lambda v: v.get("data_iso") or "", reverse=True)[:60]
         if len(conf) >= 5:
-            domanda = ("Sei un analista neutrale di difesa e geopolitica. Usa SOLO le notizie qui sotto (titolo – fonte), "
-                       "già confermate da più fonti. Scrivi in italiano da 5 a 7 punti «Da sapere adesso», uno per riga, "
-                       "che iniziano con «- ». Ogni punto: una o due frasi di fatti, senza giudizi né previsioni, con tra "
-                       "parentesi le fonti. Non aggiungere nulla che non sia nei titoli. Niente dettagli operativi militari.\n\n" +
-                       "\n".join(f"- {v.get('it') or v['t']} – {v.get('fonte', '')}" for v in conf))
+            domanda = ("Sei il redattore di un bollettino di difesa e geopolitica. Usa SOLO le notizie qui sotto (ora – titolo – "
+                       "fonte), già confermate da più fonti. Scrivi in italiano da 6 a 8 punti «Da sapere adesso», uno per riga, che "
+                       "iniziano con «- ». Regole: un solo fatto per punto, mai due fatti diversi nella stessa frase; comincia dal "
+                       "luogo o da chi agisce; frasi brevi e complete, al passato; niente giudizi, previsioni o aggettivi di "
+                       "colore; se due titoli dicono cose diverse sullo stesso fatto scrivi «secondo … , secondo …»; metti prima "
+                       "i fatti più recenti; alla fine di ogni punto, tra parentesi, le fonti. Scrivi solo la versione finale: non "
+                       "correggerti dentro il testo e non lasciare frasi a metà. Non aggiungere nulla che non sia nei titoli. "
+                       "Niente dettagli operativi militari.\n\n" +
+                       "\n".join(f"- {mostra_data(v.get('data_iso'))} – {v.get('it') or v['t']} – {v.get('fonte', '')}" for v in conf))
             try:
-                testo = chiedi_claude(chiavi, cfg, domanda, 900, conto)
+                testo = chiedi_claude(chiavi, cfg, domanda, 1200, conto)
                 conto["chiamate"] += 1
                 conto["brief"] = {"iso": datetime.now(timezone.utc).isoformat(),
                                   "agg": datetime.now().strftime("%d/%m %H:%M"), "testo": pulisci_brief(testo)[:4000]}
@@ -1969,6 +2005,12 @@ def parole_chiave(titolo, escludi=(), quante=4):
         (proprie if (w[0].isupper() and i > 0) or w.isdigit() else altre).append(w)
     altre.sort(key=len, reverse=True)
     return (proprie + altre)[:quante]
+
+
+TEMI_TRIAGE = {"G": "Conflitti e guerre", "D": "Difesa e forze armate", "I": "Industria e appalti",
+               "A": "Alleanze e diplomazia", "C": "Accordi commerciali e dazi",
+               "S": "Terrorismo, spionaggio e attacchi informatici", "P": "Proteste e crisi politiche",
+               "T": "Tensioni etniche, religiose e sociali", "O": "OMS, Interpol e organismi internazionali"}
 
 
 def lingua_titolo(t):
@@ -2463,6 +2505,18 @@ def _aggiorna(leggero=False):
     adesso = datetime.now(timezone.utc)
 
     limite_arch = (adesso - timedelta(days=cfg.get("giorni_archivio", 7))).isoformat()
+    futuro_ = (adesso + timedelta(minutes=10)).isoformat()
+    scade_att = (adesso - timedelta(hours=cfg.get("cervello", {}).get("attesa_ore", 36))).isoformat()
+    for tipo_ in ("notizie", "video", "attesa"):  # e si correggono quelle già in archivio
+        for v_ in archivio.get(tipo_, {}).values():
+            if (v_.get("data_iso") or "") > futuro_:
+                v_["data_iso"] = v_.get("visto") or adesso.isoformat()
+    # tutte le testate generaliste passano dal cervello, che sceglie e traduce (anche quelle in inglese e in italiano):
+    # il filtro a parole lasciava passare «defense witness» di un processo e scartava notizie vere. Senza cervello
+    # (manca la chiave, è spento o ha toccato il tetto di spesa) resta il filtro a parole.
+    imp_c = cfg.get("cervello", {})
+    triage_tutte = bool(imp_c.get("attivo") and imp_c.get("triage_tutte", True) and chiavi.get("anthropic_key")
+                        and not leggi_json(os.path.join(DATI, "cervello.json"), {}).get("tetto"))
 
     def aggiungi(tipo, voce):
         nonlocal contati
@@ -2470,6 +2524,10 @@ def _aggiorna(leggero=False):
             return
         if (voce.get("data_iso") or "") < limite_arch:
             return  # più vecchia dell'archivio: a fine giro verrebbe tolta, e al giro dopo ricontata come «nuova»
+        if voce["data_iso"] > futuro_:
+            voce["data_iso"] = adesso.isoformat()  # data nel futuro (fuso orario sbagliato nel feed): vale l'ora in cui la vediamo
+        if tipo == "attesa" and voce["data_iso"] < scade_att:
+            return  # troppo vecchia per la sala d'attesa: verrebbe lasciata cadere a fine giro e ricontata al giro dopo
         chiave = hashlib.sha1((voce["u"] + voce["t"]).encode("utf-8")).hexdigest()[:16]
         if chiave not in archivio[tipo]:
             voce["visto"] = adesso.isoformat()
@@ -2813,10 +2871,10 @@ def _aggiorna(leggero=False):
             for titolo, link, data, fonte, _ in voci:
                 notizia(f.get("tema", "Notizie dal mondo"), titolo, link, data, f.get("nome") or fonte,
                         filtra=f.get("filtra", False),
-                        livello="da valutare" if f["tipo"] == "scoperta" and not f.get("promossa") else f.get("liv", ""),
-                        lv=("B" if f.get("promossa") else "D") if f["tipo"] == "scoperta" else f.get("lv", ""),
+                        livello="da valutare" if f["tipo"] == "scoperta" and not f.get("promossa") and not f.get("ufficiale") else f.get("liv", ""),
+                        lv=("B" if f.get("promossa") else "D") if f["tipo"] == "scoperta" and not f.get("ufficiale") else f.get("lv", ""),
                         ripiego=f.get("stato"), lingua=f.get("lingua", ""),
-                        attesa=bool(f.get("filtra")) and f.get("lingua", "it") not in ("it", "en"))
+                        attesa=bool(f.get("filtra")) and (triage_tutte or f.get("lingua", "it") not in ("it", "en")))
             st["ok"], st["fila"] = st.get("ok", 0) + 1, 0
             if a_ritmo:
                 st["passo"] = fmin if contati > contati_f else min(fmax, max(fmin, round(st.get("passo", fmin) * 1.5)))
@@ -2965,10 +3023,36 @@ def _aggiorna(leggero=False):
                 auto["scoperte"].append(f)
                 nuove.append(f)
         auto["da_provare"] = [x for x in auto.get("da_provare", []) if x["d"] not in auto["domini_provati"]][-30:]
+        fatti_s = 0
+        for st_s, ente_s, url_s in sc.get("semi", []):
+            if fatti_s >= sc.get("semi_per_giro", 8):
+                break
+            d_s = dominio(url_s)
+            if not d_s or auto["domini_provati"].get("seme:" + d_s):
+                continue
+            auto["domini_provati"]["seme:" + d_s] = adesso.isoformat()
+            fatti_s += 1
+            if d_s in noti or st_s not in paesi:
+                continue
+            try:
+                u_s = trova_feed(d_s)
+            except Exception:
+                u_s = None
+            if u_s and u_s not in {x["url"] for x in auto["scoperte"]}:
+                f_s = {"nome": f"{ente_s} ({st_s})", "url": u_s, "tema": "Voci ufficiali e organismi internazionali",
+                       "aggiunta": adesso.date().isoformat(), "stato": st_s, "lv": "C", "liv": "di parte", "ufficiale": True}
+                lg_s = lingue_di(st_s)
+                if lg_s and lg_s[0][0] not in ("it", "en"):
+                    f_s["lingua"] = lg_s[0][0]
+                auto["scoperte"].append(f_s)
+                nuove.append(f_s)
+                noti.add(d_s)
     scrivi_json(os.path.join(DATI, "fonti_auto.json"), auto)
 
     # 7. Archivio e uscita per il Castello
     limite = (adesso - timedelta(days=cfg.get("giorni_archivio", 7))).isoformat()
+    scade_ = (adesso - timedelta(hours=cfg.get("cervello", {}).get("attesa_ore", 36))).isoformat()
+    archivio["attesa"] = {k: v for k, v in archivio.get("attesa", {}).items() if v.get("no") or (v.get("data_iso") or "") >= scade_}
     for tipo in ("notizie", "video", "attesa"):
         archivio[tipo] = {k: v for k, v in archivio.get(tipo, {}).items() if (v.get("data_iso") or "") >= limite}
     scrivi_json(os.path.join(DATI, "archivio.json"), archivio)
@@ -3010,8 +3094,14 @@ def _aggiorna(leggero=False):
     def elenco(tipo, massimo):
         voci = [v for v in archivio[tipo].values() if (v.get("data_iso") or "") >= recente]
         voci.sort(key=lambda v: v.get("data_iso") or "", reverse=True)
-        uscita = []
-        for v in voci[:massimo]:
+        uscita, per_fonte, tetto_f = [], {}, max(25, massimo // 25)
+        for v in voci:
+            if len(uscita) >= massimo:
+                break
+            f_ = v.get("fonte") or ""
+            per_fonte[f_] = per_fonte.get(f_, 0) + 1
+            if per_fonte[f_] > tetto_f and not v.get("conf"):
+                continue
             w = dict(v)
             w["data"] = mostra_data(w.pop("data_iso", None))
             w.pop("visto", None)
@@ -3064,7 +3154,7 @@ def _aggiorna(leggero=False):
         "livelli": analisi["per_livello"], "scoperti": analisi["stati_scoperti"],
         "senza": sorted(s_ for s_ in paesi if not analisi["per_stato"].get(s_)),
         "fonti": [len(attive), len(tutte)],
-        "fonti_nuove": [f["nome"] + (" (" + f["stato"] + ")" if f.get("stato") else "") for f in nuove],
+        "fonti_nuove": [f["nome"] + (" (" + f["stato"] + ")" if f.get("stato") and f["stato"] not in f["nome"] else "") for f in nuove],
         "tg_trovati": [c["canale"] for c in auto.get("telegram", [])], "sapere": stati_studiati,
         "memoria": [mem_nuovi, mem_totale], "ricerche": live["ricerca"]["ultime"],
         "seguiti": [n_seguiti, nuove_seguiti], "verifiche": ver_giro,

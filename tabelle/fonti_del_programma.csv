@@ -271,9 +271,9 @@ El Nacional (Venezuela),Venezuela,spagnolo,Notizie dal mondo,B testata seria,sce
 ABC Color (Paraguay),Paraguay,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.abc.com.py/arc/outboundfeeds/rss/?outputType=xml
 Folha (Brasile),Brasile,portoghese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://feeds.folha.uol.com.br/mundo/rss091.xml
 Prensa Libre (Guatemala),Guatemala,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.prensalibre.com/feed/
-La Tercera (Cile),Cile,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.latercera.com/arc/outboundfeeds/rss/?outputType=xml
+La Tercera (Cile),Cile,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.latercera.com/arc/outboundfeeds/rss/category/politica/?outputType=xml
 G1 (Brasile),Brasile,portoghese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://g1.globo.com/rss/g1/
-El País (Uruguay),Uruguay,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.elpais.com.uy/rss/
+Montevideo Portal (Uruguay),Uruguay,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.montevideo.com.uy/anxml.aspx?59
 El Universo (Ecuador),Ecuador,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.eluniverso.com/arc/outboundfeeds/rss/?outputType=xml
 Jeune Afrique,,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.jeuneafrique.com/feed/
 RFI Afrique,,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.rfi.fr/fr/afrique/rss
@@ -286,7 +286,7 @@ RFI (in francese),,francese,Notizie dal mondo,B testata seria,scelti e tradotti 
 Consiglio dell'Unione europea,,,Voci ufficiali e organismi internazionali,C voce di parte,tutti,voce di parte,si confronta a ogni giro con le altre fonti,https://www.consilium.europa.eu/en/rss/pressreleases.ashx
 DW in russo,,russo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://rss.dw.com/rdf/rss-ru-all
 DW in spagnolo,,spagnolo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://rss.dw.com/rdf/rss-sp-all
-Youm7 (Egitto),Egitto,arabo,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.youm7.com/rss/SectionRss?SectionID=65
+Egypt Independent (Egitto),Egitto,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.egyptindependent.com/feed/
 "ONU, comunicati",,,Voci ufficiali e organismi internazionali,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://press.un.org/en/rss.xml
 AIEA,,,Voci ufficiali e organismi internazionali,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://www.iaea.org/feeds/news
 Ministero degli Esteri britannico,,,Voci ufficiali e organismi internazionali,C voce di parte,tutti,voce di parte,si confronta a ogni giro con le altre fonti,https://www.gov.uk/government/organisations/foreign-commonwealth-development-office.atom
@@ -298,3 +298,8 @@ Amnesty International,,,Voci ufficiali e organismi internazionali,B testata seri
 ICIJ,,,Voci ufficiali e organismi internazionali,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://www.icij.org/feed/
 Croce Rossa internazionale,,,Voci ufficiali e organismi internazionali,A agenzia o ente,tutti,agenzia o ente,si confronta a ogni giro con le altre fonti,https://www.icrc.org/en/rss/news
 ASEAN,,,Voci ufficiali e organismi internazionali,B testata seria,tutti,testata seria,si confronta a ogni giro con le altre fonti,https://asean.org/feed/
+Libertas (San Marino),San Marino,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.libertas.sm/feed/
+St Vincent Times,Saint Vincent e Grenadine,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.stvincenttimes.com/feed/
+Comores Infos (Comore),Comore,francese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.comoresinfos.net/feed/
+Téla Nón (São Tomé e Príncipe),São Tomé e Príncipe,portoghese,Notizie dal mondo,B testata seria,scelti e tradotti (sala d’attesa),testata seria,si confronta a ogni giro con le altre fonti,https://www.telanon.info/feed/
+Pacific Island Times (Micronesia e Guam),,,Notizie dal mondo,B testata seria,solo quelli con parole di difesa e politica estera,testata seria,si confronta a ogni giro con le altre fonti,https://www.pacificislandtimes.com/blog-feed.xml

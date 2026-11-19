@@ -28,3 +28,5 @@ poi tabelle.js; solo dopo si pubblica.
                                                  zone di sempre): riscrive caloreHtml e aggiunge caloreZona
   node tools/build26.js base.html out.html      diario al ritmo di mezz'ora: riepilogo delle 24 ore (nvRitmo), 12 righe
   node tools/build27.js base.html out.html      diario: pause volute, dati scaricati, temperatura, tetto di spesa
+  node tools/build28.js base.html out.html      revisione della lettura: riquadro delle novità sempre pieno, cronologia
+                                                 degli eventi confermati, argomenti in ordine, notizie degli Stati per data
