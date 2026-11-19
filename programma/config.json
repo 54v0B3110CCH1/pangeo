@@ -4631,5 +4631,18 @@
     ]
    ]
   ]
+ },
+ "servizi": {
+  "attivo": true,
+  "per_giro": 8,
+  "giorni": 120
+ },
+ "quadro": {
+  "attivo": true,
+  "ore": 3,
+  "notizie": 60,
+  "fatti_piano": 40,
+  "risposte_per_giro": 1,
+  "tieni": 40
  }
 }

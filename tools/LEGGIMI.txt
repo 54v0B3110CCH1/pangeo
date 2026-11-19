@@ -35,3 +35,8 @@ poi tabelle.js; solo dopo si pubblica.
   node tools/build30.js base.html out.html      sezione Intelligence (vista, cartella in ogni Stato, fatti del lavoro a piano)
                                                  e avviso rosso che sul sito pubblico distingue telefono fermo da sito senza dati
   python3 tools/firma_script.py                 scrive in castello.py l'impronta degli script .sh: va lanciato a ogni loro modifica
+- build31.js: le novità e il diario dei giri leggono diario.json (arriva dopo ogni giro), non solo live.json (ogni 3 ore).
+    node tools/build31.js index.html index.html
+- build32.js (programma 2.23): servizi riassunti (servizi.js), rilevanza dei fatti del piano, vista #quadro con la scaletta
+  e i collegamenti; le prime 5 della scaletta in prima pagina e in Live. Il testo dell'estensione sta in dati/ext32.js.
+    node tools/build32.js index.html index.html

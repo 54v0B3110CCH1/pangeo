@@ -9022,7 +9022,7 @@ function viewLive(stato) {
   let h = '<h2>Live dal mondo' + (stato ? ': ' + esc(stato) : '') + '</h2><p class="note">Raccolta automatica del ' + esc(L.agg) + ' da fonti gratuite' + (L.origine ? ' (' + esc(L.origine) + ')' : '') + (L.fonti ? ' (' + L.fonti.rss_attive + ' feed attivi, ' + L.fonti.telegram + ' canali Telegram, ' + L.fonti.youtube + ' canali YouTube)' : '') + '. Sono segnali da verificare: entrano nelle schede solo con una seconda fonte. «Di parte» = dichiarazione ufficiale di una delle parti; «da valutare» = fonte trovata dal programma da solo.</p>';
   if (stato && SCHEDE[stato]) h += '<div class="quick"><a class="pill" href="#stati/' + slug(stato) + '">Apri la scheda di ' + esc(stato) + '</a></div>' + cieloHtml(L, stato) + caloreHtml(L, stato);
   if (stato) h += segnaliHtml(L, stato);
-  if (!stato) h += briefHtml(L.brief) + cronologiaHtml(items) + segnaliHtml(L, '') + peggioraHtml(L);
+  if (!stato) h += briefHtml(L.brief) + quadroHtml(quadroDati(), true) + cronologiaHtml(items) + segnaliHtml(L, '') + peggioraHtml(L);
   if (stato) h += cronologiaHtml(items);
   if (!stato && L.analisi && ((L.analisi.picchi || []).length || (L.analisi.primo_piano || []).length)) {
     const A = L.analisi;
@@ -9352,6 +9352,8 @@ function novitaHtml() {
   if (N.som('piano', 0)) altro.push('lavoro a piano: ' + N.som('piano', 0) + (N.som('piano', 0) === 1 ? ' Stato lavorato' : ' Stati lavorati') + ', ' + N.som('piano', 1) + ' accordi e ' + N.som('piano', 2) + ' appalti trovati (<a href="#piano">apri</a>)');
   const nferme = giri.filter(x => x.tipo === 'fermo'); if (nferme.length) altro.push('<b>si è fermato ' + (nferme.length === 1 ? 'una volta' : nferme.length + ' volte') + '</b> (' + nferme.reduce((t, x) => t + ((x.fermo || [])[2] || 0), 0) + ' minuti in tutto): ' + esc(nferme[nferme.length - 1].motivo || ''));
   if (N.som('intel', 0)) altro.push('intelligence: ' + N.som('intel', 0) + (N.som('intel', 0) === 1 ? ' fatto pubblico sui servizi' : ' fatti pubblici sui servizi') + ' trovati sulla stampa (<a href="#intelligence">apri</a>)');
+  if (N.som('quadro', 1)) altro.push(N.som('quadro', 1) + (N.som('quadro', 1) === 1 ? ' collegamento nuovo' : ' collegamenti nuovi') + ' tra i fatti (<a href="#quadro">apri</a>)');
+  if (N.som('quadro', 2)) altro.push(N.som('quadro', 2) + (N.som('quadro', 2) === 1 ? ' domanda di un collegamento cercata' : ' domande dei collegamenti cercate'));
   if (N.som('attesa', 0)) altro.push(num(N.som('attesa', 0)) + ' titoli presi da testate locali nella loro lingua e tradotti');
   if (z.v !== prima.v) altro.push('programma aggiornato alla versione ' + esc(z.v));
   if (altro.length) o += '<div class="nv-riga"><span>Inoltre</span><div>' + altro.join(' · ') + '</div></div>';
@@ -9425,7 +9427,7 @@ function pianoData(d) { const m = String(d || '').match(/^(\d{4})-(\d\d)-(\d\d)/
 function pianoOra(iso) { const t = Date.parse(iso || ''); return t ? new Date(t).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : ''; }
 function pianoFonti(f) { return (f || []).map(x => '<a href="' + safeU(x[1]) + '" target="_blank" rel="noopener" title="' + esc(x[3] || '') + '">' + esc(x[0] || 'fonte') + '</a>').join(' · '); }
 function pianoStato(st) { return st ? '<span class="badge" style="--c:var(' + (PIANO_COL[st] || '--muted') + ')">' + esc(st) + '</span> ' : ''; }
-function pianoPiede(x) { return '<div class="s">' + pianoStato(x.st) + ((x.f || []).length > 1 ? 'più fonti' : 'una fonte') + ': ' + pianoFonti(x.f) + '</div>'; }
+function pianoPiede(x) { return '<div class="s">' + rilBadge(x.r) + pianoStato(x.st) + ((x.f || []).length > 1 ? 'più fonti' : 'una fonte') + ': ' + pianoFonti(x.f) + '</div>'; }
 function pianoAccordo(x) { return '<div class="item"><div class="t"><span class="dot" style="background:var(--b-nato)"></span> ' + esc(x.cosa) + '</div><div class="m">' + [esc(pianoData(x.d)), x.con ? 'con ' + esc(x.con) : ''].filter(Boolean).join(' · ') + '</div>' + pianoPiede(x) + '</div>'; }
 function pianoAppalto(x) { return '<div class="item"><div class="t"><span class="dot" style="background:var(--aziende)"></span> ' + esc(x.ogg) + '</div><div class="m">' + [esc(pianoData(x.d)), x.acq ? 'compra ' + stLink(x.acq) : '', x.forn ? 'fornisce ' + esc(x.forn) : '', x.val ? esc(x.val) : ''].filter(Boolean).join(' · ') + '</div>' + pianoPiede(x) + '</div>'; }
 const PIANO_NOTA = 'Sono titoli di giornale letti dal programma, non un registro ufficiale: «firmato» o «in consegna» lo dice il titolo. Prima di usarli vanno confermati alla fonte.';
@@ -9559,8 +9561,8 @@ const INTEL_NOTA_FATTI = 'Sono titoli di giornale letti dal programma, non atti 
 PIANO_TIPO.intelligence = 'servizi di intelligence';
 function intelDi(nome) { return INTEL.stati[nome] || []; }
 function intelScambiDi(nome) { return INTEL_SCAMBI.filter(a => a.m().includes(nome)); }
-function intelServizio(x) { return '<li><a href="' + safeU(x[2]) + '" target="_blank" rel="noopener">' + esc(x[0]) + '</a>' + (x[1] ? ' <span class="s">dal ' + esc(x[1]) + '</span>' : '') + (x[3] ? ' · <a href="' + safeU(x[3]) + '" target="_blank" rel="noopener">sito ufficiale</a>' : '') + '</li>'; }
-function intelFatto(x, stato) { const t = INTEL_TIPO[x.tipo] || INTEL_TIPO.altro; return '<div class="item"><div class="t"><span class="dot" style="background:var(--numeri)"></span> ' + esc(x.cosa) + '</div><div class="m">' + [stato ? stLink(stato, 'intelligence') : '', esc(pianoData(x.d)), x.ente ? esc(x.ente) : ''].filter(Boolean).join(' · ') + '</div><div class="s"><span class="badge" style="--c:var(' + t[1] + ')">' + esc(t[0]) + '</span> ' + ((x.f || []).length > 1 ? 'più fonti' : 'una fonte') + ': ' + pianoFonti(x.f) + '</div></div>'; }
+function intelServizio(x) { const v = servizioSintesi(x[4]); return '<li><a href="' + safeU(x[2]) + '" target="_blank" rel="noopener">' + esc(x[0]) + '</a>' + (x[1] ? ' <span class="s">dal ' + esc(x[1]) + '</span>' : '') + (x[3] ? ' · <a href="' + safeU(x[3]) + '" target="_blank" rel="noopener">sito ufficiale</a>' : '') + (v ? '<div class="x" style="margin:2px 0 8px">' + esc(v.s) + ' <span class="s">(riassunto dal programma, dalla <a href="' + safeU(v.u || x[2]) + '" target="_blank" rel="noopener">voce di Wikipedia</a>)</span></div>' : '') + '</li>'; }
+function intelFatto(x, stato) { const t = INTEL_TIPO[x.tipo] || INTEL_TIPO.altro; return '<div class="item"><div class="t"><span class="dot" style="background:var(--numeri)"></span> ' + esc(x.cosa) + '</div><div class="m">' + [stato ? stLink(stato, 'intelligence') : '', esc(pianoData(x.d)), x.ente ? esc(x.ente) : ''].filter(Boolean).join(' · ') + '</div><div class="s">' + rilBadge(x.r) + '<span class="badge" style="--c:var(' + t[1] + ')">' + esc(t[0]) + '</span> ' + ((x.f || []).length > 1 ? 'più fonti' : 'una fonte') + ': ' + pianoFonti(x.f) + '</div></div>'; }
 function intelRel(r, conStato) { return '<li>' + (conStato ? '<b>' + stLink(r[0], 'intelligence') + '</b> · ' : '') + '<a href="' + safeU(r[3]) + '" target="_blank" rel="noopener">' + esc(r[2]) + '</a> <span class="s">' + esc(r[1]) + '</span></li>'; }
 function intelStatoHtml(nome) {
   const l = intelDi(nome), rel = INTEL_REL.filter(r => r[0] === nome), sc = intelScambiDi(nome), f = pianoDi(nome, 'intel'), P = pianoDati();
@@ -9575,7 +9577,7 @@ function intelStatoHtml(nome) {
 function intelFattiTutti() {
   const P = pianoDati(), l = [];
   if (P) Object.keys(P.stati).forEach(s => (P.stati[s].intel || []).forEach(x => l.push([s, x])));
-  return l.sort((a, b) => String(b[1].d || '').localeCompare(String(a[1].d || '')));
+  return l.sort((a, b) => ((b[1].r || 0) - (a[1].r || 0)) || String(b[1].d || '').localeCompare(String(a[1].d || '')));
 }
 function intelSezionePiano(s) { const l = s.intel || []; return '<h3>Intelligence (' + l.length + ')</h3>' + (l.map(x => intelFatto(x, '')).join('') || '<p class="note">' + (s.intel ? 'Nessun fatto sui servizi nei titoli letti.' : 'Le domande sull’intelligence cominciano con la versione 2.22 del programma.') + '</p>'); }
 function viewIntelligence(slug) {
@@ -9584,8 +9586,8 @@ function viewIntelligence(slug) {
   if (nome) return '<h2>Intelligence: ' + esc(nome) + '</h2>' + intelStatoHtml(nome) + '<p class="note">' + stLink(nome) + '</p>';
   const stati = Object.keys(INTEL.stati).sort((a, b) => a.localeCompare(b, 'it')), nServ = stati.reduce((t, s) => t + INTEL.stati[s].length, 0), fatti = intelFattiTutti(), R = pianoRias();
   let h = '<h2>Intelligence</h2><p class="note">I servizi di informazione e di sicurezza di ogni Stato, che cosa pubblicano, con chi scambiano informazioni e che cosa ne scrive la stampa. ' + esc(INTEL_REGOLE) + '</p>';
-  h += '<div class="item nv-diario"><div class="nv-tiles">' + nvTile(stati.length, 'Stati con almeno un servizio in elenco') + nvTile(num(nServ), 'servizi in elenco') + nvTile(INTEL_REL.length, 'relazioni ufficiali da leggere') + nvTile(num(fatti.length || (R && R.intel) || 0), 'fatti trovati dal programma sulla stampa') + '</div></div>';
-  h += '<h3>Fatti recenti dalla stampa</h3>' + (fatti.length ? fatti.slice(0, 15).map(x => intelFatto(x[1], x[0])).join('') + '<p class="note">' + esc(INTEL_NOTA_FATTI) + (fatti.length > 15 ? ' Qui i 15 più recenti su ' + fatti.length + ': gli altri sono nelle schede degli Stati.' : '') + '</p>'
+  h += '<div class="item nv-diario"><div class="nv-tiles">' + nvTile(stati.length, 'Stati con almeno un servizio in elenco') + nvTile(num(nServ), 'servizi in elenco') + nvTile(num(Object.keys(window.SERVIZI || {}).length), 'servizi riassunti in italiano') + nvTile(INTEL_REL.length, 'relazioni ufficiali da leggere') + nvTile(num(fatti.length || (R && R.intel) || 0), 'fatti trovati dal programma sulla stampa') + '</div></div>';
+  h += '<h3>Fatti recenti dalla stampa</h3>' + (fatti.length ? fatti.slice(0, 15).map(x => intelFatto(x[1], x[0])).join('') + '<p class="note">' + esc(INTEL_NOTA_FATTI) + (fatti.length > 15 ? ' Qui i 15 più rilevanti su ' + fatti.length + ': gli altri sono nelle schede degli Stati.' : '') + '</p>'
     : '<div class="item"><div class="x">' + (R && R.intel ? 'Il programma ne ha trovati ' + R.intel + ': l’elenco, Stato per Stato, è sul telefono e sul sito.' : 'Ancora nessuno. Il programma li cerca dalla versione 2.22, uno Stato alla volta dentro il lavoro a piano: per ogni Stato fa una domanda in inglese e una nella lingua del posto, legge i titoli e ne tira fuori nomine, leggi, relazioni pubblicate, espulsioni e processi, ognuno con la sua fonte.') + '</div><div class="s"><a href="#piano">Lavoro a piano →</a></div></div>');
   h += '<h3>Che cosa pubblicano i servizi</h3><div class="item"><div class="x">È l’intelligence di oggi firmata da chi la fa: valutazioni annuali delle minacce e relazioni al Parlamento. Sono documenti ufficiali, quindi dicono ciò che il servizio sceglie di rendere pubblico.</div><ul class="plain">' + INTEL_REL.map(r => intelRel(r, true)).join('') + '</ul></div>';
   h += '<h3>Con chi scambiano informazioni</h3>' + INTEL_SCAMBI.map(a => '<div class="item"><div class="t"><a href="' + safeU(a.u) + '" target="_blank" rel="noopener">' + esc(a.n) + '</a></div><div class="x">' + esc(a.d) + '</div><div class="members">' + a.m().map(s => stLink(s, 'intelligence')).join('') + '</div></div>').join('');
@@ -9598,6 +9600,47 @@ function caricaDiario() {
   // sul sito pubblico i dati completi arrivano ogni 3 ore, il diario dopo ogni giro: l'avviso «fermo» guarda il diario
   if (!APP_OK || typeof fetch !== 'function') return;
   fetch('diario.json?v=' + Date.now()).then(r => r.ok ? r.json() : null).then(d => { if (Array.isArray(d) && d.length && d[d.length - 1].iso) { window.DIARIO_ULT = d[d.length - 1]; window.DIARIO_TUTTO = d; render(); } }).catch(() => {});
+}
+
+// Trentaduesima estensione (20 novembre 2026, programma 2.23): i servizi di intelligence riassunti in italiano dal
+// programma (servizi.js), la rilevanza da 1 a 5 dei fatti del lavoro a piano, e il quadro del cervello: la scaletta delle
+// voci più rilevanti e i collegamenti tra fatti diversi, ognuno con la domanda per verificarlo e la risposta trovata.
+function caricaServizi() {
+  if (!(APP_OK || location.protocol === 'file:')) return;
+  const s = document.createElement('script'); s.src = 'servizi.js?v=' + Date.now();
+  s.onload = () => { render(); s.remove(); }; s.onerror = () => s.remove(); document.head.appendChild(s);
+}
+function servizioSintesi(q) { const v = q && window.SERVIZI && window.SERVIZI[q]; return v && v.s ? v : null; }
+function rilBadge(r) { return r ? '<span class="badge" style="--c:var(' + (r >= 4 ? '--accent' : r === 3 ? '--st2' : '--muted') + ')" title="Rilevanza da 1 a 5, secondo il cervello">rilevanza ' + r + '/5</span> ' : ''; }
+const QUADRO_TIPO = { notizia: 'notizia confermata', accordo: 'accordo', appalto: 'appalto', intelligence: 'intelligence' };
+const QUADRO_NOTA = 'Scaletta e collegamenti li scrive il cervello ogni 3 ore, leggendo solo le notizie confermate da più fonti e i fatti del lavoro a piano. La rilevanza è un suo giudizio, non un dato. Un collegamento «possibile» resta da verificare: per questo ognuno ha la sua domanda, che il programma cerca nei giri dopo.';
+function quadroDati() { const Q = liveOk() && window.LIVE.quadro; return Q && ((Q.scaletta || []).length || (Q.collegamenti || []).length) ? Q : null; }
+function quadroVoce(v, i) {
+  return '<div class="item"><div class="t"><span class="s">' + (i + 1) + '.</span> <a href="' + safeU(v.u) + '" target="_blank" rel="noopener">' + esc(v.t) + '</a></div>' +
+    '<div class="m">' + [rilBadge(v.r), esc(QUADRO_TIPO[v.tipo] || v.tipo || ''), (v.paesi || []).map(p => stLink(p)).join(', '), esc(pianoData(v.d)), esc(v.fonte || '') + ((v.nf || 1) > 1 ? ' e altre ' + (v.nf - 1) : '')].filter(Boolean).join(' · ') + '</div>' +
+    (v.perche ? '<div class="x">' + esc(v.perche) + '</div>' : '') + '</div>';
+}
+function collegamentoHtml(c) {
+  const r = c.risposta;
+  return '<div class="item"><div class="t"><span class="dot" style="background:var(--accent)"></span> ' + esc(c.testo) + '</div>' +
+    '<div class="m">' + [esc(c.stati || ''), esc(pianoOra(c.iso))].filter(Boolean).join(' · ') + '</div>' +
+    '<ul class="plain">' + (c.voci || []).map(v => '<li><span class="s">' + esc(QUADRO_TIPO[v.tipo] || v.tipo || '') + ':</span> <a href="' + safeU(v.u) + '" target="_blank" rel="noopener">' + esc(v.t) + '</a> <span class="s">' + esc(v.fonte || '') + '</span></li>').join('') + '</ul>' +
+    '<div class="s"><b>Domanda</b>: ' + esc(c.perche || c.q) + ' (cerca «' + esc(c.q) + '»' + (c.l ? ', ' + esc(c.l) : '') + ')</div>' +
+    '<div class="x">' + (r ? '<b>Risposta</b>: ' + esc(r.r) + (r.f && r.f.length ? ' — ' + pianoFonti(r.f) : '') : '<span class="s">Da cercare nei prossimi giri.</span>') + '</div></div>';
+}
+function quadroHtml(Q, breve) {
+  if (!Q) return '';
+  const sc = Q.scaletta || [], co = Q.collegamenti || [];
+  let h = '<h3 id="lv-quadro">Le più rilevanti adesso</h3>' + (sc.length ? sc.slice(0, breve ? 5 : 15).map(quadroVoce).join('') : '<p class="note">Ancora nessuna scaletta.</p>');
+  if (breve) return h + '<p class="note">Scaletta del cervello, ' + esc(Q.agg || '') + '. <a href="#quadro">Tutta la scaletta e ' + (co.length === 1 ? 'il collegamento' : 'i ' + co.length + ' collegamenti') + ' tra i fatti →</a></p>';
+  h += '<h3>Collegamenti tra i fatti</h3>' + (co.length ? co.map(collegamentoHtml).join('') : '<p class="note">Ancora nessuno.</p>');
+  return h + '<p class="note">' + esc(QUADRO_NOTA) + (Q.agg ? ' Ultimo quadro: ' + esc(Q.agg) + '.' : '') + '</p>';
+}
+function quadroHome() { const Q = quadroDati(); return Q ? '<section class="nv" aria-label="Le più rilevanti">' + quadroHtml(Q, true) + '</section>' : ''; }
+function viewQuadro() {
+  crumbs([['', 'Quadro: rilevanza e collegamenti']]);
+  const Q = quadroDati();
+  return '<h2>Quadro: rilevanza e collegamenti</h2>' + (Q ? quadroHtml(Q, false) : '<p class="note">Il quadro arriva con la versione 2.23 del programma. Ogni 3 ore il cervello mette in scaletta le notizie e i fatti più rilevanti, cerca i collegamenti tra fatti diversi e per ognuno scrive la domanda da verificare; nei giri dopo il programma la cerca e scrive la risposta con le fonti.</p>');
 }
 
 // Ventiduesima estensione: ambasciate e società di ogni Stato
@@ -9667,9 +9710,10 @@ function render() {
   else if (parts[0] === 'appalti') html = viewAppalti();
   else if (parts[0] === 'piano') html = viewPiano(parts[1] || '');
   else if (parts[0] === 'intelligence') html = viewIntelligence(parts[1] || '');
+  else if (parts[0] === 'quadro') html = viewQuadro();
   else if (parts[0] === 'forze') html = viewForze(parts[1] || 'att');
   else if (parts[0] === 'live') html = viewLive(parts[1] || '');
-  else html = novitaHtml() + viewHome();
+  else html = novitaHtml() + quadroHome() + viewHome();
   $('#view').innerHTML = html;
   document.querySelectorAll('.fchip').forEach(b => b.addEventListener('click', () => { filtroStab = +b.dataset.l; render(); }));
   document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); const t = document.getElementById(b.dataset.go); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
@@ -9694,6 +9738,7 @@ caricaSapere();
 caricaMemoria();
 caricaPiano();
 caricaDiario();
+caricaServizi();
 if (APP_OK) {
   setInterval(() => caricaLive(/^#?(live.*)?$/.test(location.hash) && !$('#q').value), 15 * 60 * 1000);
   const ml = document.createElement('link'); ml.rel = 'manifest'; ml.href = 'manifest.webmanifest'; document.head.appendChild(ml);

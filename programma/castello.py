@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.22"
+VERSIONE = "2.23"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -72,7 +72,7 @@ APP_FILE = ["manifest.webmanifest", "sw.js", "icona-192.png", "icona-512.png", "
 # copia di riserva su GitHub dei file di lavoro (una volta al giorno, dentro riserva.json). MAI chiavi.json: le chiavi
 # non escono dal telefono. Diario, memoria, sapere, piano e ultime notizie sono già nel repository per conto loro.
 RISERVA = ["fonti_auto.json", "fonti_mie.json", "ricerche.json", "cervello.json", "storico_stati.json",
-           "miglioratore.json", "impostazioni_auto.json", "canali.json", "lingue.json", "copertura.json"]
+           "miglioratore.json", "impostazioni_auto.json", "canali.json", "lingue.json", "copertura.json", "quadro.json"]
 RISERVA_STORICI = ["cielo_storico.json", "calore_storico.json"]  # serie di 7 giorni: nella riserva va un campione all'ora
 # Gli script di questa versione, con la loro impronta (SHA-256). Quando approvi il programma approvi anche questi: il telefono
 # li prende da GitHub solo se l'impronta è la stessa scritta qui. Uno script cambiato dopo aspetta un nuovo «approva».
@@ -1609,6 +1609,26 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
             scrivi_sapere(S_)
         except Exception as e:
             errori.append(f"Claude (traduzione del sapere): {re.sub(r'sk-ant-[A-Za-z0-9_-]+', '***', str(e))}")
+    # 1c. i servizi di intelligence (dalla 2.23): dalla voce di Wikipedia un riassunto in italiano di una o due frasi
+    Sv = leggi_json(os.path.join(DATI, "servizi.json"), {})
+    da_v = [q for q, v in Sv.items() if v.get("testo") and not v.get("sintesi")][:impost.get("servizi_per_giro", 10)]
+    if da_v and conto["chiamate"] < tetto:
+        domanda = ("Per ogni servizio di informazione e di sicurezza qui sotto scrivi un riassunto in italiano di una o due frasi, "
+                   "al massimo 300 caratteri: che cosa fa (informazioni all'estero, sicurezza interna, militare, intercettazioni o "
+                   "altro), da chi dipende, quando è nato e da quale servizio deriva, se il testo lo dice. Usa SOLO il testo dato e "
+                   "non aggiungere nulla. Niente nomi di persone, niente indirizzi, niente giudizi. Una riga per servizio, nello "
+                   "stesso ordine e con lo stesso numero davanti, senza commenti:\n" +
+                   "\n".join(f"{i + 1}. {Sv[q].get('nome', '')} ({Sv[q].get('stato', '')}): {Sv[q]['testo']}" for i, q in enumerate(da_v)))
+        try:
+            risposta = chiedi_claude(chiavi, cfg, domanda, 1800, conto)
+            conto["chiamate"] += 1
+            for riga in risposta.splitlines():
+                m = numerata.match(riga)
+                if m and 0 < int(m.group(1)) <= len(da_v) and len(m.group(2).strip()) > 20:
+                    Sv[da_v[int(m.group(1)) - 1]]["sintesi"] = pulisci(m.group(2), 400)
+            scrivi_servizi(Sv)
+        except Exception as e:
+            errori.append(f"Claude (riassunto dei servizi): {re.sub(r'sk-ant-[A-Za-z0-9_-]+', '***', str(e))}")
     # 2. «Da sapere adesso», al massimo ogni 6 ore
     vecchio = (conto.get("brief") or {}).get("iso", "")
     if conto["chiamate"] < tetto and vecchio < (datetime.now(timezone.utc) - timedelta(hours=impost.get("brief_ore", 6))).isoformat():
@@ -1904,6 +1924,109 @@ def sapere(cfg, paesi, errori, adesso):
     return sum(1 for v in S_.values() if len(v) > 1)
 
 
+# ----------------------------------------------------------------------------- servizi di intelligence (dalla 2.23)
+
+def _wiki_json(lingua, parametri):
+    """Una richiesta all'API di Wikipedia, con una sola attesa se il sito chiede di rallentare (429)."""
+    url = f"https://{lingua}.wikipedia.org/w/api.php?" + urllib.parse.urlencode(dict(parametri, format="json"))
+    ua = {"User-Agent": "PanGeo/" + VERSIONE + " (https://github.com/54v0B3110CCH1/pangeo; archivio personale, poche richieste)"}
+    try:
+        return json.loads(scarica(url, timeout=30, intestazioni=ua))
+    except urllib.error.HTTPError as e:
+        if e.code != 429:
+            raise
+        try:
+            attesa = min(int(e.headers.get("retry-after") or 5), 20)
+        except ValueError:
+            attesa = 5
+        time.sleep(attesa + 2)
+        return json.loads(scarica(url, timeout=30, intestazioni=ua))
+
+
+def wikipedia_voce(url, massimo=900):
+    """L'inizio di una voce di Wikipedia dato il suo indirizzo. Se la voce è in un'altra lingua e esiste quella in
+    italiano, prende quella in italiano. Restituisce titolo, testo, indirizzo e lingua, oppure None."""
+    m = re.match(r"https?://([a-z-]+)\.wikipedia\.org/wiki/(.+)$", url or "")
+    if not m:
+        return None
+    lingua, titolo = m.group(1), urllib.parse.unquote(m.group(2)).replace("_", " ")
+    for _ in range(2):
+        r = _wiki_json(lingua, {"action": "query", "titles": titolo, "prop": "extracts|info|langlinks", "exintro": "1",
+                                "explaintext": "1", "inprop": "url", "lllang": "it", "redirects": "1"})
+        pag = next(iter((r.get("query", {}).get("pages") or {}).values()), {})
+        it_ = (pag.get("langlinks") or [{}])[0].get("*")
+        if lingua != "it" and it_:
+            lingua, titolo = "it", it_  # c'è la voce in italiano: si legge quella
+            continue
+        testo = re.sub(r"\s+", " ", pag.get("extract") or "").strip()
+        if len(testo) < 80:
+            return None
+        if len(testo) > massimo:
+            taglio = testo.rfind(". ", 0, massimo)
+            testo = testo[: taglio + 1] if taglio > 250 else testo[:massimo] + "…"
+        return {"titolo": pag.get("title", titolo), "testo": testo, "url": solo_http(pag.get("fullurl", "")) or url, "lingua": lingua}
+    return None
+
+
+def elenco_servizi():
+    """L'elenco dei servizi di ogni Stato preparato da Claude (tools/dati/intel.json nel repository):
+    {Stato: [[nome, anno, voce di Wikipedia, sito ufficiale, codice Wikidata], ...]}."""
+    for perc in (os.path.join(DATI, "repo", "tools", "dati", "intel.json"), os.path.join(QUI, "intel.json")):
+        stati = leggi_json(perc, {}).get("stati") if os.path.exists(perc) else None
+        if isinstance(stati, dict) and stati:
+            return stati
+    return {}
+
+
+def scrivi_servizi(S_):
+    """servizi.json per il programma, servizi.js per la pagina (solo i riassunti fatti)."""
+    scrivi_json(os.path.join(DATI, "servizi.json"), S_)
+    pagina = {q: {"s": v["sintesi"], "t": v.get("titolo", ""), "u": v.get("url", ""), "d": v.get("data", ""), "l": v.get("lingua", "")}
+              for q, v in S_.items() if v.get("sintesi")}
+    with open(os.path.join(WEB, "servizi.js.tmp"), "w", encoding="utf-8") as f:
+        f.write("window.SERVIZI = " + json.dumps(pagina, ensure_ascii=False, separators=(",", ":")) + ";\n")
+    os.replace(os.path.join(WEB, "servizi.js.tmp"), os.path.join(WEB, "servizi.js"))
+
+
+def studia_servizi(cfg, errori, adesso):
+    """Come per gli Stati: pochi servizi a giro, letti su Wikipedia (prima in italiano). Il riassunto in italiano lo scrive
+    poi il cervello (vedi cervello(), punto 1c). Ogni voce si rilegge dopo servizi.giorni giorni (predefinito 120)."""
+    imp = cfg.get("servizi", {})
+    perc = os.path.join(DATI, "servizi.json")
+    S_ = leggi_json(perc, {})
+    if not S_:  # prima volta o dopo una reinstallazione: parte dai riassunti già sul sito, senza pagarli due volte
+        try:
+            for q, v in _js_dati(os.path.join(DATI, "repo", "servizi.js")).items():
+                S_[q] = {"sintesi": v.get("s", ""), "titolo": v.get("t", ""), "url": v.get("u", ""), "data": v.get("d", ""),
+                         "lingua": v.get("l", "")}
+        except (OSError, ValueError):
+            S_ = {}
+    if not imp.get("attivo", True):
+        return sum(1 for v in S_.values() if v.get("sintesi"))
+    elenco = elenco_servizi()
+    vecchio = (adesso - timedelta(days=imp.get("giorni", 120))).date().isoformat()
+    da_fare = [(st_, x) for st_, l in sorted(elenco.items()) for x in l
+               if len(x) > 4 and x[4] and x[2] and S_.get(x[4], {}).get("data", "") < vecchio][:imp.get("per_giro", 8)]
+    for st_, x in da_fare:
+        try:
+            v = wikipedia_voce(x[2])
+        except Exception as e:
+            errori.append(f"Wikipedia (servizi): {e}")
+            break  # il sito non risponde: si riprova al prossimo giro
+        prima = S_.get(x[4], {})
+        nuovo = {"stato": st_, "nome": x[0], "data": adesso.date().isoformat()}
+        if v:
+            nuovo.update(v)
+            if prima.get("sintesi") and prima.get("testo") == v["testo"]:
+                nuovo["sintesi"] = prima["sintesi"]  # stesso testo: il riassunto resta, non si paga due volte
+        elif prima.get("sintesi"):
+            nuovo.update({k: prima[k] for k in ("sintesi", "titolo", "url", "lingua") if k in prima})
+        S_[x[4]] = nuovo
+    if da_fare or (S_ and not os.path.exists(os.path.join(WEB, "servizi.js"))):
+        scrivi_servizi(S_)
+    return sum(1 for v in S_.values() if v.get("sintesi"))
+
+
 # ----------------------------------------------------------------------------- memoria e diario
 
 def memoria_stati(archivio, adesso, cfg, ore=30):
@@ -2152,17 +2275,17 @@ def _piano_domanda(stato, titoli, giorni, noti):
             f"{giorni} giorni (numero. data – titolo – fonte), in lingue diverse. Usa SOLO quello che dicono i titoli: non "
             "aggiungere nulla che sai per conto tuo, e se un titolo non è chiaro lascialo stare.\n\n"
             f"PARTE 1, ACCORDI: alleanze, patti, trattati e accordi militari o di sicurezza che riguardano {stato}. Una riga per accordo:\n"
-            "A | data | con chi | che cosa, in una frase in italiano | stato | numeri dei titoli\n"
+            "A | data | con chi | che cosa, in una frase in italiano | stato | numeri dei titoli | rilevanza\n"
             "dove «stato» è una di queste parole: " + ", ".join(PIANO_STATI_ACCORDO) + ".\n\n"
             f"PARTE 2, APPALTI: contratti, ordini, acquisti e vendite di armamenti in cui {stato} compra o vende. Una riga per contratto:\n"
             "C | data | chi compra | chi vende (azienda e Stato, se sono scritti) | che cosa, in italiano, con le quantità se sono "
-            "scritte | valore, oppure - | stato | numeri dei titoli\n"
+            "scritte | valore, oppure - | stato | numeri dei titoli | rilevanza\n"
             "dove «stato» è una di queste parole: " + ", ".join(PIANO_STATI_APPALTO) + ".\n\n"
             f"PARTE 3, INTELLIGENCE: fatti pubblici sui servizi di informazione e di sicurezza di {stato}, o che li riguardano: "
             "nomine e cambi al vertice, leggi e riforme, relazioni e rapporti pubblicati dai servizi o da chi li controlla, espulsioni "
             "di diplomatici, processi e arresti per spionaggio, accordi di scambio di informazioni, allarmi pubblici. Una riga per fatto:\n"
             "I | data | quale servizio o ente (il nome come sta nel titolo, oppure -) | che cosa, in una frase in italiano | tipo | "
-            "numeri dei titoli\n"
+            "numeri dei titoli | rilevanza\n"
             "dove «tipo» è una di queste parole: " + ", ".join(PIANO_TIPI_INTEL) + ".\n"
             "Nelle righe I non scrivere MAI il nome di persone private (indagati, arrestati, testimoni, agenti): scrivi il ruolo, per "
             "esempio «un funzionario» o «due cittadini stranieri». I nomi di ministri, capi dei servizi e altre cariche pubbliche "
@@ -2171,6 +2294,10 @@ def _piano_domanda(stato, titoli, giorni, noti):
             "annunciato è poi stato firmato, o se un accordo è stato ratificato). Una riga per domanda:\n"
             "D | lingua in cui cercare (it, en, oppure la sigla della lingua del posto) | da 3 a 7 parole da cercare, senza "
             "virgolette | che cosa vuoi sapere, in italiano\n\n"
+            "RILEVANZA, nelle righe A, C e I: scrivi R e un numero da 1 a 5 (per esempio R4), quanto conta il fatto per la "
+            "difesa e la sicurezza. R5 = cambia gli equilibri tra Stati o in una regione (un'alleanza nuova, un grande contratto "
+            "pluriennale, un cambio al vertice dei servizi dopo uno scandalo); R3 = importante per lo Stato; R1 = fatto minore o "
+            "di routine.\n\n"
             "Regole. La data è quella del titolo più recente che ne parla, scritta AAAA-MM-GG. Lo stesso fatto una volta sola: se ne "
             "parlano più titoli, metti tutti i loro numeri. Niente giudizi, niente previsioni, niente dettagli operativi. Se un "
             "titolo riporta un'accusa o una voce, scrivi «secondo» e chi lo dice. Le notizie che non sono né accordi né appalti né "
@@ -2200,26 +2327,41 @@ def _piano_leggi(risposta, titoli):
         return next((a for a in sorted(ammessi, key=len, reverse=True) if a in t), "annunciato" if t else "")
 
     accordi, appalti, intel, domande_ = [], [], [], []
+    ril_rx = re.compile(r"(?i)r(?:ilevanza)?\s*[:=]?\s*([1-5])(?:\s*/\s*5)?")
     for riga in (risposta or "").splitlines():
         p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
         sigla = p[0].upper().strip(" .:)") if p else ""
+        # la rilevanza (R1…R5) si toglie prima di leggere le colonne: il suo numero non va mai preso per il numero di un titolo
+        ril = None
+        if sigla in ("A", "C", "I"):
+            resto = []
+            for x in p[1:]:
+                m_r = ril_rx.fullmatch(x.strip())
+                if m_r and ril is None:
+                    ril = int(m_r.group(1))
+                else:
+                    resto.append(x)
+            p = p[:1] + resto
+            minimo = {"A": 6, "C": 8, "I": 6}[sigla]
+            if ril is None and len(p) > minimo and re.fullmatch(r"\s*[1-5]\s*", p[-1]):
+                ril, p = int(p[-1].strip()), p[:-1]  # rilevanza scritta senza la R, in fondo alla riga
         if sigla == "A" and len(p) >= 6:
             fonti = _piano_fonti(p[5], titoli)
             if fonti and len(p[3]) > 8:
                 accordi.append({"d": data_di(p[1], fonti), "con": pulisci(p[2], 120), "cosa": pulisci(p[3], 300),
-                                "st": stato_di(p[4], PIANO_STATI_ACCORDO), "f": fonti})
+                                "st": stato_di(p[4], PIANO_STATI_ACCORDO), "f": fonti, "r": ril})
         elif sigla == "C" and len(p) >= 8:
             fonti = _piano_fonti(p[7], titoli)
             if fonti and len(p[4]) > 5:
                 appalti.append({"d": data_di(p[1], fonti), "acq": pulisci(p[2], 80), "forn": pulisci(p[3], 120),
                                 "ogg": pulisci(p[4], 300), "val": "" if p[5].strip(" -–—") == "" else pulisci(p[5], 60),
-                                "st": stato_di(p[6], PIANO_STATI_APPALTO), "f": fonti})
+                                "st": stato_di(p[6], PIANO_STATI_APPALTO), "f": fonti, "r": ril})
         elif sigla == "I" and len(p) >= 6:
             fonti = _piano_fonti(p[5], titoli)
             if fonti and len(p[3]) > 8:
                 ente = pulisci(p[2], 100).strip(" -–—")
                 intel.append({"d": data_di(p[1], fonti), "ente": ente, "cosa": pulisci(p[3], 300),
-                              "tipo": next((t for t in PIANO_TIPI_INTEL if t in p[4].lower()), "altro"), "f": fonti})
+                              "tipo": next((t for t in PIANO_TIPI_INTEL if t in p[4].lower()), "altro"), "f": fonti, "r": ril})
         elif sigla == "D" and len(p) >= 4:
             q = " ".join(re.sub(r'[<>{}\\"«»()]|https?:\S*', " ", p[2]).split())
             if 2 <= len(q.split()) <= 9 and len(q) <= 110:
@@ -2403,6 +2545,185 @@ def piano_riassunto(cfg, paesi):
                                 for s in ult for r in S[s].get("risposte", [])), key=lambda x: x[4], reverse=True)[:8]}
 
 
+# ----------------------------------------------------------------------------- quadro: scaletta e collegamenti (dalla 2.23)
+
+def _cerca_e_rispondi(chiavi, cfg, conto, errori, chi, perche, q, lingua, giorni=30, pausa=1.0):
+    """Cerca una domanda su Google News e fa rispondere il cervello con i soli titoli trovati.
+    Restituisce l'esito, oppure None se Google News o il cervello non hanno risposto (si riprova al giro dopo)."""
+    titoli, _fatte, fallite = _piano_titoli([("aperta", lingua, q)], giorni, errori, pausa)
+    if fallite:
+        return None
+    titoli = sorted(titoli, key=lambda x: x["iso"], reverse=True)[:30]
+    esito = {"q": q, "l": lingua, "perche": perche, "n": len(titoli), "quando": datetime.now(timezone.utc).isoformat(),
+             "r": "nessun titolo trovato", "f": []}
+    if not titoli:
+        return esito
+    try:
+        risposta = chiedi_claude(chiavi, cfg, (
+            f"Domanda ({chi}): {perche or q}\nTitoli trovati cercando «{q}» (numero. data – titolo – fonte):\n" +
+            "\n".join(f"{i + 1}. {x['d'] or 'senza data'} – {x['t']} – {x['f']}" for i, x in enumerate(titoli)) +
+            "\n\nRispondi in italiano con una riga sola, usando SOLO quello che dicono i titoli, senza giudizi:\n"
+            "R | risposta in una o due frasi | numeri dei titoli usati\n"
+            "Se i titoli non bastano per rispondere scrivi: R | i titoli non bastano | -"), 500, conto)
+        conto["chiamate"] = conto.get("chiamate", 0) + 1
+    except Exception as e:
+        errori.append("Claude (domanda di un collegamento): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
+        return None
+    esito["r"] = "i titoli non bastano"
+    for riga in risposta.splitlines():
+        p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
+        if len(p) >= 2 and p[0].upper().strip(" .:") == "R" and len(p[1]) > 5:
+            esito["r"], esito["f"] = pulisci(p[1], 400), _piano_fonti(p[2] if len(p) > 2 else "", titoli, 3)
+            break
+    return esito
+
+
+def _quadro_voci(archivio, P, adesso, imp):
+    """Le voci che il cervello mette in ordine: notizie confermate da più fonti (ultime 24 ore, una per fatto)
+    e fatti del lavoro a piano (ultimi 30 giorni), prima i più rilevanti."""
+    voci, visti = [], set()
+    da_ = (adesso - timedelta(hours=imp.get("ore_notizie", 24))).isoformat()
+    conf = sorted((v for v in archivio.get("notizie", {}).values() if v.get("conf") and (v.get("data_iso") or "") >= da_),
+                  key=lambda v: ((v.get("nf") or 1), v.get("data_iso") or ""), reverse=True)
+    for v in conf:
+        g = v.get("gr") or v.get("u")
+        if g in visti:
+            continue
+        visti.add(g)
+        voci.append({"tipo": "notizia", "t": pulisci(v.get("it") or v.get("t", ""), 220), "u": v.get("u", ""),
+                     "fonte": v.get("fonte", ""), "d": (v.get("data_iso") or "")[:10], "paesi": (v.get("paesi") or [])[:3],
+                     "nf": v.get("nf") or 1})
+        if len(voci) >= imp.get("notizie", 60):
+            break
+    limite = (adesso - timedelta(days=imp.get("giorni_piano", 30))).date().isoformat()
+    fatti = []
+    for st_, sch in (P.get("stati") or {}).items():
+        for campo, tipo in (("accordi", "accordo"), ("appalti", "appalto"), ("intel", "intelligence")):
+            for x in sch.get(campo, []):
+                if (x.get("d") or "") < limite:
+                    continue
+                if campo == "accordi":
+                    t = (x.get("con", "") + ": " if x.get("con") else "") + x.get("cosa", "")
+                elif campo == "appalti":
+                    t = f"{x.get('acq', '')} da {x.get('forn', '')}: {x.get('ogg', '')}" + (f" ({x['val']})" if x.get("val") else "")
+                else:
+                    t = (x.get("ente", "") + ": " if x.get("ente") else "") + x.get("cosa", "")
+                f0 = (x.get("f") or [["", "", "", ""]])[0]
+                fatti.append({"tipo": tipo, "t": pulisci(t, 260), "u": f0[1] if len(f0) > 1 else "", "fonte": f0[0] if f0 else "",
+                              "d": x.get("d", ""), "paesi": [st_], "r": x.get("r")})
+    fatti.sort(key=lambda x: (x.get("r") or 0, x["d"]), reverse=True)
+    return voci + fatti[:imp.get("fatti_piano", 40)]
+
+
+def quadro(chiavi, cfg, archivio, leggero, errori):
+    """Il cervello guarda il quadro intero, ogni 3 ore (nei giri completi): mette in scaletta le notizie e i fatti più
+    rilevanti, cerca che cosa li collega e, per ogni collegamento, scrive la domanda da verificare. Nei giri dopo il
+    programma cerca quelle domande su Google News e scrive la risposta con le fonti, una o due a giro.
+    Restituisce [voci in scaletta, collegamenti nuovi, domande cercate]."""
+    imp, imp_c = cfg.get("quadro", {}), cfg.get("cervello", {})
+    esito = [0, 0, 0]
+    if not imp.get("attivo", True) or not chiavi.get("anthropic_key") or not imp_c.get("attivo", True):
+        return esito
+    perc = os.path.join(DATI, "quadro.json")
+    Q = leggi_json(perc, {})
+    Q.setdefault("collegamenti", [])
+    conto = _conto_cervello()
+    adesso = datetime.now(timezone.utc)
+    ultimo = Q.get("iso", "")
+    dovuto = ultimo < (adesso - timedelta(hours=imp.get("ore", 3) * (1.4 if leggero else 0.8))).isoformat()
+    P = leggi_json(os.path.join(DATI, "piano.json"), {})
+    # 1. scaletta e collegamenti
+    if dovuto and _cervello_libero(conto, imp_c):
+        voci = _quadro_voci(archivio, P, adesso, imp)
+        if len(voci) >= 8:
+            gia = [c["testo"] for c in Q["collegamenti"][:12]]
+            domanda = (
+                "Sei l'analista di un archivio pubblico di difesa e geopolitica. Qui sotto ci sono le notizie confermate da più "
+                "fonti nelle ultime 24 ore e i fatti che il programma ha trovato sulla stampa negli ultimi 30 giorni (accordi, "
+                "appalti, intelligence). Formato: numero. [tipo] data – Stati – testo – fonte. Usa SOLO queste voci: non "
+                "aggiungere nulla che sai per conto tuo.\n\n"
+                "PARTE 1, SCALETTA: scegli da 10 a 15 voci, le più rilevanti per la difesa e la sicurezza, in ordine dalla più "
+                "importante. Una riga per voce:\n"
+                "R | numero | rilevanza da 1 a 5 | perché conta, in una frase in italiano\n"
+                "(5 = cambia gli equilibri tra Stati o in una regione; 3 = importante per uno Stato; 1 = minore).\n\n"
+                "PARTE 2, COLLEGAMENTI: fino a 5 collegamenti tra voci diverse, ognuno con almeno due numeri. Per esempio lo "
+                "stesso Stato o la stessa azienda in fatti diversi, un accordo e un appalto che si spiegano a vicenda, una mossa "
+                "di uno Stato e la risposta di un altro. Una riga per collegamento:\n"
+                "K | numeri delle voci collegate | Stati coinvolti | il collegamento in una frase in italiano | da 3 a 7 parole "
+                "da cercare, senza virgolette | lingua in cui cercare (it, en, oppure la sigla della lingua del posto) | che "
+                "cosa vuoi sapere, in italiano\n\n"
+                "Regole. Un collegamento è ciò che le voci mostrano, non un'ipotesi: se è solo possibile, comincia con "
+                "«possibile collegamento:» e la domanda serve a verificarlo. Niente giudizi, niente previsioni, niente dettagli "
+                "operativi, niente nomi di persone private. Non ripetere i collegamenti già trovati. Scrivi solo le righe, "
+                "senza titoli e senza commenti.\n" +
+                ("\nGIÀ TROVATI:\n" + "\n".join("· " + g for g in gia) + "\n" if gia else "") +
+                "\nVOCI\n" + "\n".join(
+                    f"{i + 1}. [{v['tipo']}] {v['d'] or 'senza data'} – {', '.join(v['paesi']) or '-'} – {v['t']} – {v['fonte']}"
+                    + (f" ({v['nf']} fonti)" if v.get("nf", 1) > 1 else "") for i, v in enumerate(voci)))
+            try:
+                risposta = chiedi_claude(chiavi, cfg, domanda, 2200, conto)
+                conto["chiamate"] = conto.get("chiamate", 0) + 1
+            except Exception as e:
+                errori.append("Claude (quadro): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
+                risposta = None
+            if risposta is not None:
+                scaletta, nuovi, presi = [], [], set()
+                for riga in risposta.splitlines():
+                    p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
+                    sigla = p[0].upper().strip(" .:)") if p else ""
+                    if sigla == "R" and len(p) >= 4:
+                        n_ = re.search(r"\d+", p[1])
+                        r_ = re.search(r"[1-5]", p[2])
+                        if n_ and r_ and 0 < int(n_.group(0)) <= len(voci) and int(n_.group(0)) not in presi and len(p[3]) > 8:
+                            presi.add(int(n_.group(0)))
+                            scaletta.append(dict(voci[int(n_.group(0)) - 1], r=int(r_.group(0)), perche=pulisci(p[3], 240)))
+                    elif sigla == "K" and len(p) >= 7:
+                        nums = list(dict.fromkeys(int(x) for x in re.findall(r"\d+", p[1]) if 0 < int(x) <= len(voci)))
+                        q = " ".join(re.sub(r'[<>{}\\"«»()]|https?:\S*', " ", p[4]).split())
+                        if len(nums) >= 2 and len(p[3]) > 15 and 2 <= len(q.split()) <= 9 and len(q) <= 110:
+                            nuovi.append({"iso": adesso.isoformat(), "stati": pulisci(p[2], 120), "testo": pulisci(p[3], 300),
+                                          "voci": [{k: voci[i - 1].get(k) for k in ("tipo", "t", "u", "fonte", "d", "paesi")}
+                                                   for i in nums[:5]],
+                                          "q": q, "l": re.sub(r"[^a-zA-Z-]", "", p[5])[:5].lower() or "en",
+                                          "perche": pulisci(p[6], 200)})
+                if scaletta or nuovi:
+                    Q["iso"], Q["agg"] = adesso.isoformat(), datetime.now().strftime("%d/%m %H:%M")
+                    if scaletta:
+                        Q["scaletta"] = scaletta[:15]
+                    Q["collegamenti"] = (nuovi[:5] + Q["collegamenti"])[:imp.get("tieni", 40)]
+                    esito[:2] = [len(scaletta), len(nuovi[:5])]
+                else:
+                    errori.append(f"Claude (quadro): risposta senza righe R o K ({len(risposta)} caratteri)")
+    # 2. le domande dei collegamenti: si cercano e si risponde, poche a giro
+    riposo = P.get("riposo", "") > adesso.isoformat()  # Google News sta rifiutando: aspetta anche il quadro
+    for _ in range(0 if riposo else imp.get("risposte_per_giro", 1)):
+        c = next((c for c in reversed(Q["collegamenti"]) if c.get("q") and not c.get("risposta")), None)
+        if not c or not _cervello_libero(conto, imp_c):
+            break
+        try:
+            r = _cerca_e_rispondi(chiavi, cfg, conto, errori, c.get("stati") or "collegamento", c.get("perche") or c["testo"],
+                                  c["q"], c.get("l", "en"), imp.get("giorni_risposte", 30), cfg.get("piano", {}).get("pausa", 1.0))
+        except SenzaRete:
+            errori.append("rete assente: le domande dei collegamenti riprendono al prossimo giro")
+            break
+        if r is None:
+            break
+        c["risposta"] = r
+        esito[2] += 1
+    if esito != [0, 0, 0]:
+        scrivi_json(perc, Q)
+    scrivi_json(os.path.join(DATI, "cervello.json"), conto)  # anche una richiesta andata male si paga: il conto resta giusto
+    return esito
+
+
+def quadro_pagina():
+    """Il quadro per la pagina (live.json): la scaletta e gli ultimi collegamenti con domande e risposte."""
+    Q = leggi_json(os.path.join(DATI, "quadro.json"), {})
+    if not Q.get("scaletta") and not Q.get("collegamenti"):
+        return None
+    return {"agg": Q.get("agg", ""), "iso": Q.get("iso", ""), "scaletta": Q.get("scaletta", []), "collegamenti": Q.get("collegamenti", [])[:15]}
+
+
 TIPI_DOMANDA = {"programma": "domanda di base su uno Stato poco coperto", "seguito": "nata da un fatto confermato da più fonti, per saperne di più",
                 "verifica": "cerca se una fonte affidabile conferma una notizia di una fonte debole",
                 "cervello": "proposta dal cervello nel rapporto del giorno"}
@@ -2441,6 +2762,16 @@ def domande():
             print("\n5. Risposte trovate:")
             for s, perche, r, fonti, _q in rs["risposte"]:
                 print(f"   {s}: {perche}\n      → {r}" + (" (" + ", ".join(f[0] for f in fonti) + ")" if fonti else ""))
+    Q_ = leggi_json(os.path.join(DATI, "quadro.json"), {})
+    if Q_.get("collegamenti"):
+        print("\n6. Collegamenti tra i fatti (quadro delle " + Q_.get("agg", "") + ") e le domande per verificarli:")
+        for c in Q_["collegamenti"][:8]:
+            r_ = (c.get("risposta") or {}).get("r")
+            print(f"   {c.get('stati', '')}: {c['testo']}\n      domanda [{c.get('l', '')}] {c['q']} — " + (f"→ {r_}" if r_ else "da cercare"))
+    if Q_.get("scaletta"):
+        print("\n7. Le più rilevanti adesso (scaletta del cervello):")
+        for v in Q_["scaletta"][:10]:
+            print(f"   R{v.get('r', '?')} {v.get('t', '')} ({v.get('fonte', '')}) — {v.get('perche', '')}")
     resa = R.get("resa", {})
     if resa:
         migliori = sorted(((v[1] / v[0], k, v) for k, v in resa.items() if v[0]), reverse=True)[:5]
@@ -3755,8 +4086,12 @@ def _aggiorna(leggero=False):
             errori.append(f"YouTube {h}: {e}")
 
     tappa("video")
-    # 4b. Sapere: pochi Stati a giro studiati su Wikipedia (forze armate e storia)
+    # 4b. Sapere: pochi Stati a giro studiati su Wikipedia (forze armate e storia); dalla 2.23 anche i servizi di intelligence
     stati_studiati = sapere(cfg, paesi, errori, adesso)
+    try:
+        studia_servizi(cfg, errori, adesso)
+    except Exception as e:  # i servizi non devono mai fermare il giro
+        errori.append(f"Servizi: {e}")
 
     # 5. Cielo: traffico aereo civile per Stato
     if not cfg.get("cielo", True):
@@ -3894,6 +4229,14 @@ def _aggiorna(leggero=False):
     scrivi_json(os.path.join(DATI, "fonti_auto.json"), auto)  # con i siti proposti dal cervello
     mem_nuovi, mem_totale = memoria_stati(archivio, adesso, cfg)
     scrivi_json(os.path.join(DATI, "analisi.json"), analisi)
+    # 6b. Quadro (dalla 2.23): scaletta di rilevanza, collegamenti tra i fatti e le domande per verificarli
+    try:
+        quadro_giro = quadro(chiavi, cfg, archivio, leggero, errori)
+    except SenzaRete:
+        quadro_giro = [0, 0, 0]
+    except Exception as e:  # il quadro non deve mai fermare il giro
+        quadro_giro = [0, 0, 0]
+        errori.append(f"Quadro: {e}")
 
     def elenco(tipo, massimo):
         voci = [v for v in archivio[tipo].values() if (v.get("data_iso") or "") >= recente]
@@ -3938,6 +4281,8 @@ def _aggiorna(leggero=False):
                     "verifiche": leggi_json(os.path.join(DATI, "ricerche.json"), {}).get("verifiche", [])[-12:]},
         "sapere_stati": stati_studiati,
         "piano": piano_riassunto(cfg, paesi),
+        "quadro": quadro_pagina(),
+        "servizi": sum(1 for v_ in leggi_json(os.path.join(DATI, "servizi.json"), {}).values() if v_.get("sintesi")),
         "errori": errori,
     }
     # diario del giro: che cosa è entrato, da dove, quanto è costato ai siti (lo legge `rapporto`, va anche su GitHub)
@@ -3961,6 +4306,7 @@ def _aggiorna(leggero=False):
         "passo": bool(conto_c.get("passo")), "sosp": [len(sosp_), sum(x[1] for x in sosp_)],
         "piano": piano_giro + [rs_p.get("i", 0), rs_p.get("totale", 0), rs_p.get("passata", 0)],
         "intel": [getattr(passo_piano, "intel", 0), rs_p.get("intel", 0)],
+        "quadro": quadro_giro, "servizi": live.get("servizi", 0),
         "durata": int(time.time() - inizio_), "nuove": contati, "da": {k: v for k, v in tappe.items() if v},
         "live": analisi["notizie"], "confermate": analisi["confermate"], "quota": analisi["quota_confermate"],
         "livelli": analisi["per_livello"], "scoperti": analisi["stati_scoperti"],
@@ -4655,7 +5001,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
                 print("Copia di riserva non riuscita (il resto va avanti):", str(e)[:80])
         # dopo un giro leggero su GitHub va solo il diario (pochi KB): i dati grossi ci vanno ogni 3 ore, così il
         # repository non cresce tre volte più in fretta
-        for nome in (("diario.json",) if solo_diario else ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "diario.json")):
+        for nome in (("diario.json",) if solo_diario else ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "diario.json")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))

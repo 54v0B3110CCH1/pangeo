@@ -405,6 +405,18 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.23 (20 novembre, notte) – SERVIZI RIASSUNTI, SCALETTA DI RILEVANZA, COLLEGAMENTI
+- Servizi di intelligence riassunti in italiano: pochi a giro, il programma legge la voce di Wikipedia di ogni servizio
+  (in italiano se c'è) e il cervello scrive una o due frasi: che cosa fa, da chi dipende, quando nasce. Nella pagina il
+  riassunto sta sotto il nome del servizio. Ogni voce si rilegge dopo 120 giorni.
+- Rilevanza da 1 a 5 per accordi, appalti e fatti sui servizi del lavoro a piano: nella sezione Intelligence prima i
+  più rilevanti.
+- Quadro, ogni 3 ore: il cervello mette in scaletta le notizie confermate e i fatti più rilevanti, cerca che cosa
+  collega fatti diversi e per ogni collegamento scrive la domanda da verificare. Nei giri dopo il programma la cerca su
+  Google News e scrive la risposta con le fonti. Nella pagina: «Le più rilevanti adesso» in prima pagina e in Live, tutto
+  in #quadro.   python castello.py domande   (punti 6 e 7)
+- Costo stimato: pochi centesimi al giorno in più, dentro gli stessi tetti di spesa.
+
 NOVITÀ 2.22 (19 novembre, notte) – INTELLIGENCE E QUATTRO CORREZIONI
 - Lavoro a piano, terzo tema dopo accordi e appalti: per ogni Stato cerca sulla stampa i fatti PUBBLICI sui servizi di
   informazione e di sicurezza (nomine, leggi e riforme, relazioni pubblicate, espulsioni di diplomatici, processi per
