@@ -2710,10 +2710,10 @@
   "max_usd_mese": 20,
   "riserva_token": 1500,
   "pensiero": "spento",
-  "traduzioni_per_giro": 6,
+  "traduzioni_per_giro": 3,
   "traduzioni_lotto": 30,
   "sapere_per_giro": 8,
-  "attesa_per_giro": 10,
+  "attesa_per_giro": 6,
   "attesa_lotto": 40
  },
  "ricerca": {
@@ -2943,6 +2943,7 @@
  },
  "giro_leggero": {
   "attivo": true,
-  "minuti_completo": 170
+  "minuti_completo": 170,
+  "ogni_minuti": 30
  }
 }

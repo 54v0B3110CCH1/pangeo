@@ -286,3 +286,15 @@ NOVITÀ 2.16 – IL CALORE DA SATELLITE CON LO STORICO: CHE COSA È DIVERSO DA P
 - Si salvano solo conteggi per Stato e celle larghe 28 km (file dati/calore_zone.json, resta sul telefono):
   nessun punto preciso, nessuna posizione. Ogni segnale va confermato con le notizie dello stesso Stato.
 - Dove si vede: Live > «Calore da satellite» («Diverso dai giorni prima») e nella pagina «Dal vivo» di ogni Stato.
+
+NOVITÀ 2.17 – UN GIRO OGNI MEZZ'ORA, E IL RITMO SI CAMBIA SENZA «APPROVA»
+- Giro leggero ogni 30 minuti (ai minuti 17 e 47): 48 giri al giorno. Ogni 3 ore il giro resta completo, con le
+  ricerche. Sotto la mezz'ora non conviene: le ricerche su Google News vengono rifiutate se sono troppe, e un
+  giro leggero dura già 5–7 minuti.
+- Il ritmo sta in config.json (giro_leggero › ogni_minuti: 15, 20, 30 o 60). Il telefono prende config.json da
+  solo a ogni giro, quindi d'ora in poi il ritmo si cambia senza «approva». Cron e orologio interno si adeguano.
+- Il cervello lavora metà per giro (3 lotti di traduzioni e 6 richieste per le testate locali), così in un giorno
+  fa lo stesso lavoro di prima e la spesa non raddoppia. I tetti restano 1 $ al giorno e 20 $ al mese.
+- python castello.py giri   dice il ritmo vero («uno ogni 30 minuti … 48 al giorno») e il prossimo giro.
+- La pagina riceve gli ultimi 60 giri (30 ore): nel Diario c'è il riepilogo delle 24 ore, con quanti giri completi,
+  leggeri e senza rete e l'intervallo più lungo tra due giri (se è molto più di mezz'ora, lì il telefono era fermo).
