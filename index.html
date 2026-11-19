@@ -9319,8 +9319,13 @@ function nvDati(D, giri, prima) {
     coperti: (prima.senza || []).filter(s => !(z.senza || []).includes(s)),
     persi: (z.senza || []).filter(s => !(prima.senza || []).includes(s)) };
 }
+// il diario più recente tra quello dentro live.json (ogni 3 ore) e diario.json (dopo ogni giro)
+function diarioFresco(L) {
+  const D0 = (L && L.diario) || [], DT = window.DIARIO_TUTTO || [];
+  return DT.length && (!D0.length || DT[DT.length - 1].iso > D0[D0.length - 1].iso) ? DT : D0;
+}
 function novitaHtml() {
-  const D = (liveOk() && window.LIVE.diario) || []; if (!D.length) return '';
+  const D = liveOk() ? diarioFresco(window.LIVE) : []; if (!D.length) return '';
   let giri = VISTO_PRIMA ? D.filter(x => x.iso > VISTO_PRIMA) : D.slice(-8), recap = ''; const z = D[D.length - 1];
   const quando = VISTO_PRIMA ? new Date(VISTO_PRIMA).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : '';
   // il programma si è fermato? Sul telefono ci si aspetta un giro all'ora (dalla 2.14), sul sito i dati arrivano ogni 3 ore
@@ -9331,7 +9336,7 @@ function novitaHtml() {
   const R = window.LIVE.rete, gd = R && R.giu_dal ? new Date(R.giu_dal) : null;
   const senzaRete = gd && !isNaN(gd) ? '<section class="nv nv-fermo" role="status"><div class="nv-top"><b>Il telefono è senza rete</b><span>Dal ' + esc(gd.toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) + ' il programma non raggiunge internet. Non è fermo: rilegge l’archivio, cerca conferme tra le notizie che ha già e riprova ogni minuto; appena la rete torna fa subito un giro completo.</span></div></section>' : '';
   const inPausa = z.tipo === 'pausa' ? '<section class="nv nv-fermo" role="status"><div class="nv-top"><b>Il programma è in pausa</b><span>' + esc(z.motivo || '') + ' (' + esc(z.quando) + '). Riparte da solo appena il telefono si raffredda o va sotto carica.</span></div></section>' : '';
-  const dove = !APP_OK ? ' Su claude.ai questa è un’istantanea: i dati dal vivo sono sul telefono e sul sito.' : sulTelefono ? (z.tipo ? ' Il prossimo giro arriva entro ' + (z.v >= '2.17' ? 'mezz’ora.' : 'un’ora.') : ' Il prossimo giro arriva entro 3 ore.') : ' Sul sito i dati arrivano ogni 3 ore.';
+  const dove = !APP_OK ? ' Su claude.ai questa è un’istantanea: i dati dal vivo sono sul telefono e sul sito.' : sulTelefono ? (z.tipo ? ' Il prossimo giro arriva entro ' + (z.v >= '2.17' ? 'mezz’ora.' : 'un’ora.') : ' Il prossimo giro arriva entro 3 ore.') : ' Sul sito il diario dei giri arriva dopo ogni giro, le notizie complete ogni 3 ore.';
   if (!giri.length) { recap = 'Dalla tua visita del ' + esc(quando) + ' non c’è ancora stato un giro nuovo: l’ultimo è del ' + esc(z.quando) + '.' + dove + ' Intanto, ecco che cosa ha raccolto nelle ultime 24 ore.'; giri = D.filter(x => Date.parse(x.iso) > Date.now() - 864e5); if (!giri.length) giri = D.slice(-8); }
   const i0 = D.indexOf(giri[0]), prima = i0 > 0 ? D[i0 - 1] : giri[0], N = nvDati(D, giri, prima);
   let o = (fermo || senzaRete || inPausa) + '<section class="nv" aria-label="Novità"><div class="nv-top"><b>' + (recap ? 'Nelle ultime 24 ore' : VISTO_PRIMA ? 'Dall’ultima volta che sei entrato' : 'Che cosa ha aggiunto il programma') + '</b><span>' + (recap || (giri.length === 1 ? (VISTO_PRIMA ? 'Dal ' + esc(quando) + ': un giro del programma, il ' : 'Nell’ultimo giro del programma, il ') : (VISTO_PRIMA ? 'Dal ' + esc(quando) + ': ' : 'Negli ultimi ') + giri.length + ' giri del programma, l’ultimo il ') + esc(z.quando) + (VISTO_PRIMA && D[0].iso > VISTO_PRIMA ? ' (qui si vedono gli ultimi ' + D.length + ' giri)' : '')) + '</span></div>';
@@ -9375,7 +9380,7 @@ function nvTelefono(z, g) {
 }
 
 function diarioHtml(L) {
-  const D = (L && L.diario) || []; if (!D.length) return '';
+  const D = diarioFresco(L); if (!D.length) return '';
   const z = D[D.length - 1], lim = new Date(Date.parse(z.iso) - 24 * 3600e3).toISOString();
   const g = D.filter(x => x.iso >= lim), i0 = D.indexOf(g[0]), a = i0 > 0 ? D[i0 - 1] : g[0], N = nvDati(D, g, a);
   const pd = x => { const l = x.livelli || {}; return Math.round(100 * (l.D || 0) / Math.max(1, (l.A || 0) + (l.B || 0) + (l.C || 0) + (l.D || 0))); };
@@ -9592,7 +9597,7 @@ function viewIntelligence(slug) {
 function caricaDiario() {
   // sul sito pubblico i dati completi arrivano ogni 3 ore, il diario dopo ogni giro: l'avviso «fermo» guarda il diario
   if (!APP_OK || typeof fetch !== 'function') return;
-  fetch('diario.json?v=' + Date.now()).then(r => r.ok ? r.json() : null).then(d => { if (Array.isArray(d) && d.length && d[d.length - 1].iso) { window.DIARIO_ULT = d[d.length - 1]; render(); } }).catch(() => {});
+  fetch('diario.json?v=' + Date.now()).then(r => r.ok ? r.json() : null).then(d => { if (Array.isArray(d) && d.length && d[d.length - 1].iso) { window.DIARIO_ULT = d[d.length - 1]; window.DIARIO_TUTTO = d; render(); } }).catch(() => {});
 }
 
 // Ventiduesima estensione: ambasciate e società di ogni Stato
