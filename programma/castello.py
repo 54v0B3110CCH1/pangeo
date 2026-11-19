@@ -4314,9 +4314,10 @@ def _ricostruisci(R, cfg):
                 if any(len(p_ & q) >= 0.4 * max(len(p_ | q), 1) for q in parole_):
                     continue  # lo stesso fatto c'è già
                 mie_.append([x[0], x[1], x[2], x[3], x[4], " ".join(sorted(p_)), x[5] if len(x) > 5 else ""])
-                n += 1
-            if mie_:
-                M[st_] = sorted(mie_, key=lambda x: x[0], reverse=True)[:cfg.get("memoria_per_stato", 40)]
+            if mie_:  # si contano solo i fatti che restano davvero (al massimo 40 per Stato, i più recenti)
+                dopo_ = sorted(mie_, key=lambda x: x[0], reverse=True)[:cfg.get("memoria_per_stato", 40)]
+                n += sum(1 for x in dopo_ if x not in M.get(st_, []))
+                M[st_] = dopo_
         if n:
             scrivi_json(perc, M)
             with open(os.path.join(WEB, "memoria.js.tmp"), "w", encoding="utf-8") as f:
