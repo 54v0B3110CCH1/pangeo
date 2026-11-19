@@ -348,3 +348,31 @@ Savino ha deciso di spendere di più per il cervello e ricaricare quando serve.
 Tetti nel programma: 1,50 $ al giorno e 45 $ al mese (prima 1 e 20), 1.500 richieste al giorno.
 La sala d'attesa smaltisce 12 lotti a giro (prima 8), per ridurre la coda.
 Il tetto nella console di Anthropic resta quello che imposta Savino.
+
+NOVITÀ 2.20 (19 novembre, pomeriggio)
+1. NON SI CHIUDE PIÙ DA SOLO SENZA RIPARTIRE. C'è un guardiano (python castello.py veglia): controlla che la pagina
+   sul telefono e l'orologio dei giri siano accesi e, se no, li riaccende. Lo chiamano: cron ogni 5 minuti; Termux
+   ogni volta che lo apri (una riga in ~/.bashrc, segnata «PanGeo»); il telefono quando si riaccende (app Termux:Boot);
+   Android ogni 15 minuti anche a Termux chiuso (solo con l'app Termux:API: non provato dal cloud).
+   Se Android chiude tutto Termux, senza Termux:API basta riaprire Termux: riparte da solo, non serve scrivere nulla.
+2. SCATOLA NERA. Ogni minuto il programma scrive «sono vivo». Quando riparte dopo essere stato fermo lo scrive nel
+   diario (riga «fermo»): da quando, fino a quando e il motivo più probabile (telefono riavviato, chiusura chiesta,
+   chiuso di colpo da Android). Conta anche le volte che Android lo mette in pausa. Si vede con: python castello.py giri
+3. LAVORO A PIANO (python castello.py piano). Uno Stato alla volta, blocco per blocco: Europa (NATO e UE), resto
+   d'Europa, Russia e Asia centrale, Nord America, Medio Oriente, Asia e Pacifico, Asia meridionale, Africa, America
+   Latina. Per ogni Stato tre domande alla stampa degli ultimi 120 giorni (accordi e patti, appalti e contratti, una
+   nella lingua del posto); il cervello legge i titoli e tira fuori accordi e appalti, ognuno con la sua fonte e il
+   suo stato (firmato, in consegna, annunciato…), poi scrive che cosa resta da chiarire e lo cerca nei giri dopo.
+   Uno Stato a ogni giro leggero, tre a ogni giro completo: tutti i 198 Stati in due o tre giorni, poi ricomincia.
+   Il cervello sa che cosa c'è già nell'archivio (piano_base.json) e segnala le novità. Sono titoli di giornale letti
+   da un programma: vanno confermati alla fonte. «Firmato» lo dice il titolo, non un registro ufficiale.
+4. LE DOMANDE CHE SI FA (python castello.py domande): quelle dell'ultimo giro, quelle del piano, quelle rimaste
+   aperte e le risposte trovate. Sono anche nella pagina, in «Live dal mondo».
+5. RITMO. Giro ogni 20 minuti, ogni fonte al suo ritmo (chi ha novità si rilegge dopo 10 minuti, chi tace fino a 2 ore).
+   «Senza sosta» (ogni 10 minuti) si accende DA SOLO quando il telefono dice la sua temperatura (serve Termux:API):
+   senza termometro il programma non potrebbe fermarsi per il caldo.
+6. SPESA A PASSO. Il tetto del giorno (1,50 $) si spende un po' per ora: se a metà giornata ne ha già speso più della
+   quota, traduzioni e sala d'attesa saltano un giro, così il cervello lavora fino a mezzanotte.
+7. Un comando di Termux:API che non risponde non resta più appeso (lasciava processi in giro). Un giro interrotto a
+   metà non blocca più i giri dopo per 45 minuti.
+Dopo «approva», da questa versione in poi non serve più «bash avvia.sh»: il guardiano cambia la pagina da solo.

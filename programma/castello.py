@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.19 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.20 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -17,6 +17,9 @@ Comandi:
   (da solo: cerca notizie sugli Stati meno coperti, studia gli Stati su Wikipedia, trova feed e canali nuovi)
   python castello.py chiave nome valore    salva una chiave gratuita (es. opensky_id)
   python castello.py approva               installa il programma nuovo arrivato da GitHub (mai da solo)
+  python castello.py domande                le domande che il programma si fa, e le risposte che trova
+  python castello.py piano                  a che punto è il lavoro a piano (alleanze, patti, appalti)
+  python castello.py veglia                 controlla che PanGeo sia acceso e, se no, lo riaccende
   python castello.py giri                   quanti giri fa, ogni quanto, quanto durano, a che punto è quello in corso
   python castello.py rapporto [ore]         che cosa ha raccolto e dove è migliorato (dal diario, 24 ore)
   python castello.py salute                controlla che il cuore del programma sia sano
@@ -29,6 +32,7 @@ Usa solo la libreria standard di Python: nessun pacchetto da installare.
 """
 import email.utils
 import functools
+import glob
 import gzip
 import hashlib
 import html
@@ -39,6 +43,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -51,7 +56,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.19"
+VERSIONE = "2.20"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -1424,6 +1429,23 @@ def chiedi_claude(chiavi, cfg, testo, massimo=900, conto=None):
     return uscita_
 
 
+def _conto_cervello():
+    """Il conto del cervello di oggi (richieste e spesa stimata): riparte da zero a mezzanotte, il mese resta."""
+    conto = leggi_json(os.path.join(DATI, "cervello.json"), {})
+    oggi = datetime.now().date().isoformat()
+    if conto.get("giorno") != oggi:
+        conto = {"giorno": oggi, "chiamate": 0, "brief": conto.get("brief"), "usd_oggi": 0.0, "token_oggi": 0,
+                 "mese": conto.get("mese"), "usd_mese": conto.get("usd_mese", 0.0)}
+    return conto
+
+
+def _cervello_libero(conto, impost):
+    """Vero se il cervello può ancora lavorare: sotto il tetto di richieste e sotto i tetti di spesa del giorno e del mese."""
+    if conto.get("chiamate", 0) >= impost.get("max_al_giorno", 6) or conto.get("usd_oggi", 0) >= impost.get("max_usd_giorno", 0.15):
+        return False
+    return not (conto.get("mese") == datetime.now().strftime("%Y-%m") and conto.get("usd_mese", 0) >= impost.get("max_usd_mese", 3.0))
+
+
 def cervello(chiavi, cfg, archivio, recente, ric, errori):
     """Solo se c'è la chiave API di Claude (si paga a consumo, a parte rispetto all'abbonamento):
     traduce in italiano i titoli in alfabeti non latini e scrive «Da sapere adesso» con le sole
@@ -1432,11 +1454,7 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
     if not chiavi.get("anthropic_key") or not impost.get("attivo", True):
         return None
     percorso = os.path.join(DATI, "cervello.json")
-    conto = leggi_json(percorso, {})
-    oggi = datetime.now().date().isoformat()
-    if conto.get("giorno") != oggi:
-        conto = {"giorno": oggi, "chiamate": 0, "brief": conto.get("brief"), "usd_oggi": 0.0, "token_oggi": 0,
-                 "mese": conto.get("mese"), "usd_mese": conto.get("usd_mese", 0.0)}
+    conto = _conto_cervello()
     tetto = impost.get("max_al_giorno", 6)
     # tetti di spesa stimata: oltre, il cervello si ferma da solo fino a domani o al mese dopo
     conto["tetto"] = ""
@@ -1446,6 +1464,14 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
         tetto, conto["tetto"] = 0, "mese"
     pausa_l = impost.get("pausa_lotti_minuti", 0)  # con i giri fitti: traduzioni e sala d'attesa non più spesso di così
     lotti_ok = not pausa_l or conto.get("ultimo_lotto", "") <= (datetime.now(timezone.utc) - timedelta(minutes=pausa_l - 2)).isoformat()
+    # passo di spesa: il tetto del giorno si spende un po' per volta, così il cervello lavora fino a mezzanotte invece di
+    # finire i soldi nel pomeriggio. Se a quest'ora si è già speso più della quota, traduzioni e sala d'attesa saltano
+    # un giro (il riassunto e il lavoro a piano no).
+    ora_ = datetime.now()
+    quota_ = impost.get("max_usd_giorno", 0.15) * min(1.0, (ora_.hour * 60 + ora_.minute) / 1440 + 0.12)
+    conto["passo"] = bool(impost.get("spesa_a_passo", True) and tetto and conto.get("usd_oggi", 0) > quota_)
+    if conto["passo"]:
+        lotti_ok = False
     voci = [(k, v) for k, v in archivio["notizie"].items() if (v.get("data_iso") or "") >= recente]
     # 1. traduzioni
     # (titoli in altri alfabeti o trovati cercando in un'altra lingua; prima i più recenti, a lotti)
@@ -1904,6 +1930,7 @@ def memoria_stati(archivio, adesso, cfg, ore=30):
 
 
 NOMI_TAPPE = {"temi": "ricerche per tema", "stati": "rotazione degli Stati", "ricerca": "ricerca autonoma", "lingue": "giro delle lingue",
+              "piano": "lavoro a piano",
               "feed": "feed delle testate", "telegram": "Telegram", "video": "YouTube", "altro": "altro"}
 
 
@@ -1946,7 +1973,7 @@ def rapporto(ore=24):
     print(f"Stati studiati su Wikipedia: da {a.get('sapere', 0)} a {z.get('sapere', 0)} · fatti confermati in memoria: da {a['memoria'][1]} a {z['memoria'][1]}")
     rese = {}
     for x in g:
-        for q_, nuove_, prove_, da_chi in x.get("ricerche", []):
+        for q_, nuove_, prove_, da_chi in (r_[:4] for r_ in x.get("ricerche", [])):
             rese[q_] = max(rese.get(q_, 0), nuove_)
     buone = sorted(rese.items(), key=lambda x: -x[1])[:5]
     if buone:
@@ -2025,11 +2052,374 @@ def lingua_titolo(t):
     return "it" if it > en else "en"
 
 
+# ----------------------------------------------------------------------------- lavoro a piano
+
+# Le due domande di base del lavoro a piano, per lingua: (accordi e patti, appalti e contratti). {n} = nome dello Stato.
+PIANO_Q = {
+    "en": ('"{n}" ("defense agreement" OR "defence agreement" OR "security pact" OR "defense pact" OR "military cooperation" OR treaty OR alliance) (signs OR signed OR ratifies OR ratified OR joins OR withdraws OR suspends)',
+           '"{n}" (contract OR order OR deal OR procurement OR purchase) (fighter OR jets OR tanks OR missiles OR frigates OR submarines OR drones OR helicopters OR "air defense" OR artillery OR ammunition)'),
+    "it": ('"{n}" ("accordo di difesa" OR "accordo di sicurezza" OR "cooperazione militare" OR trattato OR alleanza OR patto) (firma OR firmato OR ratifica OR aderisce OR sospende OR esce)',
+           '"{n}" (contratto OR commessa OR acquisto OR fornitura OR ordine) (caccia OR carri OR missili OR fregate OR sottomarini OR droni OR elicotteri OR munizioni OR "difesa aerea")'),
+    "fr": ('"{n}" ("accord de défense" OR "accord de sécurité" OR "coopération militaire" OR traité OR alliance) (signe OR signé OR ratifie OR rejoint OR suspend OR quitte)',
+           '"{n}" (contrat OR commande OR achat OR acquisition) ("avions de combat" OR chars OR missiles OR frégates OR "sous-marins" OR drones OR hélicoptères OR munitions)'),
+    "es": ('"{n}" ("acuerdo de defensa" OR "acuerdo de seguridad" OR "cooperación militar" OR tratado OR alianza) (firma OR firmó OR ratifica OR adhiere OR suspende OR abandona)',
+           '"{n}" (contrato OR compra OR adquisición OR pedido) (cazas OR tanques OR misiles OR fragatas OR submarinos OR drones OR helicópteros OR municiones)'),
+    "pt": ('"{n}" ("acordo de defesa" OR "acordo de segurança" OR "cooperação militar" OR tratado OR aliança) (assina OR assinou OR ratifica OR adere OR suspende)',
+           '"{n}" (contrato OR compra OR aquisição OR encomenda) (caças OR tanques OR mísseis OR fragatas OR submarinos OR drones OR helicópteros OR munições)'),
+    "de": ('"{n}" (Verteidigungsabkommen OR Sicherheitsabkommen OR Militärkooperation OR Bündnis OR Staatsvertrag) (unterzeichnet OR ratifiziert OR beigetreten OR gekündigt OR ausgesetzt)',
+           '"{n}" (Auftrag OR Vertrag OR Beschaffung OR Bestellung) (Kampfjets OR Panzer OR Raketen OR Fregatten OR "U-Boote" OR Drohnen OR Hubschrauber OR Flugabwehr OR Munition)'),
+    "ru": ('"{n}" ("соглашение об обороне" OR "военное сотрудничество" OR "договор о безопасности" OR союз) (подписал OR подписали OR ратифицировал OR присоединился OR приостановил)',
+           '"{n}" (контракт OR поставка OR закупка) (истребители OR танки OR ракеты OR фрегаты OR "подводные лодки" OR беспилотники OR вертолёты OR боеприпасы)'),
+    "ar": ('"{n}" ("اتفاقية دفاع" OR "اتفاق أمني" OR "تعاون عسكري" OR معاهدة OR تحالف) (توقع OR وقعت OR تصادق OR تنضم OR تعلق)',
+           '"{n}" (صفقة OR عقد OR شراء) (مقاتلات OR دبابات OR صواريخ OR فرقاطات OR غواصات OR "طائرات مسيرة" OR مروحيات OR ذخائر)'),
+}
+PIANO_STATI_ACCORDO = ("firmato", "ratificato", "in vigore", "in trattativa", "annunciato", "sospeso", "disdetto")
+PIANO_STATI_APPALTO = ("firmato", "in consegna", "consegnato", "approvato", "in trattativa", "annunciato", "annullato")
+
+
+def piano_ordine(cfg, paesi):
+    """L'ordine del lavoro a piano: blocco per blocco (prima l'Europa), Stato per Stato. Sta in config.json › piano › blocchi."""
+    visti, ordine = set(), []
+    for blocco in cfg.get("piano", {}).get("blocchi", []):
+        if not isinstance(blocco, list) or len(blocco) != 2:
+            continue
+        for s in blocco[1]:
+            if s in paesi and s not in visti:
+                visti.add(s)
+                ordine.append((blocco[0], s))
+    for s in sorted(paesi):
+        if s not in visti:
+            ordine.append(("Altri Stati", s))
+    return ordine
+
+
+def _nome_in_lingua(stato, lingua, paesi):
+    loc = LOCALE.get(stato)
+    if loc and loc[0] == lingua:
+        return loc[1]
+    return paesi[stato][0] if lingua == "it" else nome_inglese(paesi[stato])
+
+
+def _piano_titoli(domande, giorni, errori, pausa=1.0):
+    """Fa le domande a Google News e mette insieme i titoli, senza doppioni. Restituisce i titoli, le domande con quanti
+    titoli ha portato ognuna, e quante domande sono fallite."""
+    titoli, visti, fatte, fallite = [], set(), [], 0
+    for tipo, lingua, q in domande:
+        n0 = len(titoli)
+        try:
+            for t_, u_, d_, f_, _s in google_news(q, lingua if lingua in EDIZIONI else "en", giorni)[:45]:
+                chiave = re.sub(r"\W+", " ", (t_ or "").lower()).strip()[:90]
+                if len(chiave) < 12 or chiave in visti or RUMORE.search(" " + (f_ or "") + " ") or APPRESI.get(f_) == "scarto":
+                    continue
+                visti.add(chiave)
+                titoli.append({"t": pulisci(t_, 240), "u": solo_http(u_), "iso": d_ or "", "d": (d_ or "")[:10], "f": f_ or "", "k": tipo, "l": lingua})
+        except SenzaRete:
+            raise
+        except Exception as e:
+            fallite += 1
+            errori.append(f"Lavoro a piano ({q[:40]}): {e}")
+        fatte.append([tipo, lingua, q, len(titoli) - n0])
+        time.sleep(pausa)
+    return titoli, fatte, fallite
+
+
+def _piano_domanda(stato, titoli, giorni, noti):
+    righe = "\n".join(f"{i + 1}. {x['d'] or 'senza data'} – {x['t']} – {x['f']}" for i, x in enumerate(titoli))
+    gia = ("\nGIÀ IN ARCHIVIO per " + stato + " (non ripeterli, a meno che un titolo dica che qualcosa è cambiato):\n"
+           + "\n".join("· " + n for n in noti[:14]) + "\n") if noti else ""
+    return (f"Lavori a un archivio pubblico di difesa e geopolitica. Qui sotto ci sono titoli di giornale su {stato} degli ultimi "
+            f"{giorni} giorni (numero. data – titolo – fonte), in lingue diverse. Usa SOLO quello che dicono i titoli: non "
+            "aggiungere nulla che sai per conto tuo, e se un titolo non è chiaro lascialo stare.\n\n"
+            f"PARTE 1, ACCORDI: alleanze, patti, trattati e accordi militari o di sicurezza che riguardano {stato}. Una riga per accordo:\n"
+            "A | data | con chi | che cosa, in una frase in italiano | stato | numeri dei titoli\n"
+            "dove «stato» è una di queste parole: " + ", ".join(PIANO_STATI_ACCORDO) + ".\n\n"
+            f"PARTE 2, APPALTI: contratti, ordini, acquisti e vendite di armamenti in cui {stato} compra o vende. Una riga per contratto:\n"
+            "C | data | chi compra | chi vende (azienda e Stato, se sono scritti) | che cosa, in italiano, con le quantità se sono "
+            "scritte | valore, oppure - | stato | numeri dei titoli\n"
+            "dove «stato» è una di queste parole: " + ", ".join(PIANO_STATI_APPALTO) + ".\n\n"
+            "PARTE 3, DOMANDE: fino a 2 cose che i titoli lasciano aperte e che conviene cercare (per esempio se un contratto "
+            "annunciato è poi stato firmato, o se un accordo è stato ratificato). Una riga per domanda:\n"
+            "D | lingua in cui cercare (it, en, oppure la sigla della lingua del posto) | da 3 a 7 parole da cercare, senza "
+            "virgolette | che cosa vuoi sapere, in italiano\n\n"
+            "Regole. La data è quella del titolo più recente che ne parla, scritta AAAA-MM-GG. Lo stesso fatto una volta sola: se ne "
+            "parlano più titoli, metti tutti i loro numeri. Niente giudizi, niente previsioni, niente dettagli operativi. Se un "
+            "titolo riporta un'accusa o una voce, scrivi «secondo» e chi lo dice. Le notizie che non sono né accordi né appalti "
+            "ignorale. Se una parte è vuota scrivi «A | nessuno» oppure «C | nessuno». Scrivi solo le righe, senza titoli e senza "
+            "commenti.\n" + gia + "\nTITOLI\n" + righe)
+
+
+def _piano_fonti(testo, titoli, massimo=4):
+    """I numeri dei titoli citati dal cervello diventano fonti vere: [testata, indirizzo, data, titolo]."""
+    presi = []
+    for x in re.findall(r"\d+", testo or ""):
+        i = int(x)
+        if 0 < i <= len(titoli) and i not in presi:
+            presi.append(i)
+    return [[titoli[i - 1]["f"], titoli[i - 1]["u"], titoli[i - 1]["d"], titoli[i - 1]["t"][:160]] for i in presi[:massimo]]
+
+
+def _piano_leggi(risposta, titoli):
+    """Legge le righe del cervello: «A | …» accordi, «C | …» appalti, «D | …» domande aperte. Una riga senza il numero di
+    almeno un titolo vero viene scartata: nell'archivio entra solo ciò che ha una fonte."""
+    def data_di(testo, fonti):
+        m = re.search(r"(19|20)\d\d-\d\d-\d\d", testo or "")
+        return m.group(0) if m else max((f[2] for f in fonti if f[2]), default="")
+
+    def stato_di(testo, ammessi):
+        t = (testo or "").lower().strip(" .")
+        return next((a for a in sorted(ammessi, key=len, reverse=True) if a in t), "annunciato" if t else "")
+
+    accordi, appalti, domande_ = [], [], []
+    for riga in (risposta or "").splitlines():
+        p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
+        sigla = p[0].upper().strip(" .:)") if p else ""
+        if sigla == "A" and len(p) >= 6:
+            fonti = _piano_fonti(p[5], titoli)
+            if fonti and len(p[3]) > 8:
+                accordi.append({"d": data_di(p[1], fonti), "con": pulisci(p[2], 120), "cosa": pulisci(p[3], 300),
+                                "st": stato_di(p[4], PIANO_STATI_ACCORDO), "f": fonti})
+        elif sigla == "C" and len(p) >= 8:
+            fonti = _piano_fonti(p[7], titoli)
+            if fonti and len(p[4]) > 5:
+                appalti.append({"d": data_di(p[1], fonti), "acq": pulisci(p[2], 80), "forn": pulisci(p[3], 120),
+                                "ogg": pulisci(p[4], 300), "val": "" if p[5].strip(" -–—") == "" else pulisci(p[5], 60),
+                                "st": stato_di(p[6], PIANO_STATI_APPALTO), "f": fonti})
+        elif sigla == "D" and len(p) >= 4:
+            q = " ".join(re.sub(r'[<>{}\\"«»()]|https?:\S*', " ", p[2]).split())
+            if 2 <= len(q.split()) <= 9 and len(q) <= 110:
+                domande_.append({"l": re.sub(r"[^a-zA-Z-]", "", p[1])[:5].lower() or "en", "q": q, "perche": pulisci(p[3], 200)})
+    return accordi, appalti, domande_[:2]
+
+
+def _piano_unisci(vecchi, nuovi, campo, massimo=30):
+    """Aggiunge i fatti nuovi a quelli delle passate precedenti, senza doppioni; in cima i più recenti."""
+    def firma(x):
+        return re.sub(r"\W+", " ", (x.get(campo) or "").lower()).strip()[:60]
+    visti = {firma(x) for x in nuovi}
+    tutti = nuovi + [x for x in (vecchi or []) if firma(x) not in visti]
+    return sorted(tutti, key=lambda x: x.get("d") or "", reverse=True)[:massimo]
+
+
+def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
+    """Lavoro a piano (dentro il giro, non un secondo ciclo): uno Stato alla volta, blocco per blocco a partire dall'Europa.
+    Per ogni Stato: tre domande sulla stampa (accordi e patti, appalti e contratti, e una nella lingua del posto), poi il
+    cervello legge i titoli, tira fuori accordi e appalti ognuno con le sue fonti, e scrive che cosa resta da chiarire.
+    Le domande rimaste aperte vengono fatte nei giri dopo. Finiti tutti gli Stati ricomincia: la seconda passata aggiorna.
+    Restituisce [Stati lavorati in questo giro, accordi trovati, appalti trovati]."""
+    imp = cfg.get("piano", {})
+    perc = os.path.join(DATI, "piano.json")
+    P = leggi_json(perc, {})
+    adesso = datetime.now(timezone.utc)
+    for campo, valore in (("stati", {}), ("i", 0), ("passata", 1), ("inizio", adesso.isoformat()), ("ultimi", [])):
+        P.setdefault(campo, valore)
+    ordine = piano_ordine(cfg, paesi)
+    if not ordine or P.get("riposo", "") > adesso.isoformat():
+        return [0, 0, 0]  # dopo un rifiuto di Google News (429) il piano riposa tre quarti d'ora
+    base = leggi_json(os.path.join(QUI, "piano_base.json"), {})
+    giorni, imp_c = imp.get("giorni", 120), cfg.get("cervello", {})
+    con_cervello = bool(chiavi.get("anthropic_key")) and imp_c.get("attivo", True)
+    conto = _conto_cervello()
+    fatti = n_acc = n_app = 0
+    try:
+        for _ in range(imp.get("per_giro_leggero", 1) if leggero else imp.get("per_giro_completo", 3)):
+            if con_cervello and not _cervello_libero(conto, imp_c):
+                break  # il cervello ha toccato un tetto: il piano lo aspetta, senza saltare Stati
+            blocco, stato = ordine[P["i"] % len(ordine)]
+            loc = LOCALE.get(stato)
+            lg = loc[0] if loc and loc[0] in PIANO_Q else None
+            en = nome_inglese(paesi[stato])
+            dom = [("accordi", "en", PIANO_Q["en"][0].format(n=en)), ("appalti", "en", PIANO_Q["en"][1].format(n=en))]
+            # terza domanda nella lingua del posto (in italiano dove non c'è): una passata gli appalti, quella dopo gli accordi
+            tipo_l = "appalti" if P["passata"] % 2 else "accordi"
+            dom.append((tipo_l, lg or "it", PIANO_Q[lg or "it"][1 if tipo_l == "appalti" else 0].format(n=loc[1] if lg else paesi[stato][0])))
+            vecchio = P["stati"].get(stato, {})
+            dom += [("aperta", d["l"], d["q"] if _nome_in_lingua(stato, d["l"], paesi).lower() in d["q"].lower()
+                     else '"%s" %s' % (_nome_in_lingua(stato, d["l"], paesi), d["q"]))
+                    for d in vecchio.get("aperte", []) if not d.get("fatta")][:1]
+            titoli, fatte, fallite = _piano_titoli(dom, giorni, errori, imp.get("pausa", 1.0))
+            if fallite and any("429" in e for e in errori[-fallite:]):
+                P["riposo"] = (adesso + timedelta(minutes=45)).isoformat()  # Google News sta rifiutando: basta per ora
+            if fallite >= len(dom):
+                break  # Google News non risponde: si riprova più tardi, dallo stesso Stato
+            titoli.sort(key=lambda x: x["iso"], reverse=True)
+            titoli = titoli[:imp.get("titoli_max", 70)]
+            if notizia:  # i titoli della settimana entrano anche tra le notizie dal vivo
+                for x in (y for y in titoli if y["iso"]):
+                    notizia("Industria e appalti" if x["k"] == "appalti" else "Alleanze e diplomazia", x["t"], x["u"], x["iso"],
+                            x["f"], forza=stato, lingua=x["l"])
+            scheda = {"blocco": blocco, "quando": adesso.isoformat(), "passata": P["passata"], "titoli": len(titoli), "domande": fatte,
+                      "accordi": vecchio.get("accordi", []), "appalti": vecchio.get("appalti", []), "aperte": [],
+                      "risposte": vecchio.get("risposte", [])[-6:], "cervello": False}
+            if titoli and con_cervello:
+                b_ = base.get(stato, {})
+                noti = [str(x) for x in b_.get("tr", []) + b_.get("ap", [])] + \
+                       [x["cosa"] for x in vecchio.get("accordi", [])[:6]] + [x["ogg"] for x in vecchio.get("appalti", [])[:6]]
+                try:
+                    risposta = chiedi_claude(chiavi, cfg, _piano_domanda(stato, titoli, giorni, noti), 2500, conto)
+                    conto["chiamate"] = conto.get("chiamate", 0) + 1
+                except Exception as e:
+                    errori.append("Claude (lavoro a piano): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
+                    break  # il cervello non ha risposto: stesso Stato al prossimo giro
+                acc, app, aperte = _piano_leggi(risposta, titoli)
+                scheda.update({"accordi": _piano_unisci(vecchio.get("accordi"), acc, "cosa"),
+                               "appalti": _piano_unisci(vecchio.get("appalti"), app, "ogg"), "aperte": aperte, "cervello": True})
+                scheda["nuovi"] = [len(acc), len(app)]
+                n_acc, n_app = n_acc + len(acc), n_app + len(app)
+            elif titoli:  # senza cervello: restano i titoli da leggere a mano, divisi per domanda
+                scheda["da_leggere"] = [[x["t"], x["u"], x["f"], x["d"], x["k"]] for x in titoli[:16]]
+            P["stati"][stato] = scheda
+            P["ultimi"] = ([s for s in P["ultimi"] if s != stato] + [stato])[-40:]
+            P["i"] += 1
+            if P["i"] >= len(ordine):
+                P["i"], P["passata"] = 0, P["passata"] + 1
+            fatti += 1
+        # domande rimaste aperte: il cervello le aveva scritte leggendo i titoli; qui si cercano e si risponde
+        for _ in range(imp.get("seguiti_per_giro", 1) if con_cervello else 0):
+            if not _cervello_libero(conto, imp_c) or P.get("riposo", "") > adesso.isoformat():
+                break
+            scelta = next(((s, d) for s in P["ultimi"] for d in P["stati"].get(s, {}).get("aperte", [])
+                           if not d.get("fatta") and s in paesi and P["stati"][s].get("quando") != adesso.isoformat()), None)
+            if not scelta:
+                break
+            stato, d = scelta
+            nome = _nome_in_lingua(stato, d["l"], paesi)
+            q = d["q"] if nome.lower() in d["q"].lower() else '"%s" %s' % (nome, d["q"])
+            titoli, _fatte, fallite = _piano_titoli([("aperta", d["l"], q)], giorni, errori, imp.get("pausa", 1.0))
+            if fallite:
+                if "429" in errori[-1]:
+                    P["riposo"] = (adesso + timedelta(minutes=45)).isoformat()
+                break
+            d["fatta"] = adesso.isoformat()
+            titoli = sorted(titoli, key=lambda x: x["iso"], reverse=True)[:30]
+            esito = {"q": q, "l": d["l"], "perche": d.get("perche", ""), "n": len(titoli), "quando": adesso.isoformat(),
+                     "r": "nessun titolo trovato", "f": []}
+            if titoli:
+                try:
+                    risposta = chiedi_claude(chiavi, cfg, (
+                        f"Domanda su {stato}: {d.get('perche') or d['q']}\nTitoli trovati cercando «{q}» (numero. data – titolo – "
+                        "fonte):\n" + "\n".join(f"{i + 1}. {x['d'] or 'senza data'} – {x['t']} – {x['f']}" for i, x in enumerate(titoli))
+                        + "\n\nRispondi in italiano con una riga sola, usando SOLO quello che dicono i titoli, senza giudizi:\n"
+                          "R | risposta in una o due frasi | numeri dei titoli usati\n"
+                          "Se i titoli non bastano per rispondere scrivi: R | i titoli non bastano | -"), 500, conto)
+                    conto["chiamate"] = conto.get("chiamate", 0) + 1
+                    for riga in risposta.splitlines():
+                        p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
+                        if len(p) >= 2 and p[0].upper().strip(" .:") == "R" and len(p[1]) > 5:
+                            esito["r"], esito["f"] = pulisci(p[1], 400), _piano_fonti(p[2] if len(p) > 2 else "", titoli, 3)
+                            break
+                    else:
+                        esito["r"] = "i titoli non bastano"
+                except Exception as e:
+                    errori.append("Claude (domanda aperta del piano): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
+                    d.pop("fatta", None)
+                    break
+            P["stati"][stato].setdefault("risposte", []).append(esito)
+            P["stati"][stato]["risposte"] = P["stati"][stato]["risposte"][-6:]
+    except SenzaRete:
+        errori.append("rete assente: lavoro a piano interrotto, riprende dallo stesso Stato")
+    P["agg"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+    scrivi_json(perc, P)
+    scrivi_json(os.path.join(DATI, "cervello.json"), conto)
+    try:
+        with open(os.path.join(WEB, "piano.js.tmp"), "w", encoding="utf-8") as f:
+            f.write("window.PIANO=" + json.dumps({"agg": P["agg"], "passata": P["passata"], "i": P["i"], "totale": len(ordine),
+                                                  "blocchi": cfg.get("piano", {}).get("blocchi", []), "ultimi": P["ultimi"],
+                                                  "stati": P["stati"]}, ensure_ascii=False, separators=(",", ":")) + ";")
+        os.replace(os.path.join(WEB, "piano.js.tmp"), os.path.join(WEB, "piano.js"))
+    except OSError:
+        pass
+    return [fatti, n_acc, n_app]
+
+
+def piano_riassunto(cfg, paesi):
+    """Il lavoro a piano in breve, per la pagina (live.json) e per i comandi «piano» e «domande»."""
+    P = leggi_json(os.path.join(DATI, "piano.json"), {})
+    ordine = piano_ordine(cfg, paesi)
+    if not P.get("stati") or not ordine:
+        return None
+    i = P.get("i", 0) % len(ordine)
+    S = P["stati"]
+    ult = [s for s in reversed(P.get("ultimi", [])) if s in S]
+    return {"agg": P.get("agg", ""), "passata": P.get("passata", 1), "i": i, "totale": len(ordine), "blocco": ordine[i][0],
+            "prossimi": [s for _, s in ordine[i:i + 6]], "con_scheda": len(S),
+            "accordi": sum(len(v.get("accordi", [])) for v in S.values()), "appalti": sum(len(v.get("appalti", [])) for v in S.values()),
+            "ultimi": [[s, S[s].get("quando", ""), len(S[s].get("accordi", [])), len(S[s].get("appalti", [])), S[s].get("titoli", 0),
+                        S[s].get("blocco", "")] for s in ult[:10]],
+            "domande": [[s] + list(d) for s in ult[:5] for d in S[s].get("domande", [])][:16],
+            "aperte": [[s, d.get("l", ""), d.get("q", ""), d.get("perche", ""), bool(d.get("fatta"))] for s in ult[:12]
+                       for d in S[s].get("aperte", [])][:12],
+            "risposte": sorted(([s, r.get("perche") or r.get("q", ""), r.get("r", ""), r.get("f", []), r.get("quando", "")]
+                                for s in ult for r in S[s].get("risposte", [])), key=lambda x: x[4], reverse=True)[:8]}
+
+
+TIPI_DOMANDA = {"programma": "domanda di base su uno Stato poco coperto", "seguito": "nata da un fatto confermato da più fonti, per saperne di più",
+                "verifica": "cerca se una fonte affidabile conferma una notizia di una fonte debole",
+                "cervello": "proposta dal cervello nel rapporto del giorno"}
+
+
+def domande():
+    """Le domande che il programma si fa: quelle dell'ultimo giro completo, quelle del lavoro a piano, quelle rimaste aperte."""
+    cfg = leggi_json(os.path.join(QUI, "config.json"), {})
+    paesi = leggi_json(os.path.join(QUI, "paesi.json"), {})
+    R = leggi_json(os.path.join(DATI, "ricerche.json"), {})
+    print("LE DOMANDE CHE PANGEO SI FA")
+    print("\n1. Nell'ultimo giro completo (le cerca su Google News; il numero è quante notizie nuove ha portato):")
+    for x in R.get("ultime", []):
+        print(f"   [{x[3] or 'programma'}] {x[0]}  →  {x[1]}" + (f"   ({x[4]})" if len(x) > 4 and x[4] else ""))
+    if not R.get("ultime"):
+        print("   ancora nessuna: le scrive il primo giro completo.")
+    print("   Tipi: " + "; ".join(f"{k} = {v}" for k, v in TIPI_DOMANDA.items()) + ".")
+    coda = [x for x in R.get("code", []) if x.get("da") == "cervello"]
+    if coda:
+        print("\n2. Proposte dal cervello (provate / notizie nuove):")
+        for x in coda[-8:]:
+            print(f"   [{x.get('l', '')}] {x['q']}  →  {x.get('prove', 0)} / {x.get('nuove', 0)}")
+    rs = piano_riassunto(cfg, paesi)
+    print("\n3. Lavoro a piano (alleanze, patti, appalti):")
+    if not rs:
+        print("   non ancora partito: comincia al prossimo giro.")
+    else:
+        nomi_ = {"accordi": "accordi e patti", "appalti": "appalti e contratti", "aperta": "domanda rimasta aperta"}
+        for d in rs["domande"]:
+            print(f"   {d[0]} · {nomi_.get(d[1], d[1])}, lingua {d[2]}  →  {d[4]} titoli\n      {d[3]}")
+        if rs["aperte"]:
+            print("\n4. Domande che il cervello ha lasciato aperte leggendo i titoli:")
+            for s, l, q, perche, fatta in rs["aperte"]:
+                print(f"   {s} [{l}] {q} — {perche}" + ("  (già cercata)" if fatta else "  (da cercare)"))
+        if rs["risposte"]:
+            print("\n5. Risposte trovate:")
+            for s, perche, r, fonti, _q in rs["risposte"]:
+                print(f"   {s}: {perche}\n      → {r}" + (" (" + ", ".join(f[0] for f in fonti) + ")" if fonti else ""))
+    resa = R.get("resa", {})
+    if resa:
+        migliori = sorted(((v[1] / v[0], k, v) for k, v in resa.items() if v[0]), reverse=True)[:5]
+        print("\nI tipi di domanda che rendono di più (notizie nuove per prova): "
+              + ", ".join(f"{k} {m:.1f}" for m, k, _ in migliori))
+
+
+def cmd_piano():
+    cfg = leggi_json(os.path.join(QUI, "config.json"), {})
+    paesi = leggi_json(os.path.join(QUI, "paesi.json"), {})
+    rs = piano_riassunto(cfg, paesi)
+    ordine = piano_ordine(cfg, paesi)
+    if not rs:
+        print(f"Lavoro a piano non ancora partito: {len(ordine)} Stati in {len(cfg.get('piano', {}).get('blocchi', []))} blocchi, "
+              "comincia al prossimo giro" + (f" da {ordine[0][1]}." if ordine else "."))
+        return
+    print(f"LAVORO A PIANO – passata {rs['passata']}: {rs['i']} Stati su {rs['totale']} · ora nel blocco «{rs['blocco']}»")
+    print(f"Trovati finora: {rs['accordi']} accordi e patti, {rs['appalti']} appalti e contratti, in {rs['con_scheda']} Stati.")
+    print("Prossimi:", ", ".join(rs["prossimi"]))
+    print("Ultimi lavorati (accordi / appalti / titoli letti):")
+    for s, _q, a, c, t, _b in rs["ultimi"]:
+        print(f"   {s:<24} {a:>3} / {c:>3} / {t:>3}")
+    print("Per vedere le domande:  python castello.py domande")
+
+
 def _tieni_sveglio():
     """Sul telefono: tiene sveglio Termux e riaccende il giro automatico (cron) se si era fermato."""
     try:
         if shutil.which("termux-wake-lock"):
-            subprocess.run(["termux-wake-lock"], check=False, timeout=15)
+            _esegui(["termux-wake-lock"], 15)
         if shutil.which("crond") and _cron_vivo() is False:
             subprocess.run(["crond"], check=False, timeout=15)
     except (OSError, subprocess.SubprocessError):
@@ -2047,7 +2437,7 @@ def _avvio_al_riavvio():
         perc = os.path.join(casa, "boot", "pangeo.sh")
         with open(perc, "w", encoding="utf-8") as f:
             f.write("#!/data/data/com.termux/files/usr/bin/sh\n# PanGeo: riparte dopo il riavvio del telefono (lo scrive castello.py serve)\n"
-                    "termux-wake-lock\ncrond\ncd %s && nohup python castello.py serve >/dev/null 2>&1 &\n" % shlex.quote(QUI))
+                    "termux-wake-lock\ncrond\ncd %s && %s castello.py veglia zitto >> dati/log.txt 2>&1\n" % (shlex.quote(QUI), shlex.quote(sys.executable)))
         os.chmod(perc, 0o700)
     except OSError:
         pass
@@ -2055,6 +2445,7 @@ def _avvio_al_riavvio():
 
 ORDINE_TAPPE = ["ricerche sui 16 temi (Google News, GDELT)", "Stati meno coperti, prima nella loro lingua e poi in inglese",
                 "domande che si pone da solo, domande di seguito, verifiche", "ogni Stato nella sua lingua e giro delle lingue",
+                "lavoro a piano: alleanze, patti e appalti, uno Stato alla volta (prima l'Europa)",
                 "feed delle testate", "canali Telegram", "canali YouTube", "studio degli Stati (Wikipedia, World Factbook)",
                 "cielo e calore da satellite", "ricerca di fonti nuove e di sostituti", "analisi: livelli, conferme, segnali",
                 "cervello: traduzioni in italiano e riassunto", "memoria, diario, pagina", "invio a GitHub"]
@@ -2090,10 +2481,28 @@ def giri(quanti=12):
         interno = None
     if interno is not None:
         print("Orologio interno (fa partire i giri anche se cron si ferma):", "acceso" if interno else "SPENTO: lancia  bash avvia.sh")
+    def _ora(iso_):
+        try:
+            return datetime.fromisoformat(iso_).astimezone().strftime("%d/%m %H:%M")
+        except (ValueError, TypeError):
+            return "?"
+    fermi_ = leggi_json(os.path.join(DATI, "fermi.json"), [])
+    if fermi_:
+        print("Le ultime volte che si è fermato:")
+        for f_ in fermi_[-4:]:
+            print(f"   dal {_ora(f_.get('dal'))} al {_ora(f_.get('al'))} ({f_.get('minuti', '?')} minuti): {f_.get('motivo', '')}")
+    ieri_s = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    sosp_ = [x for x in (leggi_json(os.path.join(DATI, "battito.json"), {}).get("sosp") or []) if x[0] > ieri_s]
+    if sosp_:
+        print(f"Nelle ultime 24 ore Android ha messo in pausa Termux {len(sosp_)} volte, per {round(sum(x[1] for x in sosp_) / 60)} minuti in tutto"
+              " (batteria di Termux su «Senza restrizioni» e Termux aperto tra le app recenti lo evitano).")
     blocco = os.path.join(DATI, "aggiorna.lock")
     pr = leggi_json(os.path.join(DATI, "progresso.json"), {})
     try:
         in_corso = time.time() - os.path.getmtime(blocco) < 45 * 60
+        with open(blocco, encoding="utf-8") as f_b:
+            chi_b = f_b.read().strip()
+        in_corso = in_corso and (not chi_b.isdigit() or _vivo_pid(chi_b))
     except OSError:
         in_corso = False
     if in_corso:
@@ -2193,13 +2602,19 @@ def telefono():
     """Batteria del telefono: temperatura in gradi, carica in % e se è sotto carica. Ogni valore è None se non si
     può leggere (su un computer, oppure senza l'app Termux:API e con i file di sistema chiusi da Android)."""
     t = pct = carica = None
-    if shutil.which("termux-battery-status"):
+    st_v = leggi_json(os.path.join(DATI, "veglia.json"), {})
+    muta = st_v.get("api_muta", "") > (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    if shutil.which("termux-battery-status") and not muta:
+        uscita = _esegui(["termux-battery-status"], 8)
+        if uscita is None:  # l'app Termux:API non risponde: non si riprova a ogni giro (ogni tentativo perde 8 secondi)
+            st_v["api_muta"] = datetime.now(timezone.utc).isoformat()
+            scrivi_json(os.path.join(DATI, "veglia.json"), st_v)
         try:
-            d = json.loads(subprocess.run(["termux-battery-status"], capture_output=True, text=True, timeout=8).stdout or "{}")
+            d = json.loads(uscita or "{}")
             t, pct = d.get("temperature"), d.get("percentage")
             if "plugged" in d:
                 carica = str(d["plugged"]).upper() not in ("", "UNPLUGGED")
-        except (OSError, subprocess.SubprocessError, ValueError):
+        except (ValueError, AttributeError):
             pass
     base = "/sys/class/power_supply/battery/"
     try:
@@ -2217,6 +2632,18 @@ def telefono():
                 carica = f.read().strip().lower() in ("charging", "full")
     except (OSError, ValueError):
         pass
+    if t is None:  # ultima strada: i sensori di temperatura del sistema, se Android li lascia leggere
+        for zona in sorted(glob.glob("/sys/class/thermal/thermal_zone*"))[:60]:
+            try:
+                with open(zona + "/type", encoding="utf-8") as f:
+                    if "batt" not in f.read().lower():
+                        continue
+                with open(zona + "/temp", encoding="utf-8") as f:
+                    v_ = float(f.read().strip())
+                t = v_ / 1000.0 if v_ > 1000 else v_ / 10.0 if v_ > 100 else v_
+                break
+            except (OSError, ValueError):
+                continue
     try:
         t = round(float(t), 1) if t is not None and 0 < float(t) < 90 else None
     except (TypeError, ValueError):
@@ -2240,8 +2667,8 @@ def guardia_telefono(cfg, tel):
     elif pct is not None and tel.get("in_carica") is False and pct <= g.get("batteria_min", 15):
         motivo = f"batteria al {pct}% e non in carica"
     caldo = motivo.startswith("telefono caldo")
-    if caldo != bool(st.get("caldo")):
-        scrivi_json(perc, {"caldo": caldo})
+    if caldo != bool(st.get("caldo")) or (t is not None) != bool(st.get("termometro")):
+        scrivi_json(perc, {"caldo": caldo, "termometro": t is not None})  # «termometro»: la temperatura si legge
     return motivo
 
 
@@ -2253,13 +2680,22 @@ def _pausa(motivo, tel):
     diario = leggi_json(os.path.join(DATI, "diario.json"), [])
     if diario and diario[-1].get("tipo") == "pausa" and diario[-1].get("iso", "") > (adesso - timedelta(minutes=25)).isoformat():
         return
-    base = dict(next((x for x in reversed(diario) if x.get("tipo") not in ("senza rete", "pausa")), {}))
-    base.update({"quando": datetime.now().strftime("%d/%m %H:%M"), "iso": adesso.isoformat(), "v": VERSIONE, "tipo": "pausa",
+    _riga_diario("pausa", motivo, tel)
+
+
+def _riga_diario(tipo, motivo, tel, **altro):
+    """Una riga del diario che non è un giro: una pausa voluta, oppure il programma rimasto fermo (con l'ora di inizio e
+    di fine). Parte dai numeri dell'ultimo giro vero, così i grafici non crollano a zero."""
+    adesso = datetime.now(timezone.utc)
+    diario = leggi_json(os.path.join(DATI, "diario.json"), [])
+    base = dict(next((x for x in reversed(diario) if x.get("tipo") not in ("senza rete", "pausa", "fermo")), {}))
+    base.update({"quando": datetime.now().strftime("%d/%m %H:%M"), "iso": adesso.isoformat(), "v": VERSIONE, "tipo": tipo,
                  "motivo": motivo, "tel": [tel.get("temp"), tel.get("batteria"), tel.get("in_carica")], "durata": 0, "nuove": 0,
                  "da": {}, "fonti_nuove": [], "richieste": 0, "siti": [], "rifiuti": {}, "errori": 0, "seguiti": [0, 0],
                  "verifiche": [0, 0], "lingue": {}, "ricerche": [], "mb": 0, "attesa": [0, 0, (base.get("attesa") or [0, 0, 0])[2]]})
-    base.pop("offline", None)
-    base.pop("senza_rete_dal", None)
+    for campo in ("offline", "senza_rete_dal", "fermo", "piano", "sosp", "passo"):
+        base.pop(campo, None)
+    base.update(altro)
     for campo, valore in (("live", 0), ("quota", 0), ("livelli", {}), ("scoperti", 0), ("senza", []), ("fonti", [0, 0]),
                           ("sapere", 0), ("tradotti", 0), ("usd_oggi", 0), ("usd_mese", 0), ("confermate", 0), ("memoria", [0, 0])):
         base.setdefault(campo, valore)
@@ -2292,6 +2728,288 @@ def ripara_fonti(stato, errori):
     return 0
 
 
+# ----------------------------------------------------------------------------- guardiano e scatola nera
+
+def _esegui(comando, attesa=8):
+    """Lancia un comando del telefono e ne legge l'uscita. Se non risponde in tempo chiude lui e i suoi figli: un comando
+    di Termux:API senza l'app installata resta appeso per sempre, e Android chiude Termux quando i processi lasciati in
+    giro sono troppi."""
+    try:
+        p = subprocess.Popen(comando, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, text=True,
+                             start_new_session=True)
+    except OSError:
+        return None
+    try:
+        return p.communicate(timeout=attesa)[0] or ""
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        try:
+            p.communicate(timeout=3)
+        except Exception:
+            pass
+        return None
+
+
+def _su_termux():
+    return "com.termux" in QUI or "com.termux" in sys.executable or os.path.isdir("/data/data/com.termux/files")
+
+
+def _vivo(porta=8080):
+    """Chiede alla pagina sul telefono se è accesa: restituisce la versione che risponde, "" se è spenta, "?" se sulla
+    porta risponde qualcos'altro (o un PanGeo vecchio, che non conosce la domanda)."""
+    try:
+        with socket.create_connection(("127.0.0.1", porta), timeout=4) as s:
+            s.settimeout(4)
+            s.sendall(b"GET /vivo HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n")
+            dati = b""
+            while len(dati) < 2000:
+                pezzo = s.recv(1000)
+                if not pezzo:
+                    break
+                dati += pezzo
+    except OSError:
+        return ""
+    m = re.search(rb"pangeo ([0-9.]+)", dati)
+    return m.group(1).decode() if m else "?"
+
+
+def _vivo_pid(pid):
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def _accendi():
+    with open(os.path.join(DATI, "log.txt"), "a", encoding="utf-8") as log:
+        subprocess.Popen([sys.executable, os.path.join(QUI, "castello.py"), "serve"], cwd=QUI, stdin=subprocess.DEVNULL,
+                         stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+
+
+def veglia(parla=True):
+    """Il guardiano. Controlla che la pagina sul telefono (e con lei l'orologio che fa partire i giri) sia accesa e sia
+    della versione giusta; se no, la riaccende. Lo chiamano cron ogni 5 minuti, Termux ogni volta che lo apri, il telefono
+    quando si riaccende e, con Termux:API, Android ogni 15 minuti. Non è un secondo ciclo: rilancia lo stesso «serve»."""
+    os.makedirs(DATI, exist_ok=True)
+    try:  # il registro non deve crescere senza fine
+        registro = os.path.join(DATI, "log.txt")
+        if os.path.getsize(registro) > 2_000_000:
+            with open(registro, "rb") as f:
+                f.seek(-300_000, 2)
+                coda = f.read()
+            with open(registro, "wb") as f:
+                f.write(coda[coda.find(b"\n") + 1:])
+    except OSError:
+        pass
+    chi = _vivo()
+    if chi == VERSIONE:
+        if parla:
+            print(f"PanGeo è acceso (versione {VERSIONE}).")
+        return True
+    if chi:  # risponde una versione vecchia (dopo «approva»), oppure un altro programma
+        try:
+            pid_ = [int(x) for x in (subprocess.run(["pgrep", "-f", "castello.py serve"], capture_output=True, text=True, timeout=10).stdout or "").split()
+                    if x.isdigit() and int(x) != os.getpid()]
+        except (OSError, subprocess.SubprocessError):
+            pid_ = []
+        if not pid_:
+            if parla:
+                print("La porta 8080 è occupata da un altro programma: PanGeo non può aprire la sua pagina.")
+            return False
+        for p_ in pid_:
+            try:
+                os.kill(p_, signal.SIGTERM)
+            except OSError:
+                pass
+        for _ in range(20):
+            if not _vivo():
+                break
+            time.sleep(0.5)
+    _tieni_sveglio()
+    _accendi()
+    for _ in range(20):
+        time.sleep(0.5)
+        if _vivo() == VERSIONE:
+            break
+    acceso = _vivo() == VERSIONE
+    with open(os.path.join(DATI, "log.txt"), "a", encoding="utf-8") as log:
+        log.write(f"[{datetime.now().strftime('%d/%m %H:%M')}] guardiano: PanGeo era "
+                  + ("spento" if not chi else "acceso con una versione vecchia") + (", riacceso\n" if acceso else ", NON si riaccende\n"))
+    if parla:
+        print("PanGeo era " + ("spento" if not chi else "acceso con una versione vecchia") + (": riacceso." if acceso else ": non si riaccende, guarda dati/log.txt"))
+    return acceso
+
+
+def _riga_bashrc():
+    return '(cd %s && %s castello.py veglia zitto >> dati/log.txt 2>&1 &)  # PanGeo: riparte da solo quando apri Termux' % (
+        shlex.quote(QUI), shlex.quote(sys.executable))
+
+
+def _avvio_con_termux():
+    """Una riga in ~/.bashrc (solo su Termux, segnata col nome PanGeo): ogni volta che apri Termux il guardiano controlla
+    che PanGeo sia acceso e lo riaccende. Così, se Android chiude Termux, basta riaprirlo: non serve scrivere nulla."""
+    if not _su_termux():
+        return
+    perc = os.path.expanduser("~/.bashrc")
+    try:
+        testo = ""
+        if os.path.exists(perc):
+            with open(perc, encoding="utf-8", errors="replace") as f:
+                testo = f.read()
+        if "castello.py veglia" in testo:
+            return
+        with open(perc, "a", encoding="utf-8") as f:
+            f.write(("" if not testo or testo.endswith("\n") else "\n") + _riga_bashrc() + "\n")
+    except OSError:
+        pass
+
+
+def _lavoro_android():
+    """Con l'app Termux:API: chiede ad Android di richiamare il guardiano ogni 15 minuti, anche quando Termux è stato
+    chiuso del tutto (è l'unico modo per ripartire senza che nessuno riapra Termux). Una volta al giorno rinnova la richiesta."""
+    if not _su_termux() or not shutil.which("termux-job-scheduler"):
+        return ""
+    perc = os.path.join(DATI, "veglia.json")
+    st = leggi_json(perc, {})
+    oggi = datetime.now().date().isoformat()
+    if st.get("giorno") == oggi:
+        return st.get("esito", "")
+    script = os.path.join(QUI, "veglia.sh")
+    try:
+        with open(script, "w", encoding="utf-8") as f:
+            f.write("#!/data/data/com.termux/files/usr/bin/sh\n# PanGeo: lo richiama Android ogni 15 minuti (lo scrive castello.py)\n"
+                    "cd %s && %s castello.py veglia zitto >> dati/log.txt 2>&1\n" % (shlex.quote(QUI), shlex.quote(sys.executable)))
+        os.chmod(script, 0o700)
+    except OSError:
+        return ""
+    uscita = _esegui(["termux-job-scheduler", "--job-id", "2611", "--script", script, "--period-ms", "900000",
+                      "--persisted", "true", "--battery-not-low", "false", "--network", "none"], 12)
+    esito = "senza risposta: manca l'app Termux:API" if uscita is None else (uscita.strip()[:160] or "richiesta fatta")
+    scrivi_json(perc, {"giorno": oggi, "esito": esito})
+    return esito
+
+
+def _acceso_da():
+    """Da quanti secondi è acceso il telefono (per distinguere un riavvio da una chiusura di Termux)."""
+    try:
+        return time.clock_gettime(time.CLOCK_BOOTTIME)
+    except (AttributeError, OSError):
+        pass
+    try:
+        with open("/proc/uptime", encoding="utf-8") as f:
+            return float(f.read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def scatola_nera():
+    """All'avvio della pagina sul telefono: se l'ultimo battito è vecchio, il programma era rimasto fermo. Lo scrive nel
+    diario con l'ora in cui si è fermato, l'ora in cui è ripartito e il motivo più probabile, così un buco si spiega."""
+    perc = os.path.join(DATI, "battito.json")
+    st = leggi_json(perc, {})
+    adesso = datetime.now(timezone.utc)
+    try:
+        ultimo = datetime.fromisoformat(st.get("t", ""))
+    except (ValueError, TypeError):
+        ultimo = None
+    if ultimo and (adesso - ultimo).total_seconds() > 360:
+        secondi = (adesso - ultimo).total_seconds()
+        acceso = _acceso_da()
+        if st.get("fine"):
+            motivo = "chiusura chiesta: " + st["fine"]
+        elif acceso is not None and acceso < secondi - 30:
+            motivo = "il telefono è stato spento o riavviato"
+        else:
+            motivo = ("chiuso di colpo, senza preavviso: di solito è Android che ferma Termux per risparmiare batteria o memoria "
+                      "(oppure Termux è stato chiuso o aggiornato a mano)")
+        try:
+            if datetime.fromisoformat(st.get("finestra", "")) > ultimo - timedelta(minutes=15):
+                motivo += "; poco prima era stata chiusa la finestra di Termux"
+        except (ValueError, TypeError):
+            pass
+        diario = leggi_json(os.path.join(DATI, "diario.json"), [])
+        try:
+            fine_giro = max(datetime.fromisoformat(x["iso"]) + timedelta(seconds=x.get("durata", 0)) for x in diario[-8:] if x.get("iso") and x.get("tipo") in (None, "completo", "leggero"))
+            passo_ = passo_minuti(leggi_json(os.path.join(QUI, "config.json"), {}))
+            if (adesso - fine_giro).total_seconds() < (passo_ + 10) * 60:
+                motivo += "; i giri sono andati avanti lo stesso (li ha lanciati cron)"
+        except (ValueError, KeyError, TypeError):
+            pass
+        fermo = [ultimo.isoformat(), adesso.isoformat(), int(secondi / 60)]
+        fermi = leggi_json(os.path.join(DATI, "fermi.json"), [])
+        fermi.append({"dal": fermo[0], "al": fermo[1], "minuti": fermo[2], "motivo": motivo})
+        scrivi_json(os.path.join(DATI, "fermi.json"), fermi[-40:])
+        print(f"PanGeo era fermo da {fermo[2]} minuti: {motivo}.")
+    else:
+        fermo = motivo = None
+    scrivi_json(perc, {"pid": os.getpid(), "t": adesso.isoformat(), "avvio": adesso.isoformat(), "sosp": (st.get("sosp") or [])[-40:]})
+    if fermo:
+        threading.Thread(target=_scrivi_fermo, args=(motivo, fermo), daemon=True).start()
+
+
+def _scrivi_fermo(motivo, fermo):
+    """La riga «fermo» entra nel diario quando nessun giro lo sta usando (un giro lanciato da cron può essere in corso)."""
+    blocco = os.path.join(DATI, "aggiorna.lock")
+    for _ in range(500):
+        try:
+            with open(blocco, encoding="utf-8") as f:
+                chi = f.read().strip()
+            if not chi.isdigit() or not _vivo_pid(chi) or time.time() - os.path.getmtime(blocco) > 45 * 60:
+                break
+        except OSError:
+            break
+        time.sleep(3)
+    try:
+        _riga_diario("fermo", motivo, telefono(), fermo=fermo)
+    except Exception as e:
+        print("Scatola nera (diario):", e)
+
+
+def _battito():
+    """Ogni minuto la pagina sul telefono scrive «sono viva». Se tra due battiti passano più di tre minuti vuol dire che
+    Android aveva messo Termux in pausa: lo annota (ora e durata), così si vede se il telefono lo lascia lavorare."""
+    perc = os.path.join(DATI, "battito.json")
+    prima, giri_ = time.time(), 0
+    while True:
+        time.sleep(60)
+        try:
+            ora, giri_ = time.time(), giri_ + 1
+            st = leggi_json(perc, {})
+            if ora - prima > 200:
+                st["sosp"] = (st.get("sosp") or [])[-39:] + [[datetime.now(timezone.utc).isoformat(), int(ora - prima - 60)]]
+            prima = ora
+            st.update({"pid": os.getpid(), "t": datetime.now(timezone.utc).isoformat()})
+            scrivi_json(perc, st)
+            if giri_ % 5 == 0 and shutil.which("crond") and _cron_vivo() is False:
+                subprocess.run(["crond"], check=False, timeout=15)  # cron si era fermato: lo riaccende
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
+
+
+def _segnale(num, _quadro=None):
+    """Segnali che si possono vedere arrivare. Quando Android chiude di colpo (segnale 9) non arriva nulla: per questo
+    all'avvio la scatola nera guarda l'ultimo battito."""
+    perc = os.path.join(DATI, "battito.json")
+    try:
+        st = leggi_json(perc, {})
+        if num == getattr(signal, "SIGHUP", -1):
+            st["finestra"] = datetime.now(timezone.utc).isoformat()  # la finestra di Termux è stata chiusa: si va avanti
+            scrivi_json(perc, st)
+            return
+        st["fine"] = {signal.SIGTERM: "segnale 15 (riavvio con avvia.sh o col guardiano, oppure chiusura di Termux)",
+                      signal.SIGINT: "Ctrl+C"}.get(num, f"segnale {num}")
+        st["t"] = datetime.now(timezone.utc).isoformat()
+        scrivi_json(perc, st)
+    except OSError:
+        pass
+    raise SystemExit(0)
+
+
+
 def passo_minuti(cfg):
     """Ogni quanti minuti parte un giro: 180 senza giro leggero, altrimenti giro_leggero.ogni_minuti (10, 15, 20, 30 o 60).
     Sta in config.json, che il telefono prende da solo a ogni giro: per cambiare ritmo non serve «approva»."""
@@ -2300,6 +3018,11 @@ def passo_minuti(cfg):
         return 180
     try:
         m = int(gl.get("ogni_minuti", 60))
+        ss = gl.get("senza_sosta", {})
+        # «senza sosta»: passo più corto, ma solo se il telefono dice la sua temperatura. Senza termometro il programma
+        # non potrebbe fermarsi per il caldo, quindi resta al passo normale.
+        if ss.get("attivo") and leggi_json(os.path.join(DATI, "guardia.json"), {}).get("termometro"):
+            m = int(ss.get("ogni_minuti", 10))
     except (TypeError, ValueError):
         m = 60
     return min((10, 15, 20, 30, 60), key=lambda x: abs(x - m))
@@ -2318,14 +3041,17 @@ def programma_cron(cfg):
     if not shutil.which("crontab"):
         return ""
     passo = passo_cron(cfg)
-    voluta = f"{passo} cd {shlex.quote(QUI)} && {shlex.quote(sys.executable)} castello.py aggiorna >> dati/log.txt 2>&1"
+    qui_ = f"cd {shlex.quote(QUI)} && {shlex.quote(sys.executable)} castello.py"
+    volute = [f"{passo} {qui_} aggiorna >> dati/log.txt 2>&1",
+              f"*/5 * * * * {qui_} veglia zitto >> dati/log.txt 2>&1"]  # il guardiano: riaccende la pagina se si è spenta
     try:
         tab = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=15).stdout
-        righe = [r for r in tab.splitlines() if "castello.py aggiorna" not in r or r.strip().startswith("#")]
-        if voluta in tab.splitlines() and len(righe) == len(tab.splitlines()) - 1:
+        attuali = tab.splitlines()
+        righe = [r for r in attuali if r.strip().startswith("#") or not ("castello.py aggiorna" in r or "castello.py veglia" in r)]
+        if all(v in attuali for v in volute) and len(righe) == len(attuali) - len(volute):
             return ""
-        subprocess.run(["crontab", "-"], input="\n".join(righe + [voluta]) + "\n", text=True, timeout=15, check=False)
-        return passo
+        subprocess.run(["crontab", "-"], input="\n".join(righe + volute) + "\n", text=True, timeout=15, check=False)
+        return passo if volute[0] not in attuali else ""
     except (OSError, subprocess.SubprocessError):
         return ""
 
@@ -2405,8 +3131,12 @@ def aggiorna(tipo=""):
     blocco = os.path.join(DATI, "aggiorna.lock")
     try:
         if time.time() - os.path.getmtime(blocco) < 45 * 60:
-            print("Un aggiornamento è già in corso: questo giro si ferma qui (riprova tra qualche minuto).")
-            return
+            with open(blocco, encoding="utf-8") as f:
+                chi_ = f.read().strip()
+            if not chi_.isdigit() or _vivo_pid(chi_):
+                print("Un aggiornamento è già in corso: questo giro si ferma qui (riprova tra qualche minuto).")
+                return
+            print("Il giro di prima è stato interrotto a metà (il programma era stato chiuso): si riparte.")
     except OSError:
         pass
     with open(blocco, "w", encoding="utf-8") as f:
@@ -2672,7 +3402,11 @@ def _aggiorna(leggero=False):
             classifica = sorted(range(len(MODELLI_RICERCA)), key=lambda i_: -voto("R%d" % i_))
             ciclo_ = classifica[:3] * 2 + classifica[3:]
             if sum(1 for x in code if not x.get("prove")) < 12:
-                for n_, stato_ in enumerate(ordine[:14]):
+                # uno Stato dove le ultime tre domande non hanno portato nulla riposa tre giorni: le domande vanno
+                # dove la stampa scrive, invece di tornare sempre sugli stessi microstati
+                vuoti_ = R.setdefault("vuoti", {})
+                tre_gg_ = (adesso - timedelta(days=3)).isoformat()
+                for n_, stato_ in enumerate([s_ for s_ in ordine if vuoti_.get(s_, [0, ""])[0] < 3 or vuoti_[s_][1] < tre_gg_][:14]):
                     nomi = paesi[stato_]
                     i_ = ciclo_[(R.get("giro", 0) + n_) % len(ciclo_)]
                     tema_, l_, modello = MODELLI_RICERCA[i_]
@@ -2692,7 +3426,9 @@ def _aggiorna(leggero=False):
                                      "prove": 0, "nuove": 0, "ultimo": ""})
                         note_.add(q_)
             ieri_ = (adesso - timedelta(hours=24)).isoformat()
-            scelte = sorted((x for x in code if x.get("ultimo", "") < ieri_),
+            vv0_ = R.setdefault("vuoti", {})
+            fermo_ = {s_ for s_, v_ in vv0_.items() if v_[0] >= 3 and v_[1] >= (adesso - timedelta(days=3)).isoformat()}
+            scelte = sorted((x for x in code if x.get("ultimo", "") < ieri_ and not (x.get("da") == "programma" and x.get("stato") in fermo_)),
                             key=lambda x: (x.get("prove", 0) > 0, -(x.get("nuove", 0) / max(x.get("prove", 1), 1))))[:ra.get("per_giro", 6)]
 
             def nome_per(stato2_, lingua2_):  # il nome dello Stato nella lingua della domanda
@@ -2770,12 +3506,18 @@ def _aggiorna(leggero=False):
                 if x.get("m"):
                     r_ = resa.setdefault(x["m"], [0, 0])
                     r_[0], r_[1] = r_[0] + 1, r_[1] + contati - prima_
+                if x.get("da") == "programma" and x.get("stato"):
+                    vv_ = R.setdefault("vuoti", {})
+                    if contati > prima_:
+                        vv_.pop(x["stato"], None)
+                    else:
+                        vv_[x["stato"]] = [(vv_.get(x["stato"], [0, ""])[0] if vv_.get(x["stato"], [0, ""])[1] >= (adesso - timedelta(days=3)).isoformat() else 0) + 1, adesso.isoformat()]
                 if x.get("da") == "seguito":
                     n_seguiti, nuove_seguiti = n_seguiti + 1, nuove_seguiti + contati - prima_
                 time.sleep(imp_auto.get("pausa_google", 1))
             R["code"] = [x for x in code if not (x.get("prove", 0) >= 3 and x.get("nuove", 0) == 0)][-150:]
             R["giro"] = R.get("giro", 0) + 1
-            R["ultime"] = [[x["q"], x["nuove"], x["prove"], x.get("da", "")] for x in scelte + extra]
+            R["ultime"] = [[x["q"], x["nuove"], x["prove"], x.get("da", ""), x.get("stato", ""), x.get("tema", "")] for x in scelte + extra]
             scrivi_json(perc_r, R)
 
     tappa("ricerca")
@@ -2819,6 +3561,15 @@ def _aggiorna(leggero=False):
         st_l["giri"] = giro_l + 1
         scrivi_json(perc_l, st_l)
     tappa("lingue")
+    # 1e. Lavoro a piano: alleanze, patti e appalti militari, uno Stato alla volta, blocco per blocco (prima l'Europa).
+    # Gira anche nei giri leggeri (uno Stato, tre domande), così avanza sempre.
+    piano_giro = [0, 0, 0]
+    if cfg.get("piano", {}).get("attivo", True):
+        try:
+            piano_giro = passo_piano(cfg, chiavi, paesi, leggero, errori, notizia)
+        except Exception as e:
+            errori.append(f"Lavoro a piano: {e}")
+    tappa("piano")
     # 2. Feed RSS: fissi, candidati, scoperti da soli, aggiunti a mano
     cadute_rete = []
     # Giri fitti (giro_leggero.fonti_a_ritmo): ogni fonte ha il suo ritmo. Chi ha appena portato novità si rilegge dopo
@@ -3133,6 +3884,7 @@ def _aggiorna(leggero=False):
                     "ultime": leggi_json(os.path.join(DATI, "ricerche.json"), {}).get("ultime", []),
                     "verifiche": leggi_json(os.path.join(DATI, "ricerche.json"), {}).get("verifiche", [])[-12:]},
         "sapere_stati": stati_studiati,
+        "piano": piano_riassunto(cfg, paesi),
         "errori": errori,
     }
     # diario del giro: che cosa è entrato, da dove, quanto è costato ai siti (lo legge `rapporto`, va anche su GitHub)
@@ -3144,11 +3896,17 @@ def _aggiorna(leggero=False):
     conto_c = leggi_json(os.path.join(DATI, "cervello.json"), {})
     diario = leggi_json(os.path.join(DATI, "diario.json"), [])
     tel_g = telefono()
+    batt_ = leggi_json(os.path.join(DATI, "battito.json"), {})
+    dopo_ = next((x.get("iso", "") for x in reversed(diario) if x.get("tipo") in ("completo", "leggero", None)), "")
+    sosp_ = [x for x in (batt_.get("sosp") or []) if x[0] > dopo_]
+    rs_p = live.get("piano") or {}
     diario.append({
         "quando": datetime.now().strftime("%d/%m %H:%M"), "iso": adesso.isoformat(), "v": VERSIONE,
         "tipo": "leggero" if leggero else "completo",
         "mb": round(BYTE["n"] / 1e6, 1), "tel": [tel_g.get("temp"), tel_g.get("batteria"), tel_g.get("in_carica")],
         "tetto": conto_c.get("tetto", ""), "a_ritmo": saltate_ritmo, "invariate": invariate,
+        "passo": bool(conto_c.get("passo")), "sosp": [len(sosp_), sum(x[1] for x in sosp_)],
+        "piano": piano_giro + [rs_p.get("i", 0), rs_p.get("totale", 0), rs_p.get("passata", 0)],
         "durata": int(time.time() - inizio_), "nuove": contati, "da": {k: v for k, v in tappe.items() if v},
         "live": analisi["notizie"], "confermate": analisi["confermate"], "quota": analisi["quota_confermate"],
         "livelli": analisi["per_livello"], "scoperti": analisi["stati_scoperti"],
@@ -3390,7 +4148,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False):
             subprocess.run(["git", "-C", cartella, "reset", "--hard", "FETCH_HEAD"], check=True)
         # nuove versioni del programma, se Claude le ha messe nel repository (cartella programma/)
         cambiati = []
-        for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt"):
+        for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json"):
             src = os.path.join(cartella, "programma", nome)
             dst = os.path.join(QUI, nome)
             if os.path.exists(src) and (not os.path.exists(dst) or open(src, "rb").read() != open(dst, "rb").read()):
@@ -3436,7 +4194,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False):
                 shutil.copytree(os.path.join(cartella, "tabelle"), os.path.join(WEB, "tabelle"), dirs_exist_ok=True)
         # dopo un giro leggero su GitHub va solo il diario (pochi KB): i dati grossi ci vanno ogni 3 ore, così il
         # repository non cresce tre volte più in fretta
-        for nome in (("diario.json",) if solo_diario else ("live.json", "live.js", "sapere.js", "memoria.js", "diario.json")):
+        for nome in (("diario.json",) if solo_diario else ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "diario.json")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -3514,14 +4272,56 @@ class Gestore(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def do_GET(self):
+        if self.path.split("?")[0] == "/vivo":  # lo chiede il guardiano: chi sei, e che versione
+            corpo = ("pangeo " + VERSIONE).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+            return
+        super().do_GET()
+
 
 def serve(porta=8080):
-    _tieni_sveglio()
-    _avvio_al_riavvio()
-    programma_cron(leggi_json(os.path.join(QUI, "config.json"), {}))
-    threading.Thread(target=_riserva_cron, daemon=True).start()
+    os.makedirs(DATI, exist_ok=True)
+    os.makedirs(WEB, exist_ok=True)
     gestore = functools.partial(Gestore, directory=WEB)
-    with http.server.ThreadingHTTPServer(("127.0.0.1", porta), gestore) as srv:
+    srv = None
+    for tentativo_ in range(5):
+        try:
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", porta), gestore)
+            break
+        except OSError as e:
+            if _vivo(porta) == VERSIONE or tentativo_ == 4:
+                print(f"La porta {porta} è già occupata: PanGeo è già acceso, oppure la usa un altro programma ({e}).")
+                return
+            time.sleep(1.5)  # la pagina di prima si sta ancora chiudendo (riavvio con avvia.sh)
+    for nome_ in ("SIGTERM", "SIGINT", "SIGHUP"):
+        try:
+            signal.signal(getattr(signal, nome_), _segnale)
+        except (AttributeError, ValueError, OSError):
+            pass
+
+    def _avvio():  # dietro le quinte, così la pagina risponde subito anche se un comando del telefono è lento
+        try:
+            scatola_nera()  # se era rimasto fermo, lo scrive nel diario con il motivo più probabile
+        except Exception as e:
+            print("Scatola nera:", e)
+        threading.Thread(target=_battito, daemon=True).start()
+        try:
+            _tieni_sveglio()
+            _avvio_al_riavvio()
+            _avvio_con_termux()
+            programma_cron(leggi_json(os.path.join(QUI, "config.json"), {}))
+            _lavoro_android()
+        except Exception as e:
+            print("Avvio:", e)
+
+    threading.Thread(target=_avvio, daemon=True).start()
+    threading.Thread(target=_riserva_cron, daemon=True).start()
+    with srv:
         print(f"PanGeo aperto su http://127.0.0.1:{porta}/  · tabelle aperte: http://127.0.0.1:{porta}/tabelle.html  (Ctrl+C per chiudere)")
         srv.serve_forever()
 
@@ -3576,7 +4376,7 @@ def stato():
     rc = live.get("ricerca") or {}
     if rc:
         print(f"Ricerca autonoma: {rc.get('in_coda', 0)} ricerche in coda · Stati studiati su Wikipedia: {live.get('sapere_stati', 0)}")
-        for q_, nuove_, prove_, da_ in rc.get("ultime", []):
+        for q_, nuove_, prove_, da_ in (r_[:4] for r_ in rc.get("ultime", [])):
             print(f"  {nuove_} notizie nuove in {prove_} prove ({da_}): {q_[:70]}")
     if live.get("brief"):
         print("Da sapere adesso (" + live["brief"].get("agg", "") + "):")
@@ -3666,6 +4466,8 @@ if __name__ == "__main__":
             shutil.copyfile(os.path.join(QUI, "castello.py"), os.path.join(DATI, "copie", "castello.py.prima"))
             shutil.move(src_, os.path.join(QUI, "castello.py"))
             print("Versione nuova installata. Quella di prima è in dati/copie/castello.py.prima")
+            # il guardiano della versione nuova spegne la pagina vecchia e accende la nuova: non serve altro
+            subprocess.run([sys.executable, os.path.join(QUI, "castello.py"), "veglia"], check=False)
     elif comando == "provacervello":
         ch_ = leggi_json(os.path.join(DATI, "chiavi.json"), {})
         if not ch_.get("anthropic_key"):
@@ -3678,6 +4480,12 @@ if __name__ == "__main__":
                 print("Il cervello funziona.")
             except Exception as e:
                 print("Non funziona:", re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e)))
+    elif comando == "veglia":
+        veglia(parla=not (len(a) > 1 and a[1] == "zitto"))
+    elif comando == "domande":
+        domande()
+    elif comando == "piano":
+        cmd_piano()
     elif comando == "giri":
         giri(int(a[1]) if len(a) > 1 and a[1].isdigit() else 12)
     elif comando == "rapporto":
