@@ -267,3 +267,22 @@ NOVITÀ 2.15 – CAPISCE QUANDO MANCA LA RETE, E INTANTO LAVORA SU QUELLO CHE HA
   «Controlli» (sei controlli per ogni Stato), «Fonti che il programma legge», «Legenda dei nomi».
 - WikiLeaks: non ha un feed, quindi il programma non può leggerlo da solo. È tra le fonti, e nella storia di
   ogni Stato c'è il collegamento per cercarlo a mano. UCDP e ReliefWeb (API) ora chiedono un codice di accesso.
+
+NOVITÀ 2.16 – IL CALORE DA SATELLITE CON LO STORICO: CHE COSA È DIVERSO DA PRIMA
+- I satelliti della NASA (FIRMS) vedono il calore, non le truppe: incendi, campi bruciati, impianti, esplosioni.
+  Il programma ora guarda che cosa cambia rispetto ai giorni prima, Stato per Stato, con 30 giorni di storico.
+- Fascia di confine: quanti rilevamenti cadono entro circa 30 km da ogni Stato vicino, e quanti ce ne sono di
+  solito lì. Se sono molti di più del solito esce il segnale «Calore insolito nella fascia di confine con …».
+- Zone nuove e zone di sempre: le zone accese quasi ogni giorno (industria, pozzi con le torce, vulcani, incendi
+  stagionali) vengono riconosciute e non fanno più scattare l'allarme; contano le zone accese che nelle due
+  settimane prima erano spente.
+- Rilevamenti di notte: gli incendi agricoli si vedono soprattutto di giorno; molti di notte, fuori dalle zone
+  di sempre, sono un'anomalia in più da guardare.
+- Confronti puliti: ultime 24 ore vere (prima era «da mezzanotte», quindi dipendeva dall'ora), sempre con lo
+  stesso tipo di satellite, e senza i rilevamenti a bassa affidabilità (riflessi del sole).
+- Storico subito: con la chiave NASA recupera da solo 10 giorni passati, 2 giorni ogni 2 ore. Senza chiave
+  funziona lo stesso con i file pubblici delle ultime 24 ore, ma lo storico cresce di un giorno al giorno.
+- Servono 2 giorni di storico per le medie e 5 per distinguere le zone nuove da quelle di sempre.
+- Si salvano solo conteggi per Stato e celle larghe 28 km (file dati/calore_zone.json, resta sul telefono):
+  nessun punto preciso, nessuna posizione. Ogni segnale va confermato con le notizie dello stesso Stato.
+- Dove si vede: Live > «Calore da satellite» («Diverso dai giorni prima») e nella pagina «Dal vivo» di ogni Stato.

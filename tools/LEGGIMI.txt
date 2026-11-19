@@ -24,3 +24,5 @@ poi tabelle.js; solo dopo si pubblica.
                                                  altrimenti il lavoro delle notti va perso.
   node tools/tabelle.js index.html . programma/config.json
                                                  il terzo argomento serve per la tabella «Fonti che il programma legge»
+  node tools/build25.js base.html out.html      il calore da satellite con lo storico (fascia di confine, zone nuove,
+                                                 zone di sempre): riscrive caloreHtml e aggiunge caloreZona

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.15 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.16 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -34,6 +34,7 @@ import hashlib
 import html
 import http.server
 import json
+import math
 import os
 import re
 import shlex
@@ -48,9 +49,9 @@ import urllib.request
 import threading
 import xml.etree.ElementTree as ET
 import zlib
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.15"
+VERSIONE = "2.16"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -655,55 +656,269 @@ def segnali_per_stato(nome_file, conta, it2en, adesso, regola):
     return paesi
 
 
-def calore(chiavi, it2en, errori, ore):
-    """Fonti di calore viste dai satelliti NASA (FIRMS, chiave gratuita) contate per Stato,
-    una volta al giorno. Un aumento forte può indicare incendi, ma anche bombardamenti: va confermato."""
-    chiave = chiavi.get("firms_key")
-    if not chiave:
+CAL_PASSO = 4  # celle di un quarto di grado (circa 28 km): abbastanza larghe da non indicare nessun punto preciso
+FIRMS_API = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
+FIRMS_SATELLITI = ("VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT", "VIIRS_SNPP_NRT", "MODIS_NRT")
+# file pubblici delle ultime 24 ore: si leggono anche senza chiave
+FIRMS_APERTI = (("VIIRS_NOAA20_NRT", "noaa-20-viirs-c2/csv/J1_VIIRS_C2_Global_24h.csv"),
+                ("VIIRS_NOAA21_NRT", "noaa-21-viirs-c2/csv/J2_VIIRS_C2_Global_24h.csv"),
+                ("VIIRS_SNPP_NRT", "suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Global_24h.csv"),
+                ("MODIS_NRT", "modis-c6.1/csv/MODIS_C6_1_Global_24h.csv"))
+
+
+def firms_righe(testo):
+    """Il CSV di FIRMS in righe (lat, lon, quando, notte). I rilevamenti a bassa affidabilità si scartano:
+    sono spesso riflessi del sole. Restituisce (righe, scartati); None se la risposta non è un CSV di FIRMS."""
+    linee = testo.splitlines()
+    if not linee or "latitude" not in linee[0]:
         return None
-    percorso = os.path.join(DATI, "calore.json")
-    vecchio = leggi_json(percorso, None)
-    adesso = datetime.now(timezone.utc)
-    if vecchio and vecchio.get("totale") and vecchio.get("iso", "") >= (adesso - timedelta(hours=ore)).isoformat():
-        return vecchio
-    righe, satellite = [], ""
+    testa = linee[0].split(",")
     try:
-        indice = IndiceGeo(carica_geo())
-        # se un satellite non ha dati (manutenzione), si prova il successivo
-        for satellite in ("VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT", "VIIRS_SNPP_NRT", "MODIS_NRT"):
-            testo = scarica(f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{chiave}/{satellite}/world/1",
-                            timeout=180).decode("utf-8", "replace")
-            righe = testo.splitlines()
-            if len(righe) > 1 or (righe and "latitude" not in righe[0]):
-                break
-    except Exception as e:
-        errori.append(f"NASA FIRMS: {e}")
-        return vecchio
-    if len(righe) <= 1 and righe and "latitude" in righe[0]:
-        errori.append("NASA FIRMS: nessun dato da nessun satellite nelle ultime 24 ore (riprovo al prossimo giro)")
-        return vecchio
-    if not righe or "latitude" not in righe[0]:
-        errori.append("NASA FIRMS: risposta non valida (" + (righe[0][:60] if righe else "vuota") + ")")
-        return vecchio
-    testa = righe[0].split(",")
-    ila, ilo = testa.index("latitude"), testa.index("longitude")
-    conta, totale = {}, 0
-    for r in righe[1:]:
+        ila, ilo, idt, iora = testa.index("latitude"), testa.index("longitude"), testa.index("acq_date"), testa.index("acq_time")
+    except ValueError:
+        return None
+    iconf = testa.index("confidence") if "confidence" in testa else -1
+    idn = testa.index("daynight") if "daynight" in testa else -1
+    righe, scartati = [], 0
+    for r in linee[1:]:
         c = r.split(",")
         try:
             la, lo = float(c[ila]), float(c[ilo])
+            ora = c[iora].strip().zfill(4)
+            quando = datetime(int(c[idt][0:4]), int(c[idt][5:7]), int(c[idt][8:10]), int(ora[:2]), int(ora[2:]), tzinfo=timezone.utc)
         except (ValueError, IndexError):
             continue
-        totale += 1
-        p = indice.paese(lo, la)
-        if p:
-            conta[p] = conta.get(p, 0) + 1
-    paesi = segnali_per_stato("calore_storico.json", conta, it2en, adesso,
-                              lambda n, m: "aumento" if m is not None and n >= 20 and n > 3 * m else "")
-    uscita = {"iso": adesso.isoformat(), "agg": datetime.now().strftime("%d/%m %H:%M"), "totale": totale,
-              "paesi": paesi, "fonte": f"NASA FIRMS ({satellite}, ultime 24 ore)"}
+        if iconf >= 0 and iconf < len(c):
+            aff = c[iconf].strip().lower()
+            if aff in ("l", "low") or (aff.isdigit() and int(aff) < 30):
+                scartati += 1
+                continue
+        righe.append((la, lo, quando, idn >= 0 and idn < len(c) and c[idn].strip().upper() == "N"))
+    return righe, scartati
+
+
+def calore_conta(righe, indice, vicini_cache):  # vicini_cache tiene anche i punti già localizzati (chiave: coppia di numeri)
+    """Rilevamenti → {Stato (nome della mappa): {n, notte, celle {cella: rilevamenti}, conf {Stato vicino: rilevamenti}}}.
+    Un rilevamento è «nella fascia di confine» se entro circa 30 km dalla sua cella c'è un altro Stato."""
+    stati = {}
+    for la, lo, _, notte in righe:
+        p = vicini_cache.get((la, lo), 0)
+        if p == 0:
+            p = vicini_cache[(la, lo)] = indice.paese(lo, la)
+        if not p:
+            continue
+        cy, cx = math.floor(la * CAL_PASSO), math.floor(lo * CAL_PASSO)
+        s = stati.setdefault(p, {"n": 0, "notte": 0, "celle": {}, "conf": {}})
+        s["n"] += 1
+        s["notte"] += 1 if notte else 0
+        chiave = f"{cy}_{cx}"
+        c = s["celle"].setdefault(chiave, [0, 0])
+        c[0] += 1
+        c[1] += 1 if notte else 0
+        vic = vicini_cache.get(chiave)
+        if vic is None:
+            vic, passo = set(), 1.0 / CAL_PASSO
+            x0, y0 = (cx + 0.5) * passo, (cy + 0.5) * passo
+            for dx in (-passo, 0, passo):
+                for dy in (-passo, 0, passo):
+                    q = indice.paese(x0 + dx, y0 + dy)
+                    if q:
+                        vic.add(q)
+            vicini_cache[chiave] = vic
+        for q in vic:
+            if q != p:
+                s["conf"][q] = s["conf"].get(q, 0) + 1
+    return stati
+
+
+def calore_giorno(storia, data, fam, stati, en2it, vuoto=False):
+    """Mette un giorno intero nello storico (30 giorni): conteggi per Stato e per confine, e le celle accese."""
+    giorni = storia.setdefault("giorni", {})
+    giorni[data] = {"f": fam, "s": {en2it.get(p, p): [s["n"], s["notte"], {en2it.get(q, q): n for q, n in s["conf"].items()}]
+                                    for p, s in stati.items()}}
+    if vuoto:
+        giorni[data]["vuoto"] = True
+    for vecchia in sorted(giorni)[:-30]:
+        del giorni[vecchia]
+    # celle: un bit per giorno (bit 0 = il giorno «celle_al», bit 1 = il giorno prima…)
+    celle = storia.setdefault("celle", {}).setdefault(fam, {})
+    al = storia.setdefault("celle_al", {}).get(fam)
+    giorno = date.fromisoformat(data)
+    if al is None:
+        storia["celle_al"][fam] = al = data
+    passi = (giorno - date.fromisoformat(al)).days
+    if passi > 0:  # giorno più recente: tutto scorre indietro
+        tetto = (1 << 30) - 1
+        for k in list(celle):
+            m = (celle[k] << passi) & tetto
+            if m:
+                celle[k] = m
+            else:
+                del celle[k]
+        storia["celle_al"][fam] = data
+        passi = 0
+    if -passi < 30:
+        bit = 1 << (-passi)
+        for s in stati.values():
+            for k in s["celle"]:
+                celle[k] = celle.get(k, 0) | bit
+
+
+def calore_scarica(chiave, satellite, coda, errori, cosa):
+    """Una richiesta a FIRMS con la chiave. Restituisce (righe, scartati) oppure None."""
+    try:
+        testo = scarica(FIRMS_API + f"{chiave}/{satellite}/world/{coda}", timeout=180).decode("utf-8", "replace")
+    except Exception as e:
+        errori.append(f"NASA FIRMS ({cosa}): {e}")
+        return None
+    r = firms_righe(testo)
+    if r is None:
+        errori.append(f"NASA FIRMS ({cosa}): risposta non valida ({testo[:60].strip() or 'vuota'})")
+    return r
+
+
+def calore_recupero(chiave, storia, indice, vicini_cache, en2it, errori, adesso, quanti=2):
+    """Lo storico si riempie anche all'indietro: fino a 2 giorni passati per volta, al massimo 10, una volta ogni 2 ore.
+    Serve la chiave (i file pubblici hanno solo le ultime 24 ore)."""
+    if not chiave or not storia.get("sat"):
+        return 0
+    if storia.get("recupero", "") > (adesso - timedelta(minutes=110)).isoformat():
+        return 0
+    fam = "M" if storia["sat"].startswith("MODIS") else "V"
+    ieri = (adesso - timedelta(days=1)).date()
+    mancano = [d for d in ((ieri - timedelta(days=k)).isoformat() for k in range(0, 11))
+               if d not in storia.get("giorni", {}) or storia["giorni"][d].get("f") != fam]
+    if not mancano:
+        return 0
+    storia["recupero"] = adesso.isoformat()
+    fatti = 0
+    for d in mancano[:quanti]:
+        r = calore_scarica(chiave, storia["sat"], "1/" + d, errori, "giorni passati")
+        if r is None:
+            break
+        righe = [x for x in r[0] if x[2].date().isoformat() == d]
+        calore_giorno(storia, d, fam, calore_conta(righe, indice, vicini_cache), en2it, vuoto=not righe)
+        fatti += 1
+    return fatti
+
+
+def calore(chiavi, it2en, errori, ore):
+    """Fonti di calore viste dai satelliti NASA (FIRMS), una volta al giorno, con storico di 30 giorni.
+    Per ogni Stato: quante nelle ultime 24 ore e quante di solito; quante nella fascia di confine con ogni vicino;
+    quante in zone che nelle due settimane prima erano spente e quante in zone sempre accese (industria, pozzi,
+    vulcani, incendi stagionali); quante di notte. Il satellite vede il calore, non che cosa lo produce: ogni
+    segnale va confermato con le notizie. Si salvano solo conteggi per Stato e celle di 28 km, nessun punto preciso."""
+    chiave = chiavi.get("firms_key")
+    percorso, percorso_zone = os.path.join(DATI, "calore.json"), os.path.join(DATI, "calore_zone.json")
+    vecchio = leggi_json(percorso, None)
+    adesso = datetime.now(timezone.utc)
+    en2it = {en: it for it, en in it2en.items()}
+    fresco = vecchio and vecchio.get("totale") and vecchio.get("iso", "") >= (adesso - timedelta(hours=ore)).isoformat()
+    storia = leggi_json(percorso_zone, {})
+    try:
+        indice = IndiceGeo(carica_geo())
+    except Exception as e:
+        errori.append(f"NASA FIRMS: {e}")
+        return vecchio
+    vicini_cache = {}
+    if fresco:  # i dati di oggi ci sono già: si usa il giro per riempire lo storico all'indietro
+        if calore_recupero(chiave, storia, indice, vicini_cache, en2it, errori, adesso):
+            scrivi_json(percorso_zone, storia)
+            vecchio["storia"] = calore_storia(storia)
+            scrivi_json(percorso, vecchio)
+        return vecchio
+    # 1. i dati: con la chiave oggi e ieri (ieri è un giorno intero, buono per lo storico); senza, il file pubblico
+    righe, scartati, satellite, intero = None, 0, "", False
+    if chiave:
+        for satellite in FIRMS_SATELLITI:  # se un satellite non ha dati (manutenzione), si prova il successivo
+            r = calore_scarica(chiave, satellite, "2", errori, "oggi e ieri")
+            if r and r[0]:
+                righe, scartati, intero = r[0], r[1], True
+                break
+            if r is None:
+                break  # rete o chiave: inutile insistere, si passa ai file pubblici
+    if not righe:
+        for satellite, coda in FIRMS_APERTI:
+            try:
+                r = firms_righe(scarica("https://firms.modaps.eosdis.nasa.gov/data/active_fire/" + coda, timeout=180).decode("utf-8", "replace"))
+            except Exception:
+                r = None
+            if r and r[0]:
+                righe, scartati, intero = r[0], r[1], False
+                break
+    if not righe:
+        errori.append("NASA FIRMS: nessun dato da nessun satellite nelle ultime 24 ore (riprovo al prossimo giro)")
+        return vecchio
+    fam = "M" if satellite.startswith("MODIS") else "V"
+    storia["sat"] = satellite
+    ieri = (adesso - timedelta(days=1)).date().isoformat()
+    # 2. lo storico: il giorno intero di ieri (con la chiave) oppure, senza chiave, le ultime 24 ore come campione
+    if ieri not in storia.get("giorni", {}) or storia["giorni"][ieri].get("f") != fam:
+        campione = [x for x in righe if x[2].date().isoformat() == ieri] if intero else righe
+        calore_giorno(storia, ieri, fam, calore_conta(campione, indice, vicini_cache), en2it, vuoto=not campione)
+    calore_recupero(chiave, storia, indice, vicini_cache, en2it, errori, adesso)
+    # 3. le ultime 24 ore, confrontate con i giorni interi prima di ieri (stesso tipo di satellite)
+    finestra = [x for x in righe if x[2] >= adesso - timedelta(hours=24)]
+    oggi = calore_conta(finestra, indice, vicini_cache)
+    base = [g["s"] for d, g in sorted(storia["giorni"].items()) if d < ieri and g.get("f") == fam and not g.get("vuoto")][-14:]
+    limite14 = (adesso - timedelta(days=15)).date().isoformat()
+    giorni14 = sum(1 for d, g in storia["giorni"].items() if limite14 <= d < ieri and g.get("f") == fam and not g.get("vuoto"))
+    giorni30 = sum(1 for d, g in storia["giorni"].items() if d < ieri and g.get("f") == fam and not g.get("vuoto"))
+    celle = storia.get("celle", {}).get(fam, {})
+    fuori = (date.fromisoformat(storia["celle_al"][fam]) - date.fromisoformat(ieri)).days  # di norma 0
+    conta, zone = {}, {}
+    for p, s in oggi.items():
+        it = en2it.get(p)
+        if not it:
+            continue
+        conta[p] = s["n"]
+        media = round(sum(g.get(it, [0])[0] for g in base) / len(base), 1) if len(base) >= 2 else None
+        z = {"notte": s["notte"], "conf": {}, "note": []}
+        for q, n in sorted(s["conf"].items(), key=lambda kv: -kv[1])[:4]:
+            qit = en2it.get(q, q)
+            mq = round(sum(g.get(it, [0, 0, {}])[2].get(qit, 0) for g in base) / len(base), 1) if len(base) >= 2 else None
+            z["conf"][qit] = [n, mq]
+            if mq is not None and n >= 8 and n > 3 * mq + 3:
+                z["note"].append(f"Calore insolito nella fascia di confine con {qit}: {n} rilevamenti in 24 ore, di solito {str(mq).replace('.', ',')}.")
+        if giorni14 >= 5:  # zone nuove e zone sempre accese: servono almeno 5 giorni di storico
+            nuove, ril_nuove, fisse, notte_fuori = 0, 0, 0, 0
+            for k, (n, n_notte) in s["celle"].items():
+                m = celle.get(k, 0) >> max(0, fuori)
+                prima = (m >> 1) & ((1 << 14) - 1)
+                accesa = bin((m >> 1) & ((1 << 29) - 1)).count("1")
+                if giorni30 >= 7 and accesa >= max(4, (giorni30 + 1) // 2):
+                    fisse += n
+                else:
+                    notte_fuori += n_notte
+                    if not prima:
+                        nuove += 1 if n >= 3 else 0
+                        ril_nuove += n
+            z["nuove"], z["fisse"] = [nuove, ril_nuove], fisse
+            if nuove >= 2 and ril_nuove >= 15:
+                z["note"].append(f"{nuove} zone accese che nelle due settimane prima erano spente ({ril_nuove} rilevamenti).")
+            z["solito"] = s["n"] >= 20 and fisse >= 0.6 * s["n"]  # quasi tutto da zone sempre accese: non è una novità
+            if notte_fuori >= 15 and notte_fuori >= 0.5 * max(1, s["n"] - fisse) and media is not None and s["n"] > 2 * media:
+                z["note"].append(f"{notte_fuori} rilevamenti di notte fuori dalle zone sempre accese: gli incendi agricoli si vedono soprattutto di giorno.")
+        if s["n"] >= 10 or z["note"]:
+            zone[it] = z
+    paesi = segnali_per_stato("calore_storico.json", conta, it2en, adesso, lambda n, m: "")
+    for it, v in paesi.items():  # la media giusta è quella dei giorni interi dello stesso satellite
+        s = oggi.get(it2en.get(it), None)
+        if len(base) >= 2:
+            v[1] = round(sum(g.get(it, [0])[0] for g in base) / len(base), 1)
+        v[2] = "aumento" if v[1] is not None and v[0] >= 20 and v[0] > 3 * v[1] and not (zone.get(it) or {}).get("solito") else ""
+    scrivi_json(percorso_zone, storia)
+    uscita = {"iso": adesso.isoformat(), "agg": datetime.now().strftime("%d/%m %H:%M"), "totale": len(finestra),
+              "paesi": paesi, "zone": zone, "scartati": scartati, "storia": calore_storia(storia),
+              "fonte": f"NASA FIRMS ({satellite}, ultime 24 ore" + ("" if intero else ", file pubblico") + ")"}
     scrivi_json(percorso, uscita)
     return uscita
+
+
+def calore_storia(storia):
+    fam = "M" if storia.get("sat", "").startswith("MODIS") else "V"
+    buoni = sorted(d for d, g in storia.get("giorni", {}).items() if g.get("f") == fam and not g.get("vuoto"))
+    return {"giorni": len(buoni), "dal": buoni[0] if buoni else "", "satellite": "MODIS" if fam == "M" else "VIIRS"}
 
 
 
@@ -917,7 +1132,7 @@ def analizza(archivio, recente, auto, cfg, chiavi, dati_cielo, paesi, errori_fon
     confermate = sum(1 for v in voci.values() if v["conf"])
     consigli = []
     if not chiavi.get("firms_key"):
-        consigli.append("Calore da satellite spento: serve la chiave gratuita NASA FIRMS (LEGGIMI, «Chiavi gratuite»).")
+        consigli.append("Calore da satellite senza chiave: funziona con i file pubblici, ma lo storico cresce solo di un giorno al giorno. Con la chiave gratuita NASA FIRMS recupera subito 10 giorni (LEGGIMI, «Chiavi gratuite»).")
     if dati_cielo and "anonimo" in dati_cielo.get("fonte", ""):
         consigli.append("Cielo con accesso anonimo: con un account OpenSky gratuito le richieste sono 10 volte di più.")
     if not (chiavi.get("repo_git") or cfg.get("repo_git")):
@@ -961,7 +1176,8 @@ def segnali_stati(archivio, recente, analisi, dati_cielo, dati_calore):
                 d["parte"] += 1
     picchi = {x[0]: x for x in analisi.get("picchi", [])}
     uscita = {}
-    for p in set(per) | set(picchi):
+    con_calore = {p_ for p_, z_ in ((dati_calore or {}).get("zone") or {}).items() if z_.get("note")}
+    for p in set(per) | set(picchi) | con_calore:
         d = per.get(p, {"conf": [], "parte": 0})
         righe = []
         if p in picchi:
@@ -972,6 +1188,8 @@ def segnali_stati(archivio, recente, analisi, dati_cielo, dati_calore):
         k = ((dati_calore or {}).get("paesi") or {}).get(p)
         if k and k[2]:
             righe.append(["calore", f"Fonti di calore da satellite in forte aumento: {k[0]} in 24 ore, media {k[1]}. Possono essere incendi, industria o attacchi.", []])
+        for nota_ in (((dati_calore or {}).get("zone") or {}).get(p) or {}).get("note", []):
+            righe.append(["calore", nota_ + " Il satellite vede il calore, non chi lo produce: da confermare con le notizie.", []])
         for t, f, u, nf in d["conf"]:
             righe.append(["fatto", t, [[f + (f" e altre {nf - 1}" if nf > 1 else ""), u]]])
         if d["parte"] >= 5:
@@ -2491,7 +2709,11 @@ def _aggiorna(leggero=False):
 
     # 5. Cielo: traffico aereo civile per Stato
     dati_cielo = cielo(chiavi, it2en, errori) if cfg.get("cielo", True) else None
-    dati_calore = calore(chiavi, it2en, errori, cfg.get("calore_ore", 24))
+    try:
+        dati_calore = calore(chiavi, it2en, errori, cfg.get("calore_ore", 24))
+    except Exception as e:  # il calore non deve mai fermare il giro
+        errori.append(f"NASA FIRMS (analisi): {e}")
+        dati_calore = leggi_json(os.path.join(DATI, "calore.json"), None)
 
     # 6. Si amplia da solo: prova i siti più citati che non sono ancora tra le fonti
     sc = cfg.get("scoperta", {})
