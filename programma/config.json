@@ -4384,7 +4384,7 @@
   "per_giro_leggero": 1,
   "seguiti_per_giro": 1,
   "giorni": 120,
-  "titoli_max": 70,
+  "titoli_max": 70, "intelligence": true, "titoli_intelligence": 25,
   "pausa": 1.0,
   "blocchi": [
    [

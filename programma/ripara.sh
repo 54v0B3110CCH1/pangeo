@@ -21,8 +21,7 @@ if [ "$QUI" != "$C" ]; then
   done
 fi
 cd "$C" || exit 1
-# un giro in corso scriverebbe gli stessi file: si ferma (non perde nulla) e riparte alla fine, sui dati rimessi
-pkill -f "castello.py aggiorna" 2>/dev/null && sleep 2
+# un giro in corso non viene interrotto (perderebbe il lavoro fatto fin lì): la ricostruzione aspetta che finisca
 echo "3/4: rimetto la pagina e i dati salvati su GitHub..."
 if [ -f "$R/index.html" ] && [ -f "$R/diario.json" ]; then
   python castello.py ricostruisci "$R"

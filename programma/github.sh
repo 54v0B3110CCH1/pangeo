@@ -68,12 +68,40 @@ if [ "$STATO" = "404" ]; then
 else
   echo "Repository $U/$R già presente: lo uso."
 fi
+come_sistemare() {
+  echo "Si sistema senza rifare il token:"
+  echo " 1. apri nel browser: https://github.com/settings/tokens"
+  echo " 2. tocca il nome del token, metti la spunta a «public_repo» (nel primo gruppo, «repo»)"
+  echo " 3. in fondo premi «Update token» (non «Regenerate»)"
+  echo " 4. torna qui e lancia:  bash github.sh  (oppure, se il token è già salvato:  python castello.py sincronizza)"
+  echo "Se in quella pagina il token non c'è, è di un altro tipo: creane uno nuovo così:"
+  come_fare
+}
+# un token classico dice che cosa può fare: se non può scrivere nel repository lo si scopre subito, prima di salvarlo
+case "$T" in ghp_*)
+  SCOPI=$(curl -sI --max-time 20 "${H[@]}" "$API/user" | tr -d '\r' | grep -i '^x-oauth-scopes:' | cut -d: -f2-)
+  if ! printf '%s' "$SCOPI" | tr ',' '\n' | tr -d ' ' | grep -qx 'repo\|public_repo'; then
+    echo "Il token è valido ma può solo leggere: gli manca il permesso «public_repo». Niente è cambiato."
+    come_sistemare
+    exit 1
+  fi ;;
+esac
 # il token va solo nell'indirizzo del repository di PanGeo, salvato in dati/chiavi.json (permessi 600)
 python castello.py chiave repo_git "https://x-access-token:$T@github.com/$U/$R.git" >/dev/null
 python castello.py chiave repo_nome "$U/$R" >/dev/null
 rm -rf dati/repo
-python castello.py sincronizza
-curl -s -o /dev/null "${H[@]}" -X POST "$API/repos/$U/$R/pages" -d '{"source":{"branch":"main","path":"/"}}'
+ESITO=$(python castello.py sincronizza 2>&1 | tee /dev/stderr)
 echo ""
-echo "FATTO. Sito pubblico (pronto in 1-2 minuti): https://$U.github.io/$R/"
-echo "Scrivi a Claude solo: «repository $U/$R». Mai il token."
+if printf '%s' "$ESITO" | grep -q "Sincronizzazione fatta"; then
+  curl -s -o /dev/null "${H[@]}" -X POST "$API/repos/$U/$R/pages" -d '{"source":{"branch":"main","path":"/"}}'
+  echo "FATTO. Sito pubblico (pronto in 1-2 minuti): https://$U.github.io/$R/"
+  echo "Scrivi a Claude solo: «repository $U/$R». Mai il token."
+elif printf '%s' "$ESITO" | grep -qi "denied\|error: 403"; then
+  echo "NON RIUSCITO. Il token è valido ma può solo leggere: GitHub ha rifiutato l'invio dei dati (403)."
+  come_sistemare
+  exit 1
+else
+  echo "NON RIUSCITO. L'invio a GitHub non è andato a buon fine: il motivo è scritto qui sopra."
+  echo "Il token resta salvato. Quando la rete è a posto riprova con:  python castello.py sincronizza"
+  exit 1
+fi

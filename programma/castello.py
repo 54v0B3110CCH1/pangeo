@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.21 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.22 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.21"
+VERSIONE = "2.22"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -74,6 +74,9 @@ APP_FILE = ["manifest.webmanifest", "sw.js", "icona-192.png", "icona-512.png", "
 RISERVA = ["fonti_auto.json", "fonti_mie.json", "ricerche.json", "cervello.json", "storico_stati.json",
            "miglioratore.json", "impostazioni_auto.json", "canali.json", "lingue.json", "copertura.json"]
 RISERVA_STORICI = ["cielo_storico.json", "calore_storico.json"]  # serie di 7 giorni: nella riserva va un campione all'ora
+# Gli script di questa versione, con la loro impronta (SHA-256). Quando approvi il programma approvi anche questi: il telefono
+# li prende da GitHub solo se l'impronta è la stessa scritta qui. Uno script cambiato dopo aspetta un nuovo «approva».
+SCRIPT = {"avvia.sh": "b3395152b30e3f8614296feea714ea28dc4984747b79e8bd9cabece87b5cad9c", "github.sh": "82e68b06381b6a44634b518c0d4c054b4a4e8da6ae15c199f701aeff7f528ed1", "installa.sh": "43e36d11baca2f524e3d7434bfc962aa297d5744147e64ab0ff46eaddb9301d9", "ripara.sh": "3360b86c5b5f5feefe9c113f7dbc9eda758f8c4466fc8c34e03c7f281d5c73ea"}
 OPENSKY_AUTH = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
 
 # Parole di difesa e geopolitica: per le testate generaliste e le fonti scoperte da sole
@@ -2079,6 +2082,18 @@ PIANO_Q = {
     "ar": ('"{n}" ("اتفاقية دفاع" OR "اتفاق أمني" OR "تعاون عسكري" OR معاهدة OR تحالف) (توقع OR وقعت OR تصادق OR تنضم OR تعلق)',
            '"{n}" (صفقة OR عقد OR شراء) (مقاتلات OR دبابات OR صواريخ OR فرقاطات OR غواصات OR "طائرات مسيرة" OR مروحيات OR ذخائر)'),
 }
+# terzo tema del lavoro a piano (dalla 2.22): fatti PUBBLICI sui servizi di informazione e sicurezza di ogni Stato
+PIANO_Q_INTEL = {
+    "en": '"{n}" ("intelligence service" OR "intelligence agency" OR "spy agency" OR "security service" OR "intelligence chief" OR espionage OR "threat assessment") (report OR appoints OR appointed OR reform OR law OR oversight OR expels OR expelled OR arrested OR warns)',
+    "it": '"{n}" (intelligence OR "servizi segreti" OR "servizi di sicurezza" OR spionaggio OR controspionaggio) (relazione OR rapporto OR nomina OR direttore OR riforma OR legge OR espulsi OR arrestato OR allarme)',
+    "fr": '"{n}" (renseignement OR "services secrets" OR espionnage OR "contre-espionnage") (rapport OR nomme OR nommé OR réforme OR loi OR expulse OR arrêté OR alerte)',
+    "es": '"{n}" (inteligencia OR "servicios secretos" OR espionaje OR contraespionaje) (informe OR nombra OR director OR reforma OR ley OR expulsa OR detenido OR alerta)',
+    "pt": '"{n}" (inteligência OR "serviços secretos" OR espionagem OR "serviço de informações") (relatório OR nomeia OR diretor OR reforma OR lei OR expulsa OR detido OR alerta)',
+    "de": '"{n}" (Nachrichtendienst OR Geheimdienst OR Spionage OR Verfassungsschutz OR Spionageabwehr) (Bericht OR ernennt OR Präsident OR Reform OR Gesetz OR ausgewiesen OR festgenommen OR warnt)',
+    "ru": '"{n}" (разведка OR спецслужбы OR шпионаж OR контрразведка) (доклад OR назначен OR директор OR реформа OR закон OR выслали OR задержан)',
+    "ar": '"{n}" (المخابرات OR الاستخبارات OR تجسس OR "جهاز الأمن") (تقرير OR تعيين OR رئيس OR قانون OR طرد OR اعتقال)',
+}
+PIANO_TIPI_INTEL = ("nomina", "legge", "relazione", "espulsione", "processo", "accordo", "allarme", "altro")
 PIANO_STATI_ACCORDO = ("firmato", "ratificato", "in vigore", "in trattativa", "annunciato", "sospeso", "disdetto")
 PIANO_STATI_APPALTO = ("firmato", "in consegna", "consegnato", "approvato", "in trattativa", "annunciato", "annullato")
 
@@ -2143,14 +2158,23 @@ def _piano_domanda(stato, titoli, giorni, noti):
             "C | data | chi compra | chi vende (azienda e Stato, se sono scritti) | che cosa, in italiano, con le quantità se sono "
             "scritte | valore, oppure - | stato | numeri dei titoli\n"
             "dove «stato» è una di queste parole: " + ", ".join(PIANO_STATI_APPALTO) + ".\n\n"
-            "PARTE 3, DOMANDE: fino a 2 cose che i titoli lasciano aperte e che conviene cercare (per esempio se un contratto "
+            f"PARTE 3, INTELLIGENCE: fatti pubblici sui servizi di informazione e di sicurezza di {stato}, o che li riguardano: "
+            "nomine e cambi al vertice, leggi e riforme, relazioni e rapporti pubblicati dai servizi o da chi li controlla, espulsioni "
+            "di diplomatici, processi e arresti per spionaggio, accordi di scambio di informazioni, allarmi pubblici. Una riga per fatto:\n"
+            "I | data | quale servizio o ente (il nome come sta nel titolo, oppure -) | che cosa, in una frase in italiano | tipo | "
+            "numeri dei titoli\n"
+            "dove «tipo» è una di queste parole: " + ", ".join(PIANO_TIPI_INTEL) + ".\n"
+            "Nelle righe I non scrivere MAI il nome di persone private (indagati, arrestati, testimoni, agenti): scrivi il ruolo, per "
+            "esempio «un funzionario» o «due cittadini stranieri». I nomi di ministri, capi dei servizi e altre cariche pubbliche "
+            "vanno bene. Niente indirizzi, niente metodi, niente dettagli operativi.\n\n"
+            "PARTE 4, DOMANDE: fino a 2 cose che i titoli lasciano aperte e che conviene cercare (per esempio se un contratto "
             "annunciato è poi stato firmato, o se un accordo è stato ratificato). Una riga per domanda:\n"
             "D | lingua in cui cercare (it, en, oppure la sigla della lingua del posto) | da 3 a 7 parole da cercare, senza "
             "virgolette | che cosa vuoi sapere, in italiano\n\n"
             "Regole. La data è quella del titolo più recente che ne parla, scritta AAAA-MM-GG. Lo stesso fatto una volta sola: se ne "
             "parlano più titoli, metti tutti i loro numeri. Niente giudizi, niente previsioni, niente dettagli operativi. Se un "
-            "titolo riporta un'accusa o una voce, scrivi «secondo» e chi lo dice. Le notizie che non sono né accordi né appalti "
-            "ignorale. Se una parte è vuota scrivi «A | nessuno» oppure «C | nessuno». Scrivi solo le righe, senza titoli e senza "
+            "titolo riporta un'accusa o una voce, scrivi «secondo» e chi lo dice. Le notizie che non sono né accordi né appalti né "
+            "fatti sui servizi ignorale. Se una parte è vuota scrivi «A | nessuno», «C | nessuno» oppure «I | nessuno». Scrivi solo le righe, senza titoli e senza "
             "commenti.\n" + gia + "\nTITOLI\n" + righe)
 
 
@@ -2165,8 +2189,8 @@ def _piano_fonti(testo, titoli, massimo=4):
 
 
 def _piano_leggi(risposta, titoli):
-    """Legge le righe del cervello: «A | …» accordi, «C | …» appalti, «D | …» domande aperte. Una riga senza il numero di
-    almeno un titolo vero viene scartata: nell'archivio entra solo ciò che ha una fonte."""
+    """Legge le righe del cervello: «A | …» accordi, «C | …» appalti, «I | …» fatti sui servizi, «D | …» domande aperte.
+    Una riga senza il numero di almeno un titolo vero viene scartata: nell'archivio entra solo ciò che ha una fonte."""
     def data_di(testo, fonti):
         m = re.search(r"(19|20)\d\d-\d\d-\d\d", testo or "")
         return m.group(0) if m else max((f[2] for f in fonti if f[2]), default="")
@@ -2175,7 +2199,7 @@ def _piano_leggi(risposta, titoli):
         t = (testo or "").lower().strip(" .")
         return next((a for a in sorted(ammessi, key=len, reverse=True) if a in t), "annunciato" if t else "")
 
-    accordi, appalti, domande_ = [], [], []
+    accordi, appalti, intel, domande_ = [], [], [], []
     for riga in (risposta or "").splitlines():
         p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
         sigla = p[0].upper().strip(" .:)") if p else ""
@@ -2190,11 +2214,17 @@ def _piano_leggi(risposta, titoli):
                 appalti.append({"d": data_di(p[1], fonti), "acq": pulisci(p[2], 80), "forn": pulisci(p[3], 120),
                                 "ogg": pulisci(p[4], 300), "val": "" if p[5].strip(" -–—") == "" else pulisci(p[5], 60),
                                 "st": stato_di(p[6], PIANO_STATI_APPALTO), "f": fonti})
+        elif sigla == "I" and len(p) >= 6:
+            fonti = _piano_fonti(p[5], titoli)
+            if fonti and len(p[3]) > 8:
+                ente = pulisci(p[2], 100).strip(" -–—")
+                intel.append({"d": data_di(p[1], fonti), "ente": ente, "cosa": pulisci(p[3], 300),
+                              "tipo": next((t for t in PIANO_TIPI_INTEL if t in p[4].lower()), "altro"), "f": fonti})
         elif sigla == "D" and len(p) >= 4:
             q = " ".join(re.sub(r'[<>{}\\"«»()]|https?:\S*', " ", p[2]).split())
             if 2 <= len(q.split()) <= 9 and len(q) <= 110:
                 domande_.append({"l": re.sub(r"[^a-zA-Z-]", "", p[1])[:5].lower() or "en", "q": q, "perche": pulisci(p[3], 200)})
-    return accordi, appalti, domande_[:2]
+    return accordi, appalti, intel, domande_[:2]
 
 
 def _piano_unisci(vecchi, nuovi, campo, massimo=30):
@@ -2211,7 +2241,9 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
     Per ogni Stato: tre domande sulla stampa (accordi e patti, appalti e contratti, e una nella lingua del posto), poi il
     cervello legge i titoli, tira fuori accordi e appalti ognuno con le sue fonti, e scrive che cosa resta da chiarire.
     Le domande rimaste aperte vengono fatte nei giri dopo. Finiti tutti gli Stati ricomincia: la seconda passata aggiorna.
-    Restituisce [Stati lavorati in questo giro, accordi trovati, appalti trovati]."""
+    Dalla 2.22 c'è un terzo tema, l'intelligence: una domanda in inglese e una nella lingua del posto sui servizi dello
+    Stato; il cervello ne tira fuori i fatti pubblici (nomine, leggi, relazioni, espulsioni, processi), ognuno con la fonte.
+    Restituisce [Stati lavorati in questo giro, accordi trovati, appalti trovati]; i fatti sui servizi stanno in passo_piano.intel."""
     imp = cfg.get("piano", {})
     perc = os.path.join(DATI, "piano.json")
     P = leggi_json(perc, {})
@@ -2225,7 +2257,8 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
     giorni, imp_c = imp.get("giorni", 120), cfg.get("cervello", {})
     con_cervello = bool(chiavi.get("anthropic_key")) and imp_c.get("attivo", True)
     conto = _conto_cervello()
-    fatti = n_acc = n_app = 0
+    fatti = n_acc = n_app = n_int = 0
+    passo_piano.intel = 0
     try:
         for _ in range(imp.get("per_giro_leggero", 1) if leggero else imp.get("per_giro_completo", 3)):
             if con_cervello and not _cervello_libero(conto, imp_c):
@@ -2238,6 +2271,11 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
             # terza domanda nella lingua del posto (in italiano dove non c'è): una passata gli appalti, quella dopo gli accordi
             tipo_l = "appalti" if P["passata"] % 2 else "accordi"
             dom.append((tipo_l, lg or "it", PIANO_Q[lg or "it"][1 if tipo_l == "appalti" else 0].format(n=loc[1] if lg else paesi[stato][0])))
+            if imp.get("intelligence", True):
+                dom.append(("intelligence", "en", PIANO_Q_INTEL["en"].format(n=en)))
+                lg_i = lg if lg in PIANO_Q_INTEL else "it"  # la lingua del posto; dove non c'è, la stampa italiana
+                if lg_i != "en":
+                    dom.append(("intelligence", lg_i, PIANO_Q_INTEL[lg_i].format(n=loc[1] if lg_i == lg else paesi[stato][0])))
             vecchio = P["stati"].get(stato, {})
             dom += [("aperta", d["l"], d["q"] if _nome_in_lingua(stato, d["l"], paesi).lower() in d["q"].lower()
                      else '"%s" %s' % (_nome_in_lingua(stato, d["l"], paesi), d["q"]))
@@ -2248,29 +2286,34 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
             if fallite >= len(dom):
                 break  # Google News non risponde: si riprova più tardi, dallo stesso Stato
             titoli.sort(key=lambda x: x["iso"], reverse=True)
-            titoli = titoli[:imp.get("titoli_max", 70)]
+            # i titoli sui servizi hanno un loro tetto: non tolgono posto ad accordi e appalti, e viceversa
+            titoli = [x for x in titoli if x["k"] != "intelligence"][:imp.get("titoli_max", 70)] + \
+                     [x for x in titoli if x["k"] == "intelligence"][:imp.get("titoli_intelligence", 25)]
             if notizia:  # i titoli della settimana entrano anche tra le notizie dal vivo
-                for x in (y for y in titoli if y["iso"]):
+                for x in (y for y in titoli if y["iso"] and y["k"] != "intelligence"):
                     notizia("Industria e appalti" if x["k"] == "appalti" else "Alleanze e diplomazia", x["t"], x["u"], x["iso"],
                             x["f"], forza=stato, lingua=x["l"])
             scheda = {"blocco": blocco, "quando": adesso.isoformat(), "passata": P["passata"], "titoli": len(titoli), "domande": fatte,
-                      "accordi": vecchio.get("accordi", []), "appalti": vecchio.get("appalti", []), "aperte": [],
+                      "accordi": vecchio.get("accordi", []), "appalti": vecchio.get("appalti", []),
+                      "intel": vecchio.get("intel", []), "aperte": [],
                       "risposte": vecchio.get("risposte", [])[-6:], "cervello": False}
             if titoli and con_cervello:
                 b_ = base.get(stato, {})
                 noti = [str(x) for x in b_.get("tr", []) + b_.get("ap", [])] + \
-                       [x["cosa"] for x in vecchio.get("accordi", [])[:6]] + [x["ogg"] for x in vecchio.get("appalti", [])[:6]]
+                       [x["cosa"] for x in vecchio.get("accordi", [])[:6]] + [x["ogg"] for x in vecchio.get("appalti", [])[:6]] + \
+                       [x["cosa"] for x in vecchio.get("intel", [])[:5]]
                 try:
-                    risposta = chiedi_claude(chiavi, cfg, _piano_domanda(stato, titoli, giorni, noti), 2500, conto)
+                    risposta = chiedi_claude(chiavi, cfg, _piano_domanda(stato, titoli, giorni, noti), 3200, conto)
                     conto["chiamate"] = conto.get("chiamate", 0) + 1
                 except Exception as e:
                     errori.append("Claude (lavoro a piano): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
                     break  # il cervello non ha risposto: stesso Stato al prossimo giro
-                acc, app, aperte = _piano_leggi(risposta, titoli)
+                acc, app, intel, aperte = _piano_leggi(risposta, titoli)
                 scheda.update({"accordi": _piano_unisci(vecchio.get("accordi"), acc, "cosa"),
-                               "appalti": _piano_unisci(vecchio.get("appalti"), app, "ogg"), "aperte": aperte, "cervello": True})
-                scheda["nuovi"] = [len(acc), len(app)]
-                n_acc, n_app = n_acc + len(acc), n_app + len(app)
+                               "appalti": _piano_unisci(vecchio.get("appalti"), app, "ogg"),
+                               "intel": _piano_unisci(vecchio.get("intel"), intel, "cosa", 20), "aperte": aperte, "cervello": True})
+                scheda["nuovi"] = [len(acc), len(app), len(intel)]
+                n_acc, n_app, n_int = n_acc + len(acc), n_app + len(app), n_int + len(intel)
             elif titoli:  # senza cervello: restano i titoli da leggere a mano, divisi per domanda
                 scheda["da_leggere"] = [[x["t"], x["u"], x["f"], x["d"], x["k"]] for x in titoli[:16]]
             P["stati"][stato] = scheda
@@ -2324,6 +2367,7 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
     except SenzaRete:
         errori.append("rete assente: lavoro a piano interrotto, riprende dallo stesso Stato")
     P["agg"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+    passo_piano.intel = n_int
     scrivi_json(perc, P)
     scrivi_json(os.path.join(DATI, "cervello.json"), conto)
     try:
@@ -2349,8 +2393,9 @@ def piano_riassunto(cfg, paesi):
     return {"agg": P.get("agg", ""), "passata": P.get("passata", 1), "i": i, "totale": len(ordine), "blocco": ordine[i][0],
             "prossimi": [s for _, s in ordine[i:i + 6]], "con_scheda": len(S),
             "accordi": sum(len(v.get("accordi", [])) for v in S.values()), "appalti": sum(len(v.get("appalti", [])) for v in S.values()),
+            "intel": sum(len(v.get("intel", [])) for v in S.values()),
             "ultimi": [[s, S[s].get("quando", ""), len(S[s].get("accordi", [])), len(S[s].get("appalti", [])), S[s].get("titoli", 0),
-                        S[s].get("blocco", "")] for s in ult[:10]],
+                        S[s].get("blocco", ""), len(S[s].get("intel", []))] for s in ult[:10]],
             "domande": [[s] + list(d) for s in ult[:5] for d in S[s].get("domande", [])][:16],
             "aperte": [[s, d.get("l", ""), d.get("q", ""), d.get("perche", ""), bool(d.get("fatta"))] for s in ult[:12]
                        for d in S[s].get("aperte", [])][:12],
@@ -2413,11 +2458,13 @@ def cmd_piano():
               "comincia al prossimo giro" + (f" da {ordine[0][1]}." if ordine else "."))
         return
     print(f"LAVORO A PIANO – passata {rs['passata']}: {rs['i']} Stati su {rs['totale']} · ora nel blocco «{rs['blocco']}»")
-    print(f"Trovati finora: {rs['accordi']} accordi e patti, {rs['appalti']} appalti e contratti, in {rs['con_scheda']} Stati.")
+    print(f"Trovati finora: {rs['accordi']} accordi e patti, {rs['appalti']} appalti e contratti, {rs.get('intel', 0)} fatti sui "
+          f"servizi di intelligence, in {rs['con_scheda']} Stati.")
     print("Prossimi:", ", ".join(rs["prossimi"]))
-    print("Ultimi lavorati (accordi / appalti / titoli letti):")
-    for s, _q, a, c, t, _b in rs["ultimi"]:
-        print(f"   {s:<24} {a:>3} / {c:>3} / {t:>3}")
+    print("Ultimi lavorati (accordi / appalti / intelligence / titoli letti):")
+    for riga_ in rs["ultimi"]:
+        s, _q, a, c, t = riga_[:5]
+        print(f"   {s:<24} {a:>3} / {c:>3} / {(riga_[6] if len(riga_) > 6 else 0):>3} / {t:>3}")
     print("Per vedere le domande:  python castello.py domande")
 
 
@@ -3913,6 +3960,7 @@ def _aggiorna(leggero=False):
         "tetto": conto_c.get("tetto", ""), "a_ritmo": saltate_ritmo, "invariate": invariate,
         "passo": bool(conto_c.get("passo")), "sosp": [len(sosp_), sum(x[1] for x in sosp_)],
         "piano": piano_giro + [rs_p.get("i", 0), rs_p.get("totale", 0), rs_p.get("passata", 0)],
+        "intel": [getattr(passo_piano, "intel", 0), rs_p.get("intel", 0)],
         "durata": int(time.time() - inizio_), "nuove": contati, "da": {k: v for k, v in tappe.items() if v},
         "live": analisi["notizie"], "confermate": analisi["confermate"], "quota": analisi["quota_confermate"],
         "livelli": analisi["per_livello"], "scoperti": analisi["stati_scoperti"],
@@ -4194,7 +4242,7 @@ def ricostruisci(cartella="", dentro_giro=False):
             except OSError:
                 break
             if not avvisato:
-                print("Un giro è in corso: aspetto che finisca, poi rimetto i dati (qualche minuto)...", flush=True)
+                print("Un giro è in corso: aspetto che finisca, poi rimetto i dati. Può volerci un quarto d'ora: lascia Termux aperto.", flush=True)
                 avvisato = True
             time.sleep(5)
         else:
@@ -4516,7 +4564,8 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
             subprocess.run(["git", "-C", cartella, "reset", "--hard", "FETCH_HEAD"], check=True)
         # nuove versioni del programma, se Claude le ha messe nel repository (cartella programma/)
         cambiati = []
-        for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json"):
+        avvisato = False
+        for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json") + tuple(sorted(SCRIPT)):
             src = os.path.join(cartella, "programma", nome)
             dst = os.path.join(QUI, nome)
             if os.path.exists(src) and (not os.path.exists(dst) or open(src, "rb").read() != open(dst, "rb").read()):
@@ -4525,14 +4574,20 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
                         compile(open(src, encoding="utf-8").read(), nome, "exec")
                     elif nome.endswith(".json"):
                         json.load(open(src, encoding="utf-8"))
+                    elif nome.endswith(".sh") and not open(src, "rb").read(2) == b"#!":
+                        raise ValueError("non inizia come uno script")
                 except (SyntaxError, ValueError) as e:
                     print(f"Scartato {nome} arrivato da GitHub: non è valido ({str(e)[:80]}). Resta la versione di prima.")
                     continue
-                if nome.endswith(".py") and cfg.get("codice_nuovo", "chiedi") == "chiedi":
+                e_codice = nome.endswith(".py") or (nome.endswith(".sh")
+                                                    and hashlib.sha256(open(src, "rb").read()).hexdigest() != SCRIPT.get(nome))
+                if e_codice and cfg.get("codice_nuovo", "chiedi") == "chiedi":
                     # l'umano resta l'interruttore: il codice nuovo aspetta il tuo sì
                     os.makedirs(os.path.join(DATI, "in_attesa"), exist_ok=True)
                     shutil.copyfile(src, os.path.join(DATI, "in_attesa", nome))
-                    print("C'è una versione nuova del programma: NON è stata installata. Per accettarla:  python castello.py approva")
+                    if not avvisato:
+                        print("C'è una versione nuova del programma: NON è stata installata. Per accettarla:  python castello.py approva")
+                        avvisato = True
                     continue
                 if os.path.exists(dst):
                     os.makedirs(os.path.join(DATI, "copie"), exist_ok=True)
@@ -4870,17 +4925,26 @@ if __name__ == "__main__":
         else:
             print("Nessuna chiave: niente è cambiato.")
     elif comando == "approva":
-        src_ = os.path.join(DATI, "in_attesa", "castello.py")
-        if not os.path.exists(src_):
+        attesa_ = os.path.join(DATI, "in_attesa")
+        src_ = os.path.join(attesa_, "castello.py")
+        script_ = [n for n in sorted(os.listdir(attesa_)) if n.endswith(".sh")] if os.path.isdir(attesa_) else []
+        if not os.path.exists(src_) and not script_:
             print("Nessuna versione in attesa.")
         else:
-            compile(open(src_, encoding="utf-8").read(), "castello.py", "exec")
             os.makedirs(os.path.join(DATI, "copie"), exist_ok=True)
-            shutil.copyfile(os.path.join(QUI, "castello.py"), os.path.join(DATI, "copie", "castello.py.prima"))
-            shutil.move(src_, os.path.join(QUI, "castello.py"))
-            print("Versione nuova installata. Quella di prima è in dati/copie/castello.py.prima")
-            # il guardiano della versione nuova spegne la pagina vecchia e accende la nuova: non serve altro
-            subprocess.run([sys.executable, os.path.join(QUI, "castello.py"), "veglia"], check=False)
+            for nome_ in script_:  # gli script arrivati con la versione: stessa regola, copia di quello di prima
+                if os.path.exists(os.path.join(QUI, nome_)):
+                    shutil.copyfile(os.path.join(QUI, nome_), os.path.join(DATI, "copie", nome_ + ".prima"))
+                shutil.move(os.path.join(attesa_, nome_), os.path.join(QUI, nome_))
+            if script_:
+                print("Script aggiornati:", ", ".join(script_))
+            if os.path.exists(src_):
+                compile(open(src_, encoding="utf-8").read(), "castello.py", "exec")
+                shutil.copyfile(os.path.join(QUI, "castello.py"), os.path.join(DATI, "copie", "castello.py.prima"))
+                shutil.move(src_, os.path.join(QUI, "castello.py"))
+                print("Versione nuova installata. Quella di prima è in dati/copie/castello.py.prima")
+                # il guardiano della versione nuova spegne la pagina vecchia e accende la nuova: non serve altro
+                subprocess.run([sys.executable, os.path.join(QUI, "castello.py"), "veglia"], check=False)
     elif comando == "provacervello":
         ch_ = leggi_json(os.path.join(DATI, "chiavi.json"), {})
         if not ch_.get("anthropic_key"):

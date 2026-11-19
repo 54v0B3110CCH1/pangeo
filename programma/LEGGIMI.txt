@@ -1,4 +1,4 @@
-PANGEO 2.21 (prima «Castello mentale») - programma e app per il telefono (Termux)
+PANGEO 2.22 (prima «Castello mentale») - programma e app per il telefono (Termux)
 La cartella resta ~/castello e il programma castello.py: cambia solo il nome che vedi.
 
 COSA FA
@@ -404,3 +404,16 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Un telefono reinstallato non può più svuotare il sito pubblico: prima di mandare i dati riprende quelli salvati.
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
+
+NOVITÀ 2.22 (19 novembre, notte) – INTELLIGENCE E QUATTRO CORREZIONI
+- Lavoro a piano, terzo tema dopo accordi e appalti: per ogni Stato cerca sulla stampa i fatti PUBBLICI sui servizi di
+  informazione e di sicurezza (nomine, leggi e riforme, relazioni pubblicate, espulsioni di diplomatici, processi per
+  spionaggio, accordi di scambio, allarmi pubblici). Una domanda in inglese e una nella lingua del posto; ogni fatto ha
+  la sua fonte. Mai nomi di persone private, mai indirizzi, mai dettagli operativi.   python castello.py piano
+- Nella pagina c'è la sezione Intelligence: i servizi di ogni Stato (elenco da Wikipedia e Wikidata, con i siti
+  ufficiali), le relazioni annuali che i servizi pubblicano, le alleanze di scambio e gli archivi declassificati.
+- ripara.sh non interrompe più il giro in corso: aspetta che finisca, poi rimette i dati.
+- github.sh scrive «NON RIUSCITO» quando l'invio fallisce, e riconosce subito un token che può solo leggere.
+- Gli script .sh arrivano al telefono insieme alla versione che approvi (la loro impronta sta dentro il programma).
+  Uno script cambiato da solo, dopo, aspetta un nuovo «approva».
+- Sul sito pubblico l'avviso rosso distingue «il telefono è fermo» da «il sito non riceve i dati».

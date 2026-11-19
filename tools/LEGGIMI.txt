@@ -30,3 +30,8 @@ poi tabelle.js; solo dopo si pubblica.
   node tools/build27.js base.html out.html      diario: pause volute, dati scaricati, temperatura, tetto di spesa
   node tools/build28.js base.html out.html      revisione della lettura: riquadro delle novità sempre pieno, cronologia
                                                  degli eventi confermati, argomenti in ordine, notizie degli Stati per data
+  python3 tools/intel_base.py --siti            elenco dei servizi di intelligence per Stato (Wikipedia + Wikidata), con la
+                                                 prova dei siti ufficiali: scrive tools/dati/intel.json. Va rifatto prima di build30
+  node tools/build30.js base.html out.html      sezione Intelligence (vista, cartella in ogni Stato, fatti del lavoro a piano)
+                                                 e avviso rosso che sul sito pubblico distingue telefono fermo da sito senza dati
+  python3 tools/firma_script.py                 scrive in castello.py l'impronta degli script .sh: va lanciato a ogni loro modifica
