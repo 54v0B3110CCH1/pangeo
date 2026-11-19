@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PanGeo 2.17 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
+"""PanGeo 2.18 (prima «Castello mentale») - programma per Termux (Android) e per qualsiasi computer con Python 3.
 
 Raccoglie da fonti gratuite notizie, video, voci ufficiali, disastri e traffico aereo civile,
 li collega agli Stati del Castello e li mostra nella cartella «Live dal mondo» del planisfero.
@@ -51,7 +51,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.17"
+VERSIONE = "2.18"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -223,7 +223,10 @@ def riassumi_errori(errori):
             "il programma le rilegge da solo appena la rete torna."] + [in_italiano(e) for e in errori if e not in di_rete]
 
 
-def scarica(url, timeout=25, intestazioni=None, corpo=None):
+BYTE = {"n": 0}
+
+
+def scarica(url, timeout=25, intestazioni=None, corpo=None, risposta=None):
     if not RETE["su"]:
         raise SenzaRete("rete assente")
     # rispetto dei siti: tra due richieste allo stesso sito passano almeno 2 secondi
@@ -232,13 +235,17 @@ def scarica(url, timeout=25, intestazioni=None, corpo=None):
     if attesa_ > 0:
         time.sleep(attesa_)
     _ULTIMA[d_] = time.time()
-    h = {"User-Agent": UA, "Accept-Language": "it,en;q=0.8"}
+    # «Accept-Encoding: gzip»: i feed viaggiano compressi (da 4 a 8 volte meno dati)
+    h = {"User-Agent": UA, "Accept-Language": "it,en;q=0.8", "Accept-Encoding": "gzip"}
     h.update(intestazioni or {})
     req = urllib.request.Request(url, headers=h, data=corpo)
     RICHIESTE[d_] = RICHIESTE.get(d_, 0) + 1
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             dati_ = r.read()
+            BYTE["n"] += len(dati_)  # quanti dati consuma un giro (va nel diario, in MB)
+            if risposta is not None:  # per chiedere, la volta dopo, «solo se è cambiato»
+                risposta["etag"], risposta["lm"] = r.headers.get("ETag") or "", r.headers.get("Last-Modified") or ""
             compr_ = (r.headers.get("Content-Encoding") or "").lower()
     except urllib.error.HTTPError as e:
         if e.code == 429:
@@ -1432,9 +1439,13 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
                  "mese": conto.get("mese"), "usd_mese": conto.get("usd_mese", 0.0)}
     tetto = impost.get("max_al_giorno", 6)
     # tetti di spesa stimata: oltre, il cervello si ferma da solo fino a domani o al mese dopo
-    if conto.get("usd_oggi", 0) >= impost.get("max_usd_giorno", 0.15) or \
-            (conto.get("mese") == datetime.now().strftime("%Y-%m") and conto.get("usd_mese", 0) >= impost.get("max_usd_mese", 3.0)):
-        tetto = 0
+    conto["tetto"] = ""
+    if conto.get("usd_oggi", 0) >= impost.get("max_usd_giorno", 0.15):
+        tetto, conto["tetto"] = 0, "giorno"
+    elif conto.get("mese") == datetime.now().strftime("%Y-%m") and conto.get("usd_mese", 0) >= impost.get("max_usd_mese", 3.0):
+        tetto, conto["tetto"] = 0, "mese"
+    pausa_l = impost.get("pausa_lotti_minuti", 0)  # con i giri fitti: traduzioni e sala d'attesa non più spesso di così
+    lotti_ok = not pausa_l or conto.get("ultimo_lotto", "") <= (datetime.now(timezone.utc) - timedelta(minutes=pausa_l - 2)).isoformat()
     voci = [(k, v) for k, v in archivio["notizie"].items() if (v.get("data_iso") or "") >= recente]
     # 1. traduzioni
     # (titoli in altri alfabeti o trovati cercando in un'altra lingua; prima i più recenti, a lotti)
@@ -1442,7 +1453,9 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
                          key=lambda v: v.get("data_iso") or "", reverse=True)
     lotto_, lotti_ = impost.get("traduzioni_lotto", 30), 0
     numerata = re.compile(r"\s*\**(\d+)\**\s*[.):\-]\s*\**\s*(.+)")
-    while da_tradurre and conto["chiamate"] < tetto and lotti_ < impost.get("traduzioni_per_giro", 6):
+    if lotti_ok and tetto and (da_tradurre or any(not v_.get("no") for v_ in archivio.get("attesa", {}).values())):
+        conto["ultimo_lotto"] = datetime.now(timezone.utc).isoformat()
+    while da_tradurre and lotti_ok and conto["chiamate"] < tetto and lotti_ < impost.get("traduzioni_per_giro", 6):
         gruppo, da_tradurre = da_tradurre[:lotto_], da_tradurre[lotto_:]
         lotti_ += 1
         domanda = ("Traduci in italiano questi titoli di notizie (sono in lingue diverse), uno per riga, nello stesso ordine e "
@@ -1474,7 +1487,7 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
     attesa = archivio.setdefault("attesa", {})
     in_coda = sorted(((k, v) for k, v in attesa.items() if not v.get("no")), key=lambda kv: kv[1].get("data_iso") or "", reverse=True)
     lotto_a, lotti_a, entrate_, scartate_ = impost.get("attesa_lotto", 40), 0, 0, 0
-    while in_coda and conto["chiamate"] < tetto and lotti_a < impost.get("attesa_per_giro", 10):
+    while in_coda and lotti_ok and conto["chiamate"] < tetto and lotti_a < impost.get("attesa_per_giro", 10):
         gruppo, in_coda = in_coda[:lotto_a], in_coda[lotto_a:]
         lotti_a += 1
         domanda = ("Sono titoli di giornali e televisioni di molti Paesi, in lingue diverse. Per ciascuno: se riguarda difesa, forze "
@@ -2055,7 +2068,7 @@ def giri(quanti=12):
     if giu_:
         print("RETE ASSENTE dal", datetime.fromisoformat(giu_).astimezone().strftime("%d/%m %H:%M") + ": il programma lavora su quello che ha "
               "e riparte da solo quando torna.")
-    print("quando        tipo        min  nuove  tradotti  senza  richieste  rifiuti  avvisi  versione")
+    print("quando        tipo        min  nuove  tradotti  senza  richieste  rifiuti  avvisi  versione  gradi  batt   MB")
     prima = None
     for x in diario[-quanti:]:
         if prima and x.get("iso") and prima.get("iso"):
@@ -2066,7 +2079,9 @@ def giri(quanti=12):
             except ValueError:
                 pass
         print(f"{x['quando']:<12}  {x.get('tipo', 'completo'):<10} {max(1, round(x['durata'] / 60)):>3} {x['nuove']:>6} {x.get('tradotti', 0):>9} {x['scoperti']:>6} "
-              f"{x['richieste']:>10} {sum(x.get('rifiuti', {}).values()):>8} {x['errori']:>7}  {x['v']}")
+              f"{x['richieste']:>10} {sum(x.get('rifiuti', {}).values()):>8} {x['errori']:>7}  {x['v']:<8}"
+              + (lambda t_: f" {'' if t_[0] is None else t_[0]:>5}  {'' if t_[1] is None else str(t_[1]) + '%':>4} {x.get('mb', ''):>5}")(x.get("tel") or [None, None])
+              + (f"  ({x['motivo']})" if x.get("motivo") else ""))
         prima = x
     z = diario[-1]
     if z.get("lingue"):
@@ -2132,8 +2147,97 @@ def da_saltare(f, st, adesso, leggero=False):
     return st.get("ultimo", "") >= (adesso - timedelta(hours=24)).isoformat()
 
 
+def telefono():
+    """Batteria del telefono: temperatura in gradi, carica in % e se è sotto carica. Ogni valore è None se non si
+    può leggere (su un computer, oppure senza l'app Termux:API e con i file di sistema chiusi da Android)."""
+    t = pct = carica = None
+    if shutil.which("termux-battery-status"):
+        try:
+            d = json.loads(subprocess.run(["termux-battery-status"], capture_output=True, text=True, timeout=8).stdout or "{}")
+            t, pct = d.get("temperature"), d.get("percentage")
+            if "plugged" in d:
+                carica = str(d["plugged"]).upper() not in ("", "UNPLUGGED")
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
+    base = "/sys/class/power_supply/battery/"
+    try:
+        if t is None:
+            with open(base + "temp", encoding="utf-8") as f:
+                t = int(f.read().strip()) / 10.0
+    except (OSError, ValueError):
+        pass
+    try:
+        if pct is None:
+            with open(base + "capacity", encoding="utf-8") as f:
+                pct = int(f.read().strip())
+        if carica is None:
+            with open(base + "status", encoding="utf-8") as f:
+                carica = f.read().strip().lower() in ("charging", "full")
+    except (OSError, ValueError):
+        pass
+    try:
+        t = round(float(t), 1) if t is not None and 0 < float(t) < 90 else None
+    except (TypeError, ValueError):
+        t = None
+    return {"temp": t, "batteria": pct, "in_carica": carica}
+
+
+def guardia_telefono(cfg, tel):
+    """Il programma si ferma da solo solo per tre motivi: telefono troppo caldo, batteria quasi scarica (e non in
+    carica), tetto di spesa del cervello. Qui i primi due. Restituisce il motivo della pausa, oppure "".
+    Dopo una pausa per il caldo riparte solo quando la temperatura è scesa sotto «temp_ok» (non a ogni mezzo grado)."""
+    g = cfg.get("guardia", {})
+    if not g.get("attiva", True):
+        return ""
+    perc = os.path.join(DATI, "guardia.json")
+    st = leggi_json(perc, {})
+    t, pct = tel.get("temp"), tel.get("batteria")
+    motivo = ""
+    if t is not None and (t >= g.get("temp_max", 42) or (st.get("caldo") and t > g.get("temp_ok", 38))):
+        motivo = f"telefono caldo: {str(t).replace('.', ',')} gradi"
+    elif pct is not None and tel.get("in_carica") is False and pct <= g.get("batteria_min", 15):
+        motivo = f"batteria al {pct}% e non in carica"
+    caldo = motivo.startswith("telefono caldo")
+    if caldo != bool(st.get("caldo")):
+        scrivi_json(perc, {"caldo": caldo})
+    return motivo
+
+
+def _pausa(motivo, tel):
+    """Giro saltato per proteggere il telefono: lo scrive nel diario (al massimo una riga ogni 25 minuti), così un
+    buco nei giri si distingue da una pausa voluta."""
+    adesso = datetime.now(timezone.utc)
+    print("Giro in pausa:", motivo)
+    diario = leggi_json(os.path.join(DATI, "diario.json"), [])
+    if diario and diario[-1].get("tipo") == "pausa" and diario[-1].get("iso", "") > (adesso - timedelta(minutes=25)).isoformat():
+        return
+    base = dict(next((x for x in reversed(diario) if x.get("tipo") not in ("senza rete", "pausa")), {}))
+    base.update({"quando": datetime.now().strftime("%d/%m %H:%M"), "iso": adesso.isoformat(), "v": VERSIONE, "tipo": "pausa",
+                 "motivo": motivo, "tel": [tel.get("temp"), tel.get("batteria"), tel.get("in_carica")], "durata": 0, "nuove": 0,
+                 "da": {}, "fonti_nuove": [], "richieste": 0, "siti": [], "rifiuti": {}, "errori": 0, "seguiti": [0, 0],
+                 "verifiche": [0, 0], "lingue": {}, "ricerche": [], "mb": 0, "attesa": [0, 0, (base.get("attesa") or [0, 0, 0])[2]]})
+    base.pop("offline", None)
+    base.pop("senza_rete_dal", None)
+    for campo, valore in (("live", 0), ("quota", 0), ("livelli", {}), ("scoperti", 0), ("senza", []), ("fonti", [0, 0]),
+                          ("sapere", 0), ("tradotti", 0), ("usd_oggi", 0), ("usd_mese", 0), ("confermate", 0), ("memoria", [0, 0])):
+        base.setdefault(campo, valore)
+    base["memoria"] = [0, (base.get("memoria") or [0, 0])[1]]
+    diario.append(base)
+    scrivi_json(os.path.join(DATI, "diario.json"), diario[-120:])
+    live = leggi_json(os.path.join(DATI, "live.json"), {})
+    if live:
+        live["diario"] = [{k: v for k, v in x.items() if k not in ("ricerche", "siti")} for x in diario[-60:]]
+        scrivi_json(os.path.join(DATI, "live.json"), live)
+        try:
+            with open(os.path.join(WEB, "live.js.tmp"), "w", encoding="utf-8") as f:
+                f.write("window.LIVE = " + json.dumps(live, ensure_ascii=False) + ";\n")
+            os.replace(os.path.join(WEB, "live.js.tmp"), os.path.join(WEB, "live.js"))
+        except OSError:
+            pass
+
+
 def passo_minuti(cfg):
-    """Ogni quanti minuti parte un giro: 180 senza giro leggero, altrimenti giro_leggero.ogni_minuti (15, 20, 30 o 60).
+    """Ogni quanti minuti parte un giro: 180 senza giro leggero, altrimenti giro_leggero.ogni_minuti (10, 15, 20, 30 o 60).
     Sta in config.json, che il telefono prende da solo a ogni giro: per cambiare ritmo non serve «approva»."""
     gl = cfg.get("giro_leggero", {})
     if not gl.get("attivo", True):
@@ -2142,7 +2246,7 @@ def passo_minuti(cfg):
         m = int(gl.get("ogni_minuti", 60))
     except (TypeError, ValueError):
         m = 60
-    return min((15, 20, 30, 60), key=lambda x: abs(x - m))
+    return min((10, 15, 20, 30, 60), key=lambda x: abs(x - m))
 
 
 def passo_cron(cfg):
@@ -2257,6 +2361,11 @@ def aggiorna(tipo=""):
         nuovo_passo = programma_cron(cfg_)
         if nuovo_passo:
             print(f"Giro automatico portato a: uno ogni {passo_minuti(cfg_)} minuti ({nuovo_passo})")
+        tel_ = telefono()
+        motivo_ = guardia_telefono(cfg_, tel_)
+        if motivo_ and tipo not in ("completo", "leggero"):  # un giro chiesto a mano parte comunque
+            _pausa(motivo_, tel_)
+            return
         if not rete_ok(forza=True):
             _senza_rete()  # niente rete: lavora su quello che ha e aspetta
             return
@@ -2271,7 +2380,7 @@ def aggiorna(tipo=""):
         veri_ = [x for x in diario_ if x.get("tipo") != "senza rete"]
         if tipo == "auto":
             ultimo_ = (veri_ or [{}])[-1].get("iso", "")
-            passo_ = passo_minuti(cfg_) - 10
+            passo_ = max(6, passo_minuti(cfg_) - 10)
             if ultimo_ >= (datetime.now(timezone.utc) - timedelta(minutes=passo_)).isoformat():
                 return  # un giro c'è appena stato (l'ha fatto cron o l'hai lanciato tu): l'orologio interno non raddoppia
         # giro completo ogni 3 ore; nelle ore in mezzo un giro leggero (solo feed, Telegram, YouTube, cielo): lo decide il
@@ -2339,10 +2448,14 @@ def _aggiorna(leggero=False):
             pass
     adesso = datetime.now(timezone.utc)
 
+    limite_arch = (adesso - timedelta(days=cfg.get("giorni_archivio", 7))).isoformat()
+
     def aggiungi(tipo, voce):
         nonlocal contati
         if not voce["u"] or not voce["t"]:
             return
+        if (voce.get("data_iso") or "") < limite_arch:
+            return  # più vecchia dell'archivio: a fine giro verrebbe tolta, e al giro dopo ricontata come «nuova»
         chiave = hashlib.sha1((voce["u"] + voce["t"]).encode("utf-8")).hexdigest()[:16]
         if chiave not in archivio[tipo]:
             voce["visto"] = adesso.isoformat()
@@ -2636,16 +2749,52 @@ def _aggiorna(leggero=False):
     tappa("lingue")
     # 2. Feed RSS: fissi, candidati, scoperti da soli, aggiunti a mano
     cadute_rete = []
+    # Giri fitti (giro_leggero.fonti_a_ritmo): ogni fonte ha il suo ritmo. Chi ha appena portato novità si rilegge dopo
+    # «fonte_min_minuti», chi tace sempre più di rado, fino a «fonte_max_minuti». Nei giri completi si leggono tutte.
+    gl_r = cfg.get("giro_leggero", {})
+    a_ritmo = bool(gl_r.get("fonti_a_ritmo"))
+    fmin, fmax = gl_r.get("fonte_min_minuti", 10), gl_r.get("fonte_max_minuti", 120)
+
+    def dovuto(nome):  # Telegram, YouTube e cielo: nei giri fitti al massimo ogni «altri_min_minuti»
+        if not (a_ritmo and leggero):
+            return True
+        r_ = auto.setdefault("ritmo", {})
+        if r_.get(nome, "") > (adesso - timedelta(minutes=gl_r.get("altri_min_minuti", 30) - 2)).isoformat():
+            return False
+        r_[nome] = adesso.isoformat()
+        return True
+
+    saltate_ritmo = invariate = 0
     for f in elenco_fonti(cfg, mie, auto):
         st = auto["stato"].get(f["url"], {})
         if da_saltare(f, st, adesso, leggero):
             continue
+        if a_ritmo and leggero and st.get("prossimo", "") > adesso.isoformat():
+            saltate_ritmo += 1
+            continue
         prima_ult = st.get("ultimo", "")
         st["ultimo"] = adesso.isoformat()
+        contati_f = contati
+        # nei giri leggeri si chiede al sito «solo se è cambiato» (risposta 304: nessun dato scaricato);
+        # nei giri completi si rilegge sempre tutto, così un sito che risponde male non resta fermo
+        risp_, cond_ = {}, {}
+        if leggero and st.get("etag"):
+            cond_["If-None-Match"] = st["etag"]
+        if leggero and st.get("lm"):
+            cond_["If-Modified-Since"] = st["lm"]
         try:
-            voci = leggi_rss(scarica(f["url"]))
-            if not voci:
-                raise ValueError("feed vuoto")
+            try:
+                grezzo_ = scarica(f["url"], intestazioni=cond_ or None, risposta=risp_)
+            except urllib.error.HTTPError as e304:
+                if e304.code != 304:
+                    raise
+                grezzo_ = None
+                invariate += 1
+            voci = leggi_rss(grezzo_) if grezzo_ is not None else []
+            if grezzo_ is not None:
+                if not voci:
+                    raise ValueError("feed vuoto")
+                st["etag"], st["lm"] = risp_.get("etag", ""), risp_.get("lm", "")
             for titolo, link, data, fonte, _ in voci:
                 notizia(f.get("tema", "Notizie dal mondo"), titolo, link, data, f.get("nome") or fonte,
                         filtra=f.get("filtra", False),
@@ -2654,6 +2803,9 @@ def _aggiorna(leggero=False):
                         ripiego=f.get("stato"), lingua=f.get("lingua", ""),
                         attesa=bool(f.get("filtra")) and f.get("lingua", "it") not in ("it", "en"))
             st["ok"], st["fila"] = st.get("ok", 0) + 1, 0
+            if a_ritmo:
+                st["passo"] = fmin if contati > contati_f else min(fmax, max(fmin, round(st.get("passo", fmin) * 1.5)))
+                st["prossimo"] = (adesso + timedelta(minutes=st["passo"] - 2)).isoformat()
         except SenzaRete:
             # la rete è caduta: questa fonte e quelle fallite per lo stesso motivo non vengono penalizzate
             st["ultimo"] = prima_ult
@@ -2674,7 +2826,8 @@ def _aggiorna(leggero=False):
     # 3. Telegram: canali pubblici ufficiali (dichiarazioni di parte, non conferme)
     tg_citati = {}
     auto.setdefault("telegram", [])
-    for c in cfg.get("telegram", []) + mie.get("telegram", []):
+    leggi_tg = dovuto("telegram")
+    for c in (cfg.get("telegram", []) + mie.get("telegram", [])) if leggi_tg else []:
         try:
             for t, link, data in telegram(c["canale"], tg_citati):
                 notizia(c.get("tema", "Voci ufficiali (Telegram)"), t, link, data, "Telegram · " + c.get("chi", c["canale"]),
@@ -2685,7 +2838,7 @@ def _aggiorna(leggero=False):
     # 3b. Canali Telegram trovati da soli: quelli citati o inoltrati da almeno 2 canali già seguiti.
     # Entrano come «da valutare» (livello D) e solo con i messaggi che parlano di difesa e geopolitica.
     tg = cfg.get("scoperta_telegram", {})
-    if tg.get("attiva", True):
+    if tg.get("attiva", True) and leggi_tg:
         noti = {c["canale"].lower() for c in cfg.get("telegram", []) + mie.get("telegram", []) + auto["telegram"]}
         provati = auto.setdefault("telegram_provati", {})
         nuovi_tg = 0
@@ -2715,7 +2868,7 @@ def _aggiorna(leggero=False):
 
     tappa("telegram")
     # 4. YouTube: feed dei canali, senza chiave
-    for h in cfg.get("youtube", []) + mie.get("youtube", []):
+    for h in (cfg.get("youtube", []) + mie.get("youtube", [])) if dovuto("video") else []:
         try:
             cid = h if h.startswith("UC") else id_canale(h, canali)
             for titolo, link, data, autore, _ in leggi_rss(scarica("https://www.youtube.com/feeds/videos.xml?channel_id=" + cid)):
@@ -2729,7 +2882,12 @@ def _aggiorna(leggero=False):
     stati_studiati = sapere(cfg, paesi, errori, adesso)
 
     # 5. Cielo: traffico aereo civile per Stato
-    dati_cielo = cielo(chiavi, it2en, errori) if cfg.get("cielo", True) else None
+    if not cfg.get("cielo", True):
+        dati_cielo = None
+    elif dovuto("cielo"):
+        dati_cielo = cielo(chiavi, it2en, errori)
+    else:  # giro fitto: il cielo è quello di pochi minuti fa
+        dati_cielo = (leggi_json(os.path.join(DATI, "live.json"), {}) or {}).get("cielo")
     try:
         dati_calore = calore(chiavi, it2en, errori, cfg.get("calore_ore", 24))
     except Exception as e:  # il calore non deve mai fermare il giro
@@ -2880,9 +3038,12 @@ def _aggiorna(leggero=False):
             lingue_nuove[v_["lg"]] = lingue_nuove.get(v_["lg"], 0) + 1
     conto_c = leggi_json(os.path.join(DATI, "cervello.json"), {})
     diario = leggi_json(os.path.join(DATI, "diario.json"), [])
+    tel_g = telefono()
     diario.append({
         "quando": datetime.now().strftime("%d/%m %H:%M"), "iso": adesso.isoformat(), "v": VERSIONE,
         "tipo": "leggero" if leggero else "completo",
+        "mb": round(BYTE["n"] / 1e6, 1), "tel": [tel_g.get("temp"), tel_g.get("batteria"), tel_g.get("in_carica")],
+        "tetto": conto_c.get("tetto", ""), "a_ritmo": saltate_ritmo, "invariate": invariate,
         "durata": int(time.time() - inizio_), "nuove": contati, "da": {k: v for k, v in tappe.items() if v},
         "live": analisi["notizie"], "confermate": analisi["confermate"], "quota": analisi["quota_confermate"],
         "livelli": analisi["per_livello"], "scoperti": analisi["stati_scoperti"],

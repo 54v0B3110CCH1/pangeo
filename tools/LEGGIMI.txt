@@ -27,3 +27,4 @@ poi tabelle.js; solo dopo si pubblica.
   node tools/build25.js base.html out.html      il calore da satellite con lo storico (fascia di confine, zone nuove,
                                                  zone di sempre): riscrive caloreHtml e aggiunge caloreZona
   node tools/build26.js base.html out.html      diario al ritmo di mezz'ora: riepilogo delle 24 ore (nvRitmo), 12 righe
+  node tools/build27.js base.html out.html      diario: pause volute, dati scaricati, temperatura, tetto di spesa

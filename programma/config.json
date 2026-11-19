@@ -2714,7 +2714,8 @@
   "traduzioni_lotto": 30,
   "sapere_per_giro": 8,
   "attesa_per_giro": 6,
-  "attesa_lotto": 40
+  "attesa_lotto": 40,
+  "pausa_lotti_minuti": 0
  },
  "ricerca": {
   "attiva": true,
@@ -2944,6 +2945,16 @@
  "giro_leggero": {
   "attivo": true,
   "minuti_completo": 170,
-  "ogni_minuti": 30
+  "ogni_minuti": 30,
+  "fonti_a_ritmo": false,
+  "fonte_min_minuti": 10,
+  "fonte_max_minuti": 120,
+  "altri_min_minuti": 30
+ },
+ "guardia": {
+  "attiva": true,
+  "temp_max": 42,
+  "temp_ok": 38,
+  "batteria_min": 15
  }
 }

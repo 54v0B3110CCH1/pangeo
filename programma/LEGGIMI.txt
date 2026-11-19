@@ -298,3 +298,20 @@ NOVITÀ 2.17 – UN GIRO OGNI MEZZ'ORA, E IL RITMO SI CAMBIA SENZA «APPROVA»
 - python castello.py giri   dice il ritmo vero («uno ogni 30 minuti … 48 al giorno») e il prossimo giro.
 - La pagina riceve gli ultimi 60 giri (30 ore): nel Diario c'è il riepilogo delle 24 ore, con quanti giri completi,
   leggeri e senza rete e l'intervallo più lungo tra due giri (se è molto più di mezz'ora, lì il telefono era fermo).
+
+NOVITÀ 2.18 – SI FERMA SOLO PER TRE MOTIVI, CONSUMA MENO DATI, E CONTA GIUSTO
+- Il programma salta un giro solo per: telefono caldo, batteria quasi scarica, tetto di spesa del cervello.
+  Caldo: sopra 42 gradi (batteria) va in pausa e riparte sotto 38. Batteria: sotto il 15% e non in carica.
+  Tetto di spesa: si ferma solo il cervello (traduzioni, riassunto), la raccolta continua. Le pause finiscono nel
+  diario con il motivo, così non si confondono con un telefono spento. I numeri sono in config.json › guardia.
+  La temperatura si legge con l'app Termux:API (comando termux-battery-status) o dai file di Android; se non si
+  può leggere, la guardia sul caldo resta spenta e «python castello.py giri» lascia vuota la colonna dei gradi.
+- Meno dati: i feed si scaricano compressi e, nei giri leggeri, solo se sono cambiati. In prova un giro leggero
+  intero è passato da 43 a 13 MB. Il diario segna i MB scaricati a ogni giro.
+- Conto giusto delle voci nuove: prima le notizie più vecchie di 7 giorni rimaste nei feed venivano ricontate
+  come «nuove» a ogni giro e poi tolte. In prova: 1.509 contate, 124 vere. I numeri di prima erano gonfiati.
+- Pronto ma spento: «ogni fonte al suo ritmo» (config.json › giro_leggero › fonti_a_ritmo). Con i giri ogni
+  10 minuti ogni fonte viene riletta al suo passo: dopo 10 minuti se ha appena portato novità, sempre più di
+  rado (fino a 2 ore) se tace; Telegram, YouTube e cielo ogni 30 minuti; il cervello al suo ritmo. Si accende
+  da config.json, senza «approva», dopo aver visto temperatura e dati di una giornata.
+- python castello.py giri   mostra anche gradi, batteria e MB di ogni giro, e il motivo delle pause.
