@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.29"
+VERSIONE = "2.30"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -447,8 +447,9 @@ def id_canale(handle, cache):
     return cache[handle]
 
 
-def telegram(canale, citati=None):
-    """Legge l'anteprima pubblica di un canale Telegram (t.me/s/...), senza account."""
+def telegram(canale, citati=None, yt=None):
+    """Legge l'anteprima pubblica di un canale Telegram (t.me/s/...), senza account.
+    Dalla 2.30 raccoglie anche i video e i canali YouTube citati (yt), per trovare canali nuovi da soli."""
     pagina = scarica("https://t.me/s/" + canale.lstrip("@")).decode("utf-8", "replace")
     voci = []
     for blocco in pagina.split('class="tgme_widget_message_wrap')[1:]:
@@ -460,6 +461,8 @@ def telegram(canale, citati=None):
         t = pulisci(testo.group(1).replace("<br/>", " ").replace("<br>", " "))
         if t:
             voci.append((t, "https://t.me/" + post.group(1), data_iso(quando.group(1)) if quando else None))
+        if yt is not None:
+            youtube_da_link(blocco, yt, canale)
         if citati is not None:  # canali citati o inoltrati: servono a scoprirne di nuovi
             for nome in set(re.findall(r'href="https://t\.me/(?:s/)?([A-Za-z][A-Za-z0-9_]{4,31})(?:/\d+)?["?]', blocco)):
                 if nome.lower() not in (canale.lstrip("@").lower(), "share", "joinchat", "addstickers", "proxy", "iv"):
@@ -2557,6 +2560,16 @@ def rapporto_dati(diario, live=None, basi=None, prec=None, fine=None, ore=12, cf
         T.append(f"- Siti militari letti: {numeri['basi_stati']} Stati su 198" + (f" ({_it(numeri['siti'])} siti in uso)" if numeri.get("siti") else "") + ".")
     if numeri.get("sintesi") is not None:
         T.append(f"- Sintesi per Stato scritte: {numeri['sintesi']}.")
+    can_ = (live or {}).get("canali") or {}
+    if can_:  # dalla 2.30: canali seguiti, trovati da soli e spenti
+        T.append(f"- Canali: Telegram {can_.get('telegram', 0)}, YouTube {can_.get('youtube', 0)}"
+                 + (f" · trovati da soli negli ultimi 3 giorni: {', '.join((can_.get('nuovi_tg') or []) + (can_.get('nuovi_yt') or []))[:300]}"
+                    if (can_.get("nuovi_tg") or can_.get("nuovi_yt")) else "")
+                 + (f" · spenti perché non rispondono: {', '.join(x.split(':', 1)[-1] for x in can_['spenti'][:8])}" if can_.get("spenti") else "") + ".")
+    eco_ = ((live or {}).get("officina") or {}).get("economia") or {}
+    if eco_:
+        T.append(f"- Economia: dati della Banca Mondiale ({eco_.get('bm', 0)} indicatori), tassi dei titoli di Stato di {eco_.get('tassi', 0)} Stati, "
+                 f"valute ({eco_.get('valute', 0)} giorni di storia), commercio e armi dalle dogane ONU per {eco_.get('comtrade', 0)} Stati.")
     n_bing = sum(x.get("bing") or 0 for x in G)
     if n_bing:
         T.append(f"- Bing News, la seconda fonte di ricerca: {_it(n_bing)} titoli in più.")
@@ -4743,8 +4756,12 @@ def avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg, chiavi):
     V = leggi_json(perc, {}) or {}
     elenco = V.setdefault("elenco", [])
     visti = {a["id"] for a in elenco}
-    nuovi = [dict(a, quando=adesso.isoformat()) for a in calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg)
-             if a["id"] not in visti]
+    calcolati_ = calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg)
+    try:
+        calcolati_ += avvisi_economia(cfg, adesso)  # dalla 2.30: monete e titoli di Stato
+    except Exception:
+        pass
+    nuovi = [dict(a, quando=adesso.isoformat()) for a in calcolati_ if a["id"] not in visti]
     elenco = (elenco + nuovi)[-80:]
     V.update(elenco=elenco, agg=adesso.isoformat())
     scrivi_json(perc, V)
@@ -5045,6 +5062,360 @@ def significato_cerca(q, stato=None, massimo=30):
     return fuori
 
 
+# ----------------------------------------------------------------------------- 2.30: economia e canali che si trovano da soli
+# Economia: dati pubblici e gratuiti, senza chiavi. Banca Mondiale (PIL, commercio, investimenti esteri, debito, spesa
+# militare, inflazione, armi), tassi dei titoli di Stato a 10 anni (OCSE, da FRED), valute (ExchangeRate-API, gratuito con
+# citazione), materie prime (FRED), partner commerciali e commercio di armi per Stato (UN Comtrade, capitolo 93 delle dogane).
+WB_INDICATORI = (
+    ("NY.GDP.MKTP.CD", "pil", "PIL (dollari)"),
+    ("NE.IMP.GNFS.CD", "import", "Importazioni di beni e servizi (dollari)"),
+    ("NE.EXP.GNFS.CD", "export", "Esportazioni di beni e servizi (dollari)"),
+    ("NE.IMP.GNFS.ZS", "import_pil", "Importazioni, % del PIL"),
+    ("NE.EXP.GNFS.ZS", "export_pil", "Esportazioni, % del PIL"),
+    ("BX.KLT.DINV.CD.WD", "ide", "Investimenti diretti esteri in entrata (dollari)"),
+    ("GC.DOD.TOTL.GD.ZS", "debito_pil", "Debito del governo centrale, % del PIL"),
+    ("DT.DOD.DECT.CD", "debito_estero", "Debito estero (dollari)"),
+    ("MS.MIL.XPND.GD.ZS", "mil_pil", "Spesa militare, % del PIL"),
+    ("MS.MIL.XPND.CD", "mil", "Spesa militare (dollari)"),
+    ("FP.CPI.TOTL.ZG", "inflazione", "Inflazione, % all’anno"),
+    ("BN.CAB.XOKA.GD.ZS", "conto_corrente", "Saldo del conto corrente, % del PIL"),
+    ("MS.MIL.MPRT.KD", "armi_import", "Importazioni di armi (indice SIPRI)"),
+    ("MS.MIL.XPRT.KD", "armi_export", "Esportazioni di armi (indice SIPRI)"),
+)
+TASSI_ISO2 = ("US", "DE", "IT", "FR", "ES", "GB", "JP", "CA", "AU", "NL", "BE", "AT", "PT", "GR", "IE", "FI", "SE", "DK", "NO", "CH",
+              "PL", "CZ", "HU", "SK", "SI", "LT", "LV", "EE", "LU", "IS", "IL", "KR", "MX", "CL", "CO", "NZ", "TR", "ZA", "IN", "CN", "RU", "BR")
+MATERIE = (("DCOILBRENTEU", "brent", "Petrolio Brent (dollari al barile)"), ("PNGASEUUSDM", "gas", "Gas naturale in Europa (dollari per milione di BTU)"),
+           ("PWHEAMTUSDM", "grano", "Grano (dollari alla tonnellata)"), ("PCOPPUSDM", "rame", "Rame (dollari alla tonnellata)"))
+ECO_FONTI = {"bm": "Banca Mondiale (api.worldbank.org)", "tassi": "OCSE, tassi a lungo termine, da FRED (St. Louis Fed)",
+             "valute": "Rates By Exchange Rate API (exchangerate-api.com)", "materie": "FRED (St. Louis Fed) e Banca Mondiale",
+             "comtrade": "UN Comtrade (Nazioni Unite), anteprima pubblica"}
+
+
+def _eco_scade(quando, giorni=0, ore=0):
+    try:
+        return datetime.now(timezone.utc) - datetime.fromisoformat(quando) > timedelta(days=giorni, hours=ore)
+    except (TypeError, ValueError):
+        return True
+
+
+def _fred(serie, timeout=30):
+    """Una serie di FRED in CSV, senza chiave: [[data, valore], ...]."""
+    # FRED chiude la connessione ai programmi che si presentano come browser: qui ci si presenta come strumento (provato il 20/11)
+    testo = scarica("https://fred.stlouisfed.org/graph/fredgraph.csv?id=" + serie, timeout=timeout,
+                    intestazioni={"User-Agent": "Python-urllib/3 PanGeo " + VERSIONE + " (archivio personale)"}).decode("utf-8", "replace")
+    righe = []
+    for r in testo.splitlines()[1:]:
+        p = r.split(",")
+        if len(p) >= 2 and p[1] not in (".", ""):
+            try:
+                righe.append([p[0][:10], round(float(p[1]), 4)])
+            except ValueError:
+                pass
+    if not righe:
+        raise ValueError("serie vuota")
+    return righe
+
+
+def economia(cfg, adesso, errori, secondi=90):
+    """Un passo di raccolta economica a giro, con un tempo massimo. dati/economia.json."""
+    imp = cfg.get("economia", {})
+    if not imp.get("attiva", True):
+        return None
+    t0 = time.time()
+    perc = os.path.join(DATI, "economia.json")
+    E = leggi_json(perc, {}) or {}
+    cod = cfg.get("codici", {})
+    iso3 = {v[0]: k for k, v in cod.items()}
+    fatti = []
+    # 1. Banca Mondiale: un indicatore a giro (tutti gli Stati in una chiamata), ognuno ogni 7 giorni
+    bm = E.setdefault("bm", {})
+    agg_bm = E.setdefault("bm_agg", {})
+    for ind, chiave, _ in WB_INDICATORI:
+        if not _eco_scade(agg_bm.get(chiave), giorni=imp.get("banca_mondiale_giorni", 7)):
+            continue
+        try:
+            d = json.loads(scarica(f"https://api.worldbank.org/v2/country/all/indicator/{ind}?format=json&date=2010:{adesso.year}&per_page=20000",
+                                   timeout=60))
+            serie = {}
+            for r in (d[1] if isinstance(d, list) and len(d) > 1 and d[1] else []):
+                st_ = iso3.get(r.get("countryiso3code"))
+                if st_ and r.get("value") is not None:
+                    serie.setdefault(st_, []).append([int(r["date"]), round(float(r["value"]), 3)])
+            bm[chiave] = {k: sorted(v) for k, v in serie.items()}
+            agg_bm[chiave] = adesso.isoformat()
+            fatti.append("Banca Mondiale: " + chiave)
+        except Exception as e:
+            errori.append(f"Economia (Banca Mondiale {chiave}): {str(e)[:80]}")
+            agg_bm[chiave] = (adesso - timedelta(days=imp.get("banca_mondiale_giorni", 7)) + timedelta(hours=6)).isoformat()
+        break
+    # 2. valute: una volta al giorno, tutte insieme
+    val = E.setdefault("valute", {"storia": {}})
+    if _eco_scade(val.get("agg"), ore=imp.get("valute_ore", 20)) and time.time() - t0 < secondi:
+        try:
+            d = json.loads(scarica("https://open.er-api.com/v6/latest/USD", timeout=30))
+            if d.get("result") == "success":
+                usate = {v[3] for v in cod.values() if v[3]}
+                val["storia"][adesso.date().isoformat()] = {k: v for k, v in d.get("rates", {}).items() if k in usate}
+                val["storia"] = dict(sorted(val["storia"].items())[-400:])
+                val["agg"] = adesso.isoformat()
+                fatti.append("valute")
+        except Exception as e:
+            errori.append(f"Economia (valute): {str(e)[:80]}")
+            val["agg"] = (adesso - timedelta(hours=imp.get("valute_ore", 20)) + timedelta(hours=3)).isoformat()
+    # 3. materie prime: una volta al giorno
+    mat = E.setdefault("materie", {})
+    for serie, chiave, _ in MATERIE:
+        if time.time() - t0 > secondi or not _eco_scade((mat.get(chiave) or {}).get("agg"), ore=imp.get("materie_ore", 20)):
+            continue
+        try:
+            mat[chiave] = {"agg": adesso.isoformat(), "s": _fred(serie)[-400:]}
+            fatti.append(chiave)
+        except Exception as e:
+            mat[chiave] = dict(mat.get(chiave) or {}, agg=adesso.isoformat())
+            errori.append(f"Economia ({chiave}): {str(e)[:80]}")
+    # 4. tassi dei titoli di Stato a 10 anni (OCSE, mensili): pochi a giro, ognuno ogni 5 giorni
+    tas = E.setdefault("tassi", {})
+    i2 = {v[1]: k for k, v in cod.items()}
+    fatti_t = 0
+    for c in TASSI_ISO2:
+        st_ = i2.get(c)
+        if not st_ or fatti_t >= imp.get("tassi_per_giro", 6) or time.time() - t0 > secondi:
+            continue
+        x = tas.get(st_) or {}
+        if not _eco_scade(x.get("agg"), giorni=30 if x.get("manca") else imp.get("tassi_giorni", 5)):
+            continue
+        fatti_t += 1
+        try:
+            tas[st_] = {"agg": adesso.isoformat(), "s": _fred(f"IRLTLT01{c}M156N")[-180:]}
+        except Exception as e:
+            tas[st_] = dict(x, agg=adesso.isoformat(), manca=str(e)[:60])
+        time.sleep(0.5)
+    if fatti_t:
+        fatti.append(f"tassi {fatti_t}")
+    # 5. commercio (UN Comtrade): pochi Stati a giro, ognuno ogni 120 giorni; totale e armi (capitolo 93), import ed export
+    com = E.setdefault("comtrade", {})
+    fatti_c = 0
+    da_fare = sorted((k for k, v in cod.items() if v[2]), key=lambda k: (com.get(k) or {}).get("agg", ""))
+    # l'anteprima pubblica di Comtrade ha un limite al giorno: se dice «troppe richieste» si riposa 6 ore
+    pausa_c = E.get("comtrade_pausa", "") > adesso.isoformat()
+    for st_ in ([] if pausa_c else da_fare):
+        if fatti_c >= imp.get("comtrade_per_giro", 1) or time.time() - t0 > secondi:
+            break
+        if not _eco_scade((com.get(st_) or {}).get("agg"), giorni=imp.get("comtrade_giorni", 120)):
+            break
+        fatti_c += 1
+        r_ = {"agg": adesso.isoformat()}
+        try:
+            for anno in (adesso.year - 2, adesso.year - 3):  # l'anno appena chiuso arriva tardi per quasi tutti gli Stati
+                ok_ = False
+                for flusso, cmd, chiave in (("M", "TOTAL", "M"), ("X", "TOTAL", "X"), ("M", "93", "M93"), ("X", "93", "X93")):
+                    d = json.loads(scarica(f"https://comtradeapi.un.org/public/v1/preview/C/A/HS?reporterCode={cod[st_][2]}&period={anno}"
+                                           f"&flowCode={flusso}&cmdCode={cmd}&includeDesc=true", timeout=40))
+                    righe = [x for x in d.get("data") or [] if x.get("partnerCode") and not x.get("partner2Code")
+                             and x.get("motCode", 0) == 0 and x.get("customsCode", "C00") == "C00" and x.get("primaryValue")]
+                    tot = sum(x.get("primaryValue") or 0 for x in d.get("data") or [] if x.get("partnerCode") == 0
+                              and not x.get("partner2Code") and x.get("motCode", 0) == 0)
+                    if righe:
+                        ok_ = True
+                    per = {}
+                    for x in righe:
+                        nome = iso3.get(x.get("partnerISO")) or x.get("partnerDesc") or str(x.get("partnerCode"))
+                        per[nome] = per.get(nome, 0) + x["primaryValue"]
+                    r_[chiave] = [[k, round(v)] for k, v in sorted(per.items(), key=lambda kv: -kv[1])[:12]]
+                    r_[chiave + "_tot"] = round(tot) if tot else None
+                    time.sleep(2.5)
+                    if not ok_ and chiave == "M":
+                        break  # nessun dato per quell'anno: si prova l'anno prima
+                if ok_:
+                    r_["anno"] = anno
+                    break
+            com[st_] = r_
+        except Exception as e:
+            if "429" in str(e) or "403" in str(e) or "Quota" in str(e):
+                E["comtrade_pausa"] = (adesso + timedelta(hours=6)).isoformat()  # si riprova lo stesso Stato più tardi
+                break
+            com[st_] = dict(com.get(st_) or {}, agg=adesso.isoformat(), errore=str(e)[:80])
+    if fatti_c:
+        fatti.append(f"commercio {fatti_c}")
+    E["agg"] = adesso.isoformat()
+    scrivi_json(perc, E)
+    return {"fatti": fatti, "secondi": round(time.time() - t0, 1), "bm": len(bm), "tassi": sum(1 for v in tas.values() if v.get("s")),
+            "valute": len(val.get("storia", {})), "comtrade": sum(1 for v in com.values() if v.get("anno"))}
+
+
+def _var_valuta(storia, cur, giorni):
+    date_ = sorted(storia)
+    if not date_ or cur not in storia[date_[-1]]:
+        return None
+    oggi_ = storia[date_[-1]][cur]
+    obiettivo = (datetime.fromisoformat(date_[-1]) - timedelta(days=giorni)).date().isoformat()
+    prima_ = [d for d in date_ if d <= obiettivo and cur in storia[d]]
+    if not prima_:
+        return None
+    vecchio = storia[prima_[-1]][cur]
+    return round((vecchio / oggi_ - 1) * 100, 2) if oggi_ else None  # quanto vale la moneta rispetto al dollaro: + si rafforza
+
+
+def scrivi_economia_web(cfg, adesso):
+    E = leggi_json(os.path.join(DATI, "economia.json"), {}) or {}
+    cod = cfg.get("codici", {})
+    S = {}
+    for chiave, serie in (E.get("bm") or {}).items():
+        for st_, l in serie.items():
+            z = S.setdefault(st_, {}).setdefault("bm", {})
+            z[chiave] = l[-1]
+            if chiave in ("mil_pil", "debito_pil", "import_pil", "export_pil", "armi_import", "armi_export", "inflazione"):
+                S[st_].setdefault("serie", {})[chiave] = l[-12:]
+    for st_, x in (E.get("tassi") or {}).items():
+        if x.get("s"):
+            S.setdefault(st_, {})["tasso"] = [[d[:7], v] for d, v in x["s"][-36:]]
+    storia = (E.get("valute") or {}).get("storia") or {}
+    if storia:
+        ult = storia[sorted(storia)[-1]]
+        for st_, c in cod.items():
+            if c[3] and c[3] in ult and c[3] != "USD":
+                S.setdefault(st_, {})["valuta"] = [c[3], ult[c[3]], _var_valuta(storia, c[3], 7), _var_valuta(storia, c[3], 30),
+                                                   _var_valuta(storia, c[3], 365)]
+    for st_, x in (E.get("comtrade") or {}).items():
+        if x.get("anno"):
+            S.setdefault(st_, {})["commercio"] = {k: x.get(k) for k in ("anno", "M", "X", "M93", "X93", "M_tot", "X_tot", "M93_tot", "X93_tot")}
+    mat = {k: {"nome": n, "s": ((E.get("materie") or {}).get(k) or {}).get("s", [])[-250:]} for _, k, n in MATERIE}
+    _scrivi_se_cambia(os.path.join(WEB, "economia.js"), "window.ECONOMIA=" + json.dumps(
+        {"agg": adesso.astimezone().strftime("%d/%m/%Y %H:%M"), "stati": S, "materie": mat, "fonti": ECO_FONTI,
+         "nomi": {k: n for _, k, n in WB_INDICATORI}}, ensure_ascii=False, separators=(",", ":")) + ";")
+
+
+def avvisi_economia(cfg, adesso):
+    """Avvisi economici: una moneta che perde l'8% o più in una settimana, un tasso a 10 anni che sale di un punto in un mese."""
+    E = leggi_json(os.path.join(DATI, "economia.json"), {}) or {}
+    cod, fuori = cfg.get("codici", {}), []
+    storia = (E.get("valute") or {}).get("storia") or {}
+    oggi_ = adesso.date().isoformat()
+    soglia_v = cfg.get("avvisi", {}).get("valuta_settimana", -8)
+    for st_, c in cod.items():
+        v7 = _var_valuta(storia, c[3], 7) if c[3] and c[3] != "USD" else None
+        if v7 is not None and v7 <= soglia_v:
+            fuori.append({"id": f"valuta:{c[3]}:{oggi_}", "tipo": "valuta", "stato": st_, "livello": 2 if v7 <= 2 * soglia_v else 1,
+                          "testo": f"{st_}: la moneta ({c[3]}) ha perso il {abs(v7):.1f}% sul dollaro in una settimana."})
+    for st_, x in (E.get("tassi") or {}).items():
+        s = x.get("s") or []
+        if len(s) >= 2 and s[-1][1] - s[-2][1] >= cfg.get("avvisi", {}).get("tasso_mese", 1.0):
+            fuori.append({"id": f"tasso:{st_}:{s[-1][0]}", "tipo": "tasso", "stato": st_, "livello": 1,
+                          "testo": f"{st_}: il tasso dei titoli di Stato a 10 anni è salito da {s[-2][1]:.2f}% a {s[-1][1]:.2f}% in un mese ({s[-1][0][:7]})."})
+    return fuori
+
+
+# Canali: salute (quelli che non rispondono si spengono da soli e si riprovano una volta al giorno) e canali YouTube trovati
+# da soli (citati nei messaggi dei canali Telegram seguiti).
+def canale_ok(auto, nome, cfg):
+    s = (auto.get("salute_canali") or {}).get(nome) or {}
+    if s.get("spento") and not _eco_scade(s.get("spento"), ore=cfg.get("canali_salute", {}).get("riprova_ore", 24)):
+        return False
+    return True
+
+
+def canale_esito(auto, nome, ok, cfg, adesso):
+    S = auto.setdefault("salute_canali", {})
+    s = S.setdefault(nome, {"ok": 0, "fila": 0})
+    if ok:
+        s.update(ok=s.get("ok", 0) + 1, fila=0, ultimo_ok=adesso.isoformat())
+        s.pop("spento", None)
+    else:
+        s["fila"] = s.get("fila", 0) + 1
+        if s["fila"] >= cfg.get("canali_salute", {}).get("spegni_dopo", 12):
+            s["spento"] = adesso.isoformat()
+
+
+def youtube_da_link(testo_html, citati, da):
+    """I video e i canali YouTube citati in un messaggio: {chiave: set(di chi li cita)}."""
+    for m in re.finditer(r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([A-Za-z0-9_-]{11})|youtube\.com/(@[A-Za-z0-9_.-]{3,40}|channel/UC[0-9A-Za-z_-]{22})", testo_html):
+        chiave = ("v:" + m.group(1)) if m.group(1) else ("c:" + m.group(2).replace("channel/", ""))
+        citati.setdefault(chiave, set()).add(da)
+
+
+def scopri_youtube(auto, citati, cfg, adesso, errori):
+    """Dai video citati risale al canale; un canale citato da almeno 2 canali seguiti entra (con il suo feed provato)."""
+    imp = cfg.get("scoperta_youtube", {})
+    if not imp.get("attiva", True):
+        return []
+    C = auto.setdefault("youtube_citati", {})
+    visti_v = auto.setdefault("youtube_video_visti", {})
+    cache_h = auto.setdefault("youtube_handle", {})  # @nome → UC… (una sola richiesta per canale)
+    letti = 0
+    for chiave, da in sorted(citati.items(), key=lambda kv: -len(kv[1])):
+        cid, nome = None, ""
+        if chiave.startswith("c:"):
+            cid = chiave[2:] if chiave[2:].startswith("UC") else None
+            nome = chiave[2:]
+            if not cid:
+                if chiave[2:] in cache_h and not cache_h[chiave[2:]]:
+                    continue
+                try:
+                    cid = cache_h.get(chiave[2:]) or id_canale(chiave[2:], cache_h)
+                except Exception:
+                    cache_h[chiave[2:]] = None
+                    continue
+        else:
+            vid = chiave[2:]
+            if vid in visti_v:
+                cid, nome = visti_v[vid]
+            elif letti < imp.get("video_per_giro", 4):
+                letti += 1
+                try:  # oEmbed: chi ha pubblicato il video (leggero, senza la pagina del video)
+                    o = json.loads(scarica("https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=" + vid, timeout=20))
+                    h_ = re.search(r"youtube\.com/(@[A-Za-z0-9_.-]+|channel/UC[0-9A-Za-z_-]{22})", o.get("author_url", ""))
+                    if h_:
+                        cid = h_.group(1).replace("channel/", "") if "channel/" in h_.group(1) else (cache_h.get(h_.group(1)) or id_canale(h_.group(1), cache_h))
+                        nome = o.get("author_name") or h_.group(1)
+                        visti_v[vid] = [cid, nome]
+                    else:
+                        visti_v[vid] = [None, ""]
+                except Exception:
+                    visti_v[vid] = [None, ""]
+                    continue
+        if not cid:
+            continue
+        z = C.setdefault(cid, {"nome": nome, "da": [], "volte": 0, "primo": adesso.isoformat()})
+        z["volte"] += 1
+        z["da"] = sorted(set(z["da"]) | set(da))[:12]
+        if nome and not z.get("nome", "").strip():
+            z["nome"] = nome
+    if len(visti_v) > 3000:
+        auto["youtube_video_visti"] = dict(list(visti_v.items())[-2000:])
+    gia = {c.lower() for c in cfg.get("youtube", [])} | {x["cid"] for x in auto.get("youtube", [])}
+    nuovi = []
+    for cid, z in sorted(C.items(), key=lambda kv: -len(kv[1]["da"])):
+        if len(auto.get("youtube", [])) >= imp.get("max_canali", 60):
+            break
+        if cid in gia or len(z["da"]) < imp.get("min_citazioni", 2) or z.get("provato"):
+            continue
+        z["provato"] = adesso.isoformat()
+        try:
+            n_ = len(leggi_rss(scarica("https://www.youtube.com/feeds/videos.xml?channel_id=" + cid, timeout=20)))
+        except Exception:
+            n_ = 0
+        if n_ >= 3:
+            auto.setdefault("youtube", []).append({"cid": cid, "nome": z.get("nome") or cid, "da": z["da"][:5],
+                                                   "aggiunta": adesso.date().isoformat()})
+            nuovi.append(z.get("nome") or cid)
+    if len(C) > 5000:
+        auto["youtube_citati"] = dict(sorted(C.items(), key=lambda kv: -len(kv[1]["da"]))[:3000])
+    return nuovi
+
+
+def canali_stato(cfg, mie, auto, adesso):
+    """Per la pagina e il rapporto: quanti canali, quali trovati da soli negli ultimi giorni, quali spenti."""
+    tre = (adesso - timedelta(days=3)).date().isoformat()
+    S = auto.get("salute_canali") or {}
+    return {"telegram": len(cfg.get("telegram", []) + mie.get("telegram", [])) + len(auto.get("telegram", [])),
+            "youtube": len(cfg.get("youtube", []) + mie.get("youtube", [])) + len(auto.get("youtube", [])),
+            "tg_trovati": [[c["canale"], c.get("aggiunta", "")] for c in auto.get("telegram", [])],
+            "yt_trovati": [[c["nome"], c.get("aggiunta", ""), c["cid"]] for c in auto.get("youtube", [])],
+            "nuovi_tg": [c["canale"] for c in auto.get("telegram", []) if c.get("aggiunta", "") >= tre],
+            "nuovi_yt": [c["nome"] for c in auto.get("youtube", []) if c.get("aggiunta", "") >= tre],
+            "spenti": sorted(k for k, v in S.items() if v.get("spento"))}
+
+
 def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, errori, leggero):
     """Il lavoro della 2.29 dentro il giro: schede, andamento, avvisi, indice e vettori. Nulla di questo ferma il giro."""
     esito = {}
@@ -5058,6 +5429,10 @@ def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, erro
         A_ = andamento(archivio, adesso, S_)
     except Exception as e:
         errori.append(f"Andamento: {str(e)[:100]}")
+    try:  # dalla 2.30: economia (Banca Mondiale, tassi, valute, materie prime, commercio)
+        esito["economia"] = economia(cfg, adesso, errori, secondi=cfg.get("economia", {}).get("secondi", 90))
+    except Exception as e:
+        errori.append(f"Economia: {str(e)[:100]}")
     try:
         esito["avvisi"] = avvisi(A_, S_, dati_cielo, dati_calore, adesso, cfg, chiavi)
     except Exception as e:
@@ -5074,6 +5449,7 @@ def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, erro
         try:
             scrivi_schede_web(S_, adesso)
             scrivi_andamento_web(A_, adesso)
+            scrivi_economia_web(cfg, adesso)
         except Exception as e:
             errori.append(f"Schede e andamento per la pagina: {str(e)[:100]}")
     S2 = _off_stato()
@@ -6611,12 +6987,17 @@ def _aggiorna(leggero=False):
     tg_citati = {}
     auto.setdefault("telegram", [])
     leggi_tg = dovuto("telegram")
+    yt_citati = {}
     for c in (cfg.get("telegram", []) + mie.get("telegram", [])) if leggi_tg else []:
+        if not canale_ok(auto, "tg:" + c["canale"], cfg):
+            continue  # dalla 2.30: un canale che non risponde da 12 giri si riprova una volta al giorno
         try:
-            for t, link, data in telegram(c["canale"], tg_citati):
+            for t, link, data in telegram(c["canale"], tg_citati, yt_citati):
                 notizia(c.get("tema", "Voci ufficiali (Telegram)"), t, link, data, "Telegram · " + c.get("chi", c["canale"]),
                         livello="di parte", lv="C")
+            canale_esito(auto, "tg:" + c["canale"], True, cfg, adesso)
         except Exception as e:
+            canale_esito(auto, "tg:" + c["canale"], False, cfg, adesso)
             errori.append(f"Telegram {c['canale']}: {e}")
         time.sleep(1)
     # 3b. Canali Telegram trovati da soli: quelli citati o inoltrati da almeno 2 canali già seguiti.
@@ -6641,24 +7022,37 @@ def _aggiorna(leggero=False):
                 pass
             time.sleep(1)
         for c in auto["telegram"]:
+            if not canale_ok(auto, "tg:" + c["canale"], cfg):
+                continue
             try:
-                for t, link, data in telegram(c["canale"])[-12:]:
+                for t, link, data in telegram(c["canale"], None, yt_citati)[-12:]:
                     if FILTRO.search(t) or NON_LATINO.search(t):
                         notizia("Telegram: canali trovati da soli (da valutare)", t, link, data, "Telegram · " + c["chi"],
                                 livello="da valutare", lv="D")
+                canale_esito(auto, "tg:" + c["canale"], True, cfg, adesso)
             except Exception as e:
+                canale_esito(auto, "tg:" + c["canale"], False, cfg, adesso)
                 errori.append(f"Telegram {c['canale']}: {e}")
             time.sleep(1)
+    try:  # dalla 2.30: canali YouTube citati nei messaggi Telegram
+        yt_nuovi_giro = scopri_youtube(auto, yt_citati, cfg, adesso, errori) if leggi_tg else []
+    except Exception as e:
+        yt_nuovi_giro = []
+        errori.append(f"Scoperta YouTube: {str(e)[:80]}")
 
     tappa("telegram")
     # 4. YouTube: feed dei canali, senza chiave
-    for h in (cfg.get("youtube", []) + mie.get("youtube", [])) if dovuto("video") else []:
+    for h in (cfg.get("youtube", []) + mie.get("youtube", []) + [x["cid"] for x in auto.get("youtube", [])]) if dovuto("video") else []:
+        if not canale_ok(auto, "yt:" + h, cfg):
+            continue
         try:
             cid = h if h.startswith("UC") else id_canale(h, canali)
             for titolo, link, data, autore, _ in leggi_rss(scarica("https://www.youtube.com/feeds/videos.xml?channel_id=" + cid)):
                 aggiungi("video", {"t": titolo, "u": solo_http(link), "data_iso": data or adesso.isoformat(),
                                    "canale": autore or h, "paesi": ric.trova(titolo)})
+            canale_esito(auto, "yt:" + h, True, cfg, adesso)
         except Exception as e:
+            canale_esito(auto, "yt:" + h, False, cfg, adesso)
             errori.append(f"YouTube {h}: {e}")
 
     tappa("video")
@@ -6882,7 +7276,9 @@ def _aggiorna(leggero=False):
         "servizi": sum(1 for v_ in leggi_json(os.path.join(DATI, "servizi.json"), {}).values() if v_.get("sintesi")),
         "motori": {k_: {c_: v_.get(c_) for c_ in ("prove", "titoli", "errori", "pausa", "ultimo_errore")} for k_, v_ in _motori().items()},
         "spesa_lavori": {k_: leggi_json(os.path.join(DATI, "cervello.json"), {}).get(k_) or {} for k_ in ("lavori_oggi", "lavori_mese")},
+        "canali": canali_stato(cfg, mie, auto, adesso),
         "officina": dict({k_: _off_stato().get(k_) for k_ in ("fase", "prova", "tradotti_oggi", "tradotti_tutti", "errore")},
+                         economia=(_off_stato().get("lavoro_229") or {}).get("economia"),
                          filtro={k_: (leggi_json(FILTRO_FILE(), {}) or {}).get(k_) for k_ in
                                  ("attivo", "esempi", "tenuti", "scartati", "copre", "errore", "scartati_oggi", "scartati_tutti",
                                   "controlli", "perche", "addestrato")}),
@@ -7635,7 +8031,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         # repository non cresce tre volte più in fretta
         for nome in (("diario.json", "rapporto.json", "rapporti.json", "avvisi.json") if solo_diario else
                      ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json",
-                      "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js")):
+                      "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js", "economia.js")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))

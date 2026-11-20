@@ -405,6 +405,21 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.30 (20 novembre, sera) – ECONOMIA E CANALI CHE SI TROVANO DA SOLI
+- Economia, tutta da fonti pubbliche e gratuite, senza chiavi:
+  · Banca Mondiale: PIL, importazioni ed esportazioni, investimenti esteri, debito pubblico ed estero, spesa
+    militare, inflazione, conto corrente, importazioni ed esportazioni di armi (un indicatore a giro, ogni 7 giorni);
+  · tassi dei titoli di Stato a 10 anni di 42 Stati (OCSE, da FRED), con l'avviso se salgono di un punto in un mese;
+  · valute di tutti gli Stati contro il dollaro (una volta al giorno), con l'avviso se una perde l'8% in una settimana;
+  · materie prime: petrolio Brent, gas in Europa, grano, rame;
+  · commercio dalle dogane ONU (UN Comtrade): i primi partner per importazioni ed esportazioni e il commercio di
+    armi (capitolo 93), uno Stato a giro; se Comtrade dice «troppe richieste» si riposa 6 ore.
+  La pagina li mostra nella scheda di ogni Stato e nella cartella Economia.
+- Canali: 23 canali YouTube e 15 Telegram in più (provati il 20 novembre). I canali YouTube citati nei messaggi dei
+  canali Telegram seguiti entrano da soli quando li citano almeno 2 canali (config.json › scoperta_youtube); per
+  Telegram la scoperta trova fino a 5 canali a giro e ne tiene fino a 150. Un canale che non risponde per 12 giri di
+  fila si spegne da solo e si riprova una volta al giorno. Il rapporto dice quali canali ha trovato e quali ha spento.
+
 NOVITÀ 2.29 (20 novembre, sera) – ANALISI, ORDINE DEI DATI, AVVISI E RICERCHE NUOVE, TUTTO SUL TELEFONO E GRATIS
 - Fatti in schede: ogni notizia confermata diventa una scheda con tipo (attacco, combattimenti, acquisto, accordo,
   esercitazione, tregua, sanzioni, proteste, politica, diplomazia, nucleare, cyber, terrorismo, disastro), Stati,
