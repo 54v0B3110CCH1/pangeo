@@ -405,6 +405,26 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.32 (20 novembre, sera) – SPINTA IN CARICA E LETTURA DEGLI ARTICOLI
+- In carica e sotto 37 gradi («spinta piena»): i feed si scaricano 8 alla volta (prima uno alla volta), i giri partono
+  ogni 10 minuti, il modello dei significati lavora quasi di continuo anche sulle notizie non ancora confermate e usa
+  il numero di thread più veloce: prova 4, 6 e 8, misura quanti vettori al secondo fa con ciascuno e tiene il migliore
+  (le misure si rifanno ogni 7 giorni).
+- Fuori carica o al caldo: 4 download alla volta, vettori solo dei fatti confermati, un minuto di pausa tra un lavoro e
+  l'altro. Così la batteria dura e la raccolta delle notizie ha sempre la precedenza.
+- Allo stesso sito resta una richiesta ogni 2 secondi anche in parallelo: i siti non vengono martellati.
+- Fino a 420 fonti trovate da sole (prima 350): con i download in parallelo il giro ha spazio.
+- python castello.py officina   ora dice la versione al lavoro (e se ce n'è una in attesa), il lavoro in sottofondo
+  sui vettori con la velocità, le velocità misurate per numero di thread e se la spinta è piena o normale, con il motivo.
+- Nel diario ogni giro ha «spinta»: [piena sì/no, download alla volta, feed letti, secondi per i feed].
+- Tutto si regola in config.json › spinta, senza «approva» (attiva, temp_max, paralleli_carica, paralleli,
+  ogni_minuti_carica, prove_thread, recenti_fuori_carica, pausa_fuori_carica).
+- IL TELEFONO NAVIGA: a ogni giro apre le pagine delle notizie confermate degli ultimi 2 giorni (prima quelle con più
+  fonti, al massimo 2 per fatto; 12 a giro in carica, 4 fuori carica) e ne tiene il testo nell'indice istantaneo. La
+  ricerca trova anche ciò che il titolo non dice. Costa solo dati, non soldi. Il testo resta sul telefono: sul sito
+  pubblico vanno solo titolo e collegamento. Le pagine a pagamento o con i cookie danno poco testo e vengono lasciate.
+  Si regola in config.json › articoli. Nel diario: «articoli» [letti, poco testo, aperti, in coda, in tutto].
+
 NOVITÀ 2.31 (20 novembre, sera) – AVVISI PIÙ RICCHI, IL PROCESSORE LAVORA AI SIGNIFICATI
 - Avvisi anche per: movimenti di truppe, spie e sabotaggi (anche diplomatici espulsi), esplosioni e incendi in depositi,
   basi, raffinerie e porti, spazio aereo chiuso, colpi di Stato, guerra dichiarata, legge marziale e mobilitazione,

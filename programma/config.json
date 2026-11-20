@@ -2822,7 +2822,7 @@
   "attiva": true,
   "per_giro": 5,
   "min_citazioni": 3,
-  "max_fonti": 350,
+  "max_fonti": 420,
   "semi_per_giro": 8,
   "semi": [
    [
@@ -4464,6 +4464,28 @@
   "temp_max": 42,
   "temp_ok": 38,
   "batteria_min": 15
+ },
+ "articoli": {
+  "attivo": true,
+  "perche": "dalla 2.32: il telefono apre le pagine delle notizie confermate degli ultimi 2 giorni e ne tiene il testo nell'indice (solo sul telefono, mai sul sito pubblico)",
+  "per_giro_carica": 12,
+  "per_giro": 4,
+  "ore": 48,
+  "caratteri": 4000,
+  "minimo": 300,
+  "secondi_carica": 90,
+  "secondi": 40
+ },
+ "spinta": {
+  "attiva": true,
+  "perche": "dalla 2.32: in carica e sotto 37 gradi il telefono va al massimo (download in parallelo, giri ogni 10 minuti, vettori con il numero di thread più veloce misurato, anche delle notizie non confermate); fuori carica va al passo normale per far durare la batteria",
+  "temp_max": 37,
+  "paralleli_carica": 8,
+  "paralleli": 4,
+  "ogni_minuti_carica": 10,
+  "prove_thread": [4, 6, 8],
+  "recenti_fuori_carica": false,
+  "pausa_fuori_carica": 60
  },
  "piano": {
   "attivo": true,

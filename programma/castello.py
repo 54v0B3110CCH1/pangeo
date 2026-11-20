@@ -31,6 +31,7 @@ Comandi:
   python castello.py ripristina index.html  riprende lo storico del cielo da un file del Castello
 Usa solo la libreria standard di Python: nessun pacchetto da installare.
 """
+import concurrent.futures
 import email.utils
 import functools
 import glob
@@ -57,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.31"
+VERSIONE = "2.32"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -132,6 +133,8 @@ def scrivi_json(percorso, dati):
 
 _ULTIMA = {}
 RICHIESTE, RIFIUTI = {}, {}  # richieste fatte e rifiuti (429) per sito, nel giro in corso
+_LUCCHETTO = threading.Lock()  # dalla 2.32: contatori e attese per sito condivisi dai download in parallelo
+_SITI_LOCK = {}
 
 
 RETE = {"su": True, "falliti": 0, "controllo": 0.0}
@@ -245,25 +248,31 @@ def scarica(url, timeout=25, intestazioni=None, corpo=None, risposta=None):
         raise SenzaRete("rete assente")
     # rispetto dei siti: tra due richieste allo stesso sito passano almeno 2 secondi
     d_ = urllib.parse.urlparse(url).netloc
-    attesa_ = 2.0 - (time.time() - _ULTIMA.get(d_, 0))
-    if attesa_ > 0:
-        time.sleep(attesa_)
-    _ULTIMA[d_] = time.time()
+    with _LUCCHETTO:
+        l_sito = _SITI_LOCK.setdefault(d_, threading.Lock())
+    with l_sito:  # anche con i download in parallelo, allo stesso sito una richiesta ogni 2 secondi
+        attesa_ = 2.0 - (time.time() - _ULTIMA.get(d_, 0))
+        if attesa_ > 0:
+            time.sleep(attesa_)
+        _ULTIMA[d_] = time.time()
     # «Accept-Encoding: gzip»: i feed viaggiano compressi (da 4 a 8 volte meno dati)
     h = {"User-Agent": UA, "Accept-Language": "it,en;q=0.8", "Accept-Encoding": "gzip"}
     h.update(intestazioni or {})
     req = urllib.request.Request(url, headers=h, data=corpo)
-    RICHIESTE[d_] = RICHIESTE.get(d_, 0) + 1
+    with _LUCCHETTO:
+        RICHIESTE[d_] = RICHIESTE.get(d_, 0) + 1
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             dati_ = r.read()
-            BYTE["n"] += len(dati_)  # quanti dati consuma un giro (va nel diario, in MB)
+            with _LUCCHETTO:
+                BYTE["n"] += len(dati_)  # quanti dati consuma un giro (va nel diario, in MB)
             if risposta is not None:  # per chiedere, la volta dopo, «solo se è cambiato»
                 risposta["etag"], risposta["lm"] = r.headers.get("ETag") or "", r.headers.get("Last-Modified") or ""
             compr_ = (r.headers.get("Content-Encoding") or "").lower()
     except urllib.error.HTTPError as e:
         if e.code == 429:
-            RIFIUTI[d_] = RIFIUTI.get(d_, 0) + 1
+            with _LUCCHETTO:
+                RIFIUTI[d_] = RIFIUTI.get(d_, 0) + 1
         RETE["falliti"] = 0
         raise
     except OSError as e:
@@ -4229,6 +4238,25 @@ def _scarico_fresco(minuti=10):
     return sc if eta <= minuti else None
 
 
+def spinta(cfg, tel=None):
+    """Dalla 2.32: quanto si spinge il telefono. In carica e fresco («piena»): download in parallelo al massimo, giri più
+    fitti, vettori dei significati con il numero di thread più veloce misurato e anche sulle notizie non ancora confermate.
+    Fuori carica o al caldo: metà dei download e vettori solo dei fatti confermati, così la batteria dura e il cuore
+    (raccolta e conferme) ha sempre la precedenza."""
+    sp = cfg.get("spinta", {}) or {}
+    if tel is None:
+        tel = _tel_ultimo() or {}
+    attiva = bool(sp.get("attiva", True))
+    carica = bool(tel.get("in_carica"))
+    fresco = (tel.get("temp") or 99) < sp.get("temp_max", 37)
+    piena = attiva and carica and fresco
+    par = int(sp.get("paralleli_carica", 8) if piena else sp.get("paralleli", 4)) if attiva else 1
+    perche = ("in carica e fresco" if piena else "spinta spenta in config.json" if not attiva else
+              "fuori carica: si risparmia la batteria" if not carica else "telefono caldo: si va piano")
+    return {"piena": piena, "paralleli": max(1, min(par, 16)), "carica": carica, "fresco": fresco, "perche": perche,
+            "ogni_minuti": int(sp.get("ogni_minuti_carica", 10)) if piena else None}
+
+
 def _tel_ultimo():
     """Temperatura, batteria e carica scritte nel diario dall'ultimo giro (se è di meno di 40 minuti fa)."""
     d = (leggi_json(os.path.join(DATI, "diario.json"), []) or [{}])[-1]
@@ -4967,25 +4995,76 @@ SIG_DIM = 512  # i primi 512 numeri del vettore: provato il 20/11, metà spazio 
 SIG_ISTRUZIONE = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"
 
 
-def _sig_server(imp, accendi=True):
-    """Il server dei vettori: acceso se serve (in carica, o fuori carica con batteria buona), spento se no."""
+def _sig_thread(imp, tel=None):
+    """Dalla 2.32: quanti thread usa il modello dei significati. Fuori carica o al caldo: officina › thread (4). In carica e
+    fresco: si provano a turno i numeri di spinta › prove_thread (4, 6, 8) misurando quanti vettori al secondo fanno, poi si
+    usa il più veloce. Le misure valgono 7 giorni, poi si rifanno (il telefono cambia: aggiornamenti, caldo, batteria)."""
+    base = int(imp.get("thread", 4))
+    cfg_ = leggi_json(os.path.join(QUI, "config.json"), {}) or {}
+    if not spinta(cfg_, tel)["piena"]:
+        return base
+    n_cpu = os.cpu_count() or 8
+    prove = [int(t) for t in (cfg_.get("spinta", {}) or {}).get("prove_thread", [4, 6, 8]) if 1 <= int(t) <= n_cpu] or [base]
+    mis = _off_stato().get("sig_velocita") or {}
+    vecchie = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    for t in prove:
+        m = mis.get(str(t)) or {}
+        if m.get("n", 0) < 2 or m.get("quando", "") < vecchie:
+            return t
+    return max(prove, key=lambda t: mis[str(t)]["v"])
+
+
+def _sig_misura(nuovi, secondi):
+    """Vettori al secondo con il numero di thread acceso adesso (media delle ultime 5 misure)."""
+    if nuovi < 32 or secondi < 20:
+        return
+    S = _off_stato()
+    t = str(S.get("sig_thread") or "")
+    if not t:
+        return
+    m = S.setdefault("sig_velocita", {}).setdefault(t, {})
+    if m.get("quando", "") < (datetime.now(timezone.utc) - timedelta(days=7)).isoformat():
+        m.clear()
+    n = min(m.get("n", 0), 4)
+    m["v"] = round((m.get("v", 0) * n + nuovi / secondi) / (n + 1), 3)
+    m["n"], m["quando"] = n + 1, datetime.now(timezone.utc).isoformat()
+    _off_salva(S)
+
+
+def _sig_server(imp, accendi=True, tel=None):
+    """Il server dei vettori: acceso se serve (in carica, o fuori carica con batteria buona), spento se no. Dalla 2.32 si
+    riaccende da solo quando cambia il numero di thread (in carica ne usa di più)."""
     porta = imp.get("porta_significato", 8092)
     S = _off_stato()
+    sano = False
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{porta}/health", timeout=3) as r:
-            if r.status == 200:
-                return porta
+            sano = r.status == 200
     except Exception:
         pass
+    if sano and not accendi:
+        return porta
+    t_ = _sig_thread(imp, tel)
+    if sano:
+        if int(S.get("sig_thread") or imp.get("thread", 4)) == t_ or not (S.get("pid_sig") and _vivo_pid(S["pid_sig"]) and _e_llama(S["pid_sig"])):
+            return porta  # stesso numero di thread (o un server che non abbiamo acceso noi: lo si lascia stare)
+        _sig_ferma()
+        for _ in range(10):
+            time.sleep(1)
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{porta}/health", timeout=2)
+            except Exception:
+                break
+        S = _off_stato()
     mod = OFF(SIGNIFICATO_MODELLO["file"])
     if not accendi or not shutil.which("llama-server") or not os.path.exists(mod) or os.path.getsize(mod) != SIGNIFICATO_MODELLO["byte"]:
         return None
     if not (S.get("pid_sig") and _vivo_pid(S["pid_sig"]) and _e_llama(S["pid_sig"])):
         log = open(OFF("significato.log"), "ab")
         p = subprocess.Popen(["llama-server", "-m", mod, "--embedding", "--pooling", "last", "--host", "127.0.0.1", "--port", str(porta),
-                              "-c", "2048", "-ub", "2048", "-t", str(imp.get("thread", 4))], stdout=log, stderr=log,
+                              "-c", "2048", "-ub", "2048", "-t", str(t_)], stdout=log, stderr=log,
                              stdin=subprocess.DEVNULL, start_new_session=True)
-        S["pid_sig"] = p.pid
+        S["pid_sig"], S["sig_thread"] = p.pid, t_
         _off_salva(S)
     for _ in range(40):  # il modello piccolo si carica in pochi secondi
         time.sleep(1)
@@ -5087,7 +5166,7 @@ def _tel_ok_sig(imp, tel):
         and (tel.get("temp") or 99) < imp.get("temp_max", 38)
 
 
-def significato_aggiorna(archivio, cfg, tel, errori, secondi=None, tutte=False):
+def significato_aggiorna(archivio, cfg, tel, errori, secondi=None, tutte=False, misura=False):
     """Mette nei vettori i fatti confermati che mancano (prima i più recenti), finché c'è tempo. Con tutte=True (lo fa il
     cuore, dalla 2.31, nel tempo libero tra un giro e l'altro) anche tutte le notizie degli ultimi 7 giorni."""
     imp = cfg.get("officina", {})
@@ -5100,12 +5179,12 @@ def significato_aggiorna(archivio, cfg, tel, errori, secondi=None, tutte=False):
     if not blocco:
         return {"fase": "lavora il cuore"}
     try:
-        return _sig_aggiorna(archivio, cfg, imp, errori, secondi, tutte)
+        return _sig_aggiorna(archivio, cfg, imp, errori, secondi, tutte, misura, tel or None)
     finally:
         blocco.close()
 
 
-def _sig_aggiorna(archivio, cfg, imp, errori, secondi, tutte):
+def _sig_aggiorna(archivio, cfg, imp, errori, secondi, tutte, misura=False, tel=None):
     os.makedirs(MAG("significato"), exist_ok=True)
     visti = _sig_chiavi("fatti")
     if len(visti) > 3000:  # con tanti vettori serve numpy (pacchetto di Termux): si prova a installarlo una volta al giorno
@@ -5139,7 +5218,7 @@ def _sig_aggiorna(archivio, cfg, imp, errori, secondi, tutte):
         lavori.append(("recenti", recenti))
     if not any(l for _, l in lavori):
         return {"fase": "pronto", "fatti": len(visti), "nuovi": 0}
-    porta = _sig_server(imp)
+    porta = _sig_server(imp, tel=tel)
     if not porta:
         return {"fase": "accendo il modello dei significati" if os.path.exists(OFF(SIGNIFICATO_MODELLO["file"])) else "aspetto il modello",
                 "fatti": len(visti)}
@@ -5164,8 +5243,12 @@ def _sig_aggiorna(archivio, cfg, imp, errori, secondi, tutte):
                     fatti += 1
                 fv.flush()
                 ft.flush()
-    return {"fase": "pronto", "fatti": len(_sig_chiavi("fatti")), "recenti": len(_sig_chiavi("recenti")) if tutte else None,
-            "nuovi": fatti, "secondi": round(time.time() - t0, 1)}
+    sec_ = round(time.time() - t0, 1)
+    if misura:
+        _sig_misura(fatti, sec_)
+    return {"fase": "pronto", "fatti": len(_sig_chiavi("fatti")), "recenti": len(_sig_chiavi("recenti")),
+            "nuovi": fatti, "secondi": sec_, "thread": _off_stato().get("sig_thread"),
+            "al_secondo": round(fatti / sec_, 2) if sec_ else None}
 
 
 def _sig_carica(dove):
@@ -5252,8 +5335,13 @@ def _lavoratore_significati():
                             potato = oggi_
                         finally:
                             b_.close()
-                r_ = significato_aggiorna(archivio, cfg, tel, [], secondi=imp.get("secondi_significato_cuore", 240), tutte=True) or {}
-                pausa_ = 20 if r_.get("nuovi") else 300
+                sp_ = spinta(cfg, tel)
+                tutte_ = sp_["piena"] or bool((cfg.get("spinta", {}) or {}).get("recenti_fuori_carica"))
+                r_ = significato_aggiorna(archivio, cfg, tel, [], secondi=imp.get("secondi_significato_cuore", 240), tutte=tutte_,
+                                          misura=True) or {}
+                r_["spinta"] = sp_["perche"]
+                # in carica si lavora quasi di continuo; fuori carica una pausa di un minuto tra un lavoro e l'altro
+                pausa_ = (20 if sp_["piena"] else int((cfg.get("spinta", {}) or {}).get("pausa_fuori_carica", 60))) if r_.get("nuovi") else 300
                 S_ = _off_stato()
                 S_["cuore_significati"] = dict(r_, quando=datetime.now(timezone.utc).isoformat())
                 _off_salva(S_)
@@ -5617,6 +5705,135 @@ def canali_stato(cfg, mie, auto, adesso):
             "spenti": sorted(k for k, v in S.items() if v.get("spento"))}
 
 
+# 6. Lettura degli articoli (dalla 2.32): il telefono «naviga». Per le notizie confermate degli ultimi 2 giorni apre la
+# pagina della testata e ne tiene il testo (solo i paragrafi), che va nell'indice istantaneo: la ricerca trova anche ciò
+# che il titolo non dice. Gratis (solo dati). Il testo resta sul telefono e non va mai sul sito pubblico: lì restano
+# titolo e collegamento. Pagine a pagamento o con la richiesta dei cookie danno poco testo: vengono segnate e lasciate.
+ARTICOLI_SALTA = ("news.google.com", "t.me", "youtube.com", "youtu.be", "x.com", "twitter.com", "facebook.com", "instagram.com")
+
+
+def testo_articolo(grezzo, massimo=4000):
+    """I paragrafi di una pagina HTML, senza menu, pubblicità e script."""
+    if not grezzo:
+        return ""
+    m = re.search(rb'charset=["\']?([\w-]+)', grezzo[:3000], re.I)
+    try:
+        h_ = grezzo.decode(m.group(1).decode() if m else "utf-8", errors="replace")
+    except LookupError:
+        h_ = grezzo.decode("utf-8", errors="replace")
+    # molte testate mettono il testo intero nei dati strutturati (JSON-LD «articleBody»), anche quando la pagina lo
+    # disegna con JavaScript: se c'è, si prende quello
+    for m_ in re.finditer(r'"articleBody"\s*:\s*("(?:[^"\\]|\\.)*")', h_):
+        try:
+            corpo_ = re.sub(r"\s+", " ", html.unescape(re.sub(r"(?s)<[^>]+>", " ", json.loads(m_.group(1))))).strip()
+        except ValueError:
+            continue
+        if len(corpo_) >= 300:
+            return corpo_[:massimo]
+    h_ = re.sub(r"(?is)<(script|style|noscript|nav|header|footer|aside|form|figure|svg)\b.*?</\1>", " ", h_)
+    corpo = re.search(r"(?is)<article\b.*?</article>", h_)
+    pezzi = re.findall(r"(?is)<p\b[^>]*>(.*?)</p>", corpo.group(0) if corpo and len(corpo.group(0)) > 1500 else h_)
+    fuori, n = [], 0
+    for x in pezzi:
+        t = re.sub(r"\s+", " ", html.unescape(re.sub(r"(?s)<[^>]+>", " ", x))).strip()
+        if len(t) < 60 or re.search(r"(?i)cookie|newsletter|abbonati|subscribe|sign up|iscriviti|all rights reserved|©", t):
+            continue
+        fuori.append(t)
+        n += len(t) + 1
+        if n >= massimo:
+            break
+    return "\n".join(fuori)[:massimo]
+
+
+def leggi_articoli(archivio, adesso, cfg, tel, errori):
+    """Legge le pagine delle notizie confermate più importanti (più fonti, più recenti), al massimo 2 per gruppo di notizie
+    sullo stesso fatto. In carica e al fresco (spinta piena) ne legge di più."""
+    ca = cfg.get("articoli", {}) or {}
+    if not ca.get("attivo", True) or not RETE["su"]:
+        return None
+    sp = spinta(cfg, tel)
+    quanti = int(ca.get("per_giro_carica", 12) if sp["piena"] else ca.get("per_giro", 4))
+    limite_t = (adesso - timedelta(hours=int(ca.get("ore", 48)))).isoformat()
+    # le pagine già aperte stanno in un file piccolo a parte (l'archivio è grande e non si riscrive per questo)
+    perc_l = os.path.join(DATI, "articoli.json")
+    L_ = leggi_json(perc_l, {}) or {}
+    gia = L_.get("letti") or {}
+    vecchi_ = (adesso - timedelta(days=4)).date().isoformat()
+    gia = {k: x for k, x in gia.items() if x and x[0] >= vecchi_}
+    cand, per_gruppo = [], {}
+    for k, v in archivio.get("notizie", {}).items():
+        u = v.get("u") or ""
+        if not v.get("conf") or k in gia or not u.startswith("http") or (v.get("data_iso") or "") < limite_t:
+            continue
+        host = urllib.parse.urlparse(u).netloc.lower()
+        if any(host == x or host.endswith("." + x) for x in ARTICOLI_SALTA):
+            continue
+        cand.append((k, v))
+    cand.sort(key=lambda kv: (kv[1].get("nf") or 1, kv[1].get("data_iso") or ""), reverse=True)
+    scelti = []
+    for k, v in cand:
+        g = v.get("gr") or k
+        if per_gruppo.get(g, 0) >= 2:
+            continue
+        per_gruppo[g] = per_gruppo.get(g, 0) + 1
+        scelti.append((k, v))
+        if len(scelti) >= quanti:
+            break
+    if not scelti:
+        return {"letti": 0, "poco_testo": 0, "provati": 0, "in_coda": 0, "totale": L_.get("totale", 0)}
+
+    def _uno(u):
+        try:
+            return testo_articolo(scarica(u, timeout=20), int(ca.get("caratteri", 4000)))
+        except Exception as e:
+            return e
+    letti = poco = 0
+    db = None
+    try:
+        db = _indice_apri()
+        if not db.execute("SELECT name FROM sqlite_master WHERE name='testi'").fetchone():
+            db.close()
+            db = None
+    except Exception:
+        db = None
+    pool_ = concurrent.futures.ThreadPoolExecutor(max_workers=sp["paralleli"])
+    try:
+        futuri = [(k, v, pool_.submit(_uno, v["u"])) for k, v in scelti]
+        fine_ = time.time() + int(ca.get("secondi_carica", 90) if sp["piena"] else ca.get("secondi", 40))
+        for k, v, fu in futuri:
+            try:
+                t_ = fu.result(timeout=max(1, fine_ - time.time()))
+            except concurrent.futures.TimeoutError:
+                break
+            if isinstance(t_, SenzaRete):
+                break
+            if isinstance(t_, Exception):
+                gia[k] = [adesso.date().isoformat(), -1]
+                continue
+            gia[k] = [adesso.date().isoformat(), len(t_)]
+            if len(t_) < int(ca.get("minimo", 300)):
+                poco += 1
+                continue
+            letti += 1
+            if db is not None:
+                kk = "a:" + k
+                if not db.execute("SELECT 1 FROM visti WHERE k=?", (kk,)).fetchone():
+                    db.execute("INSERT INTO visti VALUES (?)", (kk,))
+                    db.execute("INSERT INTO testi (testo, d, p, f, u, dove, c) VALUES (?,?,?,?,?,?,?)",
+                               ((v.get("it") or v.get("t") or "") + " · " + t_, (v.get("data_iso") or "")[:10],
+                                "|".join(v.get("paesi") or []), v.get("fonte") or "", v["u"], "articolo letto", 1))
+    finally:
+        pool_.shutdown(wait=False, cancel_futures=True)
+        if db is not None:
+            db.commit()
+            db.close()
+        L_["totale"] = L_.get("totale", 0) + letti
+        L_["letti"] = gia
+        scrivi_json(perc_l, L_)
+    return {"letti": letti, "poco_testo": poco, "provati": len(scelti), "in_coda": max(0, len(cand) - len(scelti)),
+            "totale": L_["totale"]}
+
+
 def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, errori, leggero):
     """Il lavoro della 2.29 dentro il giro: schede, andamento, avvisi, indice e vettori. Nulla di questo ferma il giro."""
     esito = {}
@@ -5638,6 +5855,10 @@ def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, erro
         esito["avvisi"] = avvisi(A_, S_, dati_cielo, dati_calore, adesso, cfg, chiavi)
     except Exception as e:
         errori.append(f"Avvisi: {str(e)[:100]}")
+    try:  # dalla 2.32: il telefono apre e legge le pagine delle notizie confermate
+        esito["articoli"] = leggi_articoli(archivio, adesso, cfg, tel, errori)
+    except Exception as e:
+        errori.append(f"Lettura degli articoli: {str(e)[:100]}")
     try:
         esito["indice"] = indice_aggiorna(archivio, adesso, cfg, secondi=cfg.get("indice", {}).get("secondi", 45))
     except Exception as e:
@@ -6055,7 +6276,11 @@ def _riserva_cron():
     while True:
         time.sleep(60)
         try:
-            passo_ = passo_minuti(leggi_json(os.path.join(QUI, "config.json"), {}))
+            cfg_r = leggi_json(os.path.join(QUI, "config.json"), {})
+            passo_ = passo_minuti(cfg_r)
+            sp_r = spinta(cfg_r)  # dalla 2.32: in carica e al fresco i giri sono più fitti (spinta › ogni_minuti_carica)
+            if sp_r["ogni_minuti"]:
+                passo_ = min(passo_, sp_r["ogni_minuti"])
             ultimo = (leggi_json(os.path.join(DATI, "diario.json"), []) or [{}])[-1].get("iso", "")  # conta anche il lavoro senza rete
             try:
                 eta = (datetime.now(timezone.utc) - datetime.fromisoformat(ultimo)).total_seconds() / 60 if ultimo else 1e9
@@ -7126,6 +7351,10 @@ def _aggiorna(leggero=False):
 
     saltate_ritmo = invariate = 0
     ripara_fonti(auto["stato"], errori)
+    # dalla 2.32 i feed si scaricano in parallelo (spinta: 8 alla volta in carica, 4 fuori carica; allo stesso sito sempre
+    # una richiesta ogni 2 secondi) e si leggono uno alla volta, nell'ordine di sempre
+    sp_giro = spinta(cfg)
+    da_leggere = []
     for f in elenco_fonti(cfg, mie, auto):
         st = auto["stato"].get(f["url"], {})
         if da_saltare(f, st, adesso, leggero):
@@ -7133,23 +7362,38 @@ def _aggiorna(leggero=False):
         if a_ritmo and leggero and st.get("prossimo", "") > adesso.isoformat():
             saltate_ritmo += 1
             continue
-        prima_ult = st.get("ultimo", "")
-        st["ultimo"] = adesso.isoformat()
-        contati_f = contati
         # nei giri leggeri si chiede al sito «solo se è cambiato» (risposta 304: nessun dato scaricato);
         # nei giri completi si rilegge sempre tutto, così un sito che risponde male non resta fermo
-        risp_, cond_ = {}, {}
+        cond_ = {}
         if leggero and st.get("etag"):
             cond_["If-None-Match"] = st["etag"]
         if leggero and st.get("lm"):
             cond_["If-Modified-Since"] = st["lm"]
+        da_leggere.append((f, cond_))
+
+    def _prendi(f, cond_):
+        r_ = {}
         try:
-            try:
-                grezzo_ = scarica(f["url"], intestazioni=cond_ or None, risposta=risp_)
-            except urllib.error.HTTPError as e304:
-                if e304.code != 304:
-                    raise
-                grezzo_ = None
+            return "ok", scarica(f["url"], intestazioni=cond_ or None, risposta=r_), r_
+        except urllib.error.HTTPError as e_:
+            return ("304", None, r_) if e_.code == 304 else ("errore", e_, r_)
+        except Exception as e_:  # anche SenzaRete: la si rilancia sotto, nel posto di sempre
+            return "errore", e_, r_
+
+    t_feed = time.time()
+    pool_feed = concurrent.futures.ThreadPoolExecutor(max_workers=sp_giro["paralleli"])
+    futuri_feed = [pool_feed.submit(_prendi, f, c_) for f, c_ in da_leggere]
+    for (f, cond_), fu_ in zip(da_leggere, futuri_feed):
+        esito_, val_, risp_ = fu_.result()
+        st = auto["stato"].get(f["url"], {})
+        prima_ult = st.get("ultimo", "")
+        st["ultimo"] = adesso.isoformat()
+        contati_f = contati
+        try:
+            if esito_ == "errore":
+                raise val_
+            grezzo_ = val_ if esito_ == "ok" else None
+            if esito_ == "304":
                 invariate += 1
             voci = leggi_rss(grezzo_) if grezzo_ is not None else []
             if grezzo_ is not None:
@@ -7182,6 +7426,8 @@ def _aggiorna(leggero=False):
             if f["tipo"] in ("fissa", "mia") or st.get("ok", 0):
                 errori.append(f"{f.get('nome', f['url'])}: {e}")
         auto["stato"][f["url"]] = st
+    pool_feed.shutdown(wait=False, cancel_futures=True)
+    secondi_feed = round(time.time() - t_feed)
 
     tappa("feed")
     # 3. Telegram: canali pubblici ufficiali (dichiarazioni di parte, non conferme)
@@ -7503,6 +7749,7 @@ def _aggiorna(leggero=False):
         "tipo": "leggero" if leggero else "completo",
         "mb": round(BYTE["n"] / 1e6, 1), "tel": [tel_g.get("temp"), tel_g.get("batteria"), tel_g.get("in_carica")],
         "tetto": conto_c.get("tetto", ""), "a_ritmo": saltate_ritmo, "invariate": invariate,
+        "spinta": [int(sp_giro["piena"]), sp_giro["paralleli"], len(da_leggere), secondi_feed],
         "passo": bool(conto_c.get("passo")), "sosp": [len(sosp_), sum(x[1] for x in sosp_)],
         "piano": piano_giro + [rs_p.get("i", 0), rs_p.get("totale", 0), rs_p.get("passata", 0)],
         "intel": [getattr(passo_piano, "intel", 0), rs_p.get("intel", 0)],
@@ -7524,6 +7771,7 @@ def _aggiorna(leggero=False):
         "usd_mese": conto_c.get("usd_mese", 0), "tradotti": sum(1 for v in archivio["notizie"].values() if v.get("it")),
         "mag": stato_mag, "bing": getattr(_piano_titoli, "bing", 0),
         "off": [(stato_off or {}).get("fase", ""), getattr(officina_traduci, "fatti", 0)] if stato_off else None,
+        "articoli": [(esito_229.get("articoli") or {}).get(c_) for c_ in ("letti", "poco_testo", "provati", "in_coda", "totale")],
         "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
     })
@@ -8581,6 +8829,12 @@ if __name__ == "__main__":
             print(f"    {r_.get('f') or ''} {r_.get('u') or ''}")
     elif comando == "officina":
         cfg_o = leggi_json(os.path.join(QUI, "config.json"), {})
+        att_o = os.path.join(DATI, "in_attesa", "castello.py")
+        v_att = ""
+        if os.path.exists(att_o):
+            m_ = re.search(r'^VERSIONE = "([^"]+)"', open(att_o, encoding="utf-8", errors="replace").read(), re.M)
+            v_att = m_.group(1) if m_ else "?"
+        print(f"PanGeo {VERSIONE}" + (f" · in attesa la {v_att}: scrivi «python castello.py approva»" if v_att and v_att != VERSIONE else ""))
         if len(a) > 1 and a[1] == "prova":  # prova subito; con «senza-carica» anche staccato dal caricatore (sempre al fresco)
             senza_c = "senza-carica" in a
             S_ = _off_stato()
@@ -8638,6 +8892,27 @@ if __name__ == "__main__":
             if ind_:
                 print(f"Indice istantaneo: {ind_.get('totale', 0)} testi ({ind_.get('motore', '?')}), {ind_.get('nuovi', 0)} nuovi nell'ultimo giro")
             print(f"Schede dei fatti nuove nell'ultimo giro: {l229_.get('schede', 0)} · avvisi nuovi: {(l229_.get('avvisi') or [0])[0]}")
+            ar_ = l229_.get("articoli") or {}
+            if ar_:
+                print(f"Articoli letti nell'ultimo giro: {ar_.get('letti', 0)} su {ar_.get('provati', 0)} aperti ({ar_.get('poco_testo', 0)} con poco "
+                      f"testo: pagamento o cookie) · in coda {ar_.get('in_coda', 0)} · in tutto {ar_.get('totale', 0)}")
+        cs_ = S_.get("cuore_significati") or {}
+        if cs_:  # dalla 2.32: il lavoro sui vettori tra un giro e l'altro (thread del cuore, dalla 2.31)
+            try:
+                ora_cs = datetime.fromisoformat(cs_["quando"]).astimezone().strftime("%H:%M")
+            except (KeyError, ValueError):
+                ora_cs = "?"
+            print(f"  in sottofondo (alle {ora_cs}): {cs_.get('fase', '?')} · {cs_.get('nuovi', 0)} vettori nuovi"
+                  + (f" in {cs_['secondi']} s ({cs_.get('al_secondo')} al secondo con {cs_.get('thread')} thread)" if cs_.get("secondi") else "")
+                  + f" · fatti {cs_.get('fatti', 0)}, notizie recenti {cs_.get('recenti') or 0}" + (f" · {cs_['spinta']}" if cs_.get("spinta") else ""))
+        vel_ = S_.get("sig_velocita") or {}
+        if vel_:
+            print("  velocità misurate: " + " · ".join(f"{k} thread {v.get('v')} vettori al secondo ({v.get('n')} misure)"
+                                                      for k, v in sorted(vel_.items(), key=lambda x: int(x[0]))))
+        sp_o = spinta(cfg_o)
+        print(f"Spinta: {'PIENA' if sp_o['piena'] else 'normale'} ({sp_o['perche']}) · download in parallelo: {sp_o['paralleli']}"
+              + (f" · giri ogni {sp_o['ogni_minuti']} minuti · vettori anche delle notizie non confermate, con "
+                 f"{_sig_thread(cfg_o.get('officina', {}))} thread" if sp_o["piena"] else " · vettori solo dei fatti confermati"))
         if sc_ and sc_.get("modello") == SIGNIFICATO_MODELLO["nome"] and not os.path.exists(OFF(SIGNIFICATO_MODELLO["file"])):
             print(f"  scarico del modello dei significati: {sc_.get('stato')} · {sc_.get('mb', 0)} MB su {sc_.get('tot', 639)}")
         c_ = leggi_json(os.path.join(DATI, "cervello.json"), {})
