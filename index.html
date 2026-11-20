@@ -11250,6 +11250,11 @@ function avvisoHtml(a) {
     (a.u ? ' · <a href="' + safeU(a.u) + '" target="_blank" rel="noopener">' + esc(a.f || 'fonte') + '</a>' : '') + (STATI[a.stato] ? ' · ' + stLink(a.stato) : '') + '</div>' +
     (a.prec ? '<div class="s">' + esc(a.prec) + (STATI[a.stato] ? ' <a href="#stati/' + STATI[a.stato].slug + '/storia">Storia →</a>' : '') + '</div>' : '') + '</div>';
 }
+function attesaHtml(stato, cosa) {  // dalla 41: messaggio senza numero di versione (ogni file arriva con il suo giro completo)
+  if (!(APP_OK || location.protocol === 'file:')) return '<p class="note">' + esc(cosa) + ' si vede sul sito pubblico e sul telefono.</p>';
+  return stato.c === 3 ? '<p class="note">' + esc(cosa) + ': i dati arrivano dal telefono con il prossimo giro completo (uno ogni 3 ore circa), dopo l’ultimo «approva».</p>'
+    : '<p class="note">Carico ' + esc(cosa.toLowerCase()) + '…</p>';
+}
 
 render();
 </script>
