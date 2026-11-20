@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.25"
+VERSIONE = "2.26"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -2287,14 +2287,16 @@ RAPPORTO_NOMI = {
     "tradotti": "titoli tradotti", "memoria": "fatti confermati in memoria", "sapere": "Stati studiati su Wikipedia",
     "piano_stati": "Stati del lavoro a piano", "accordi": "accordi", "appalti": "appalti", "intel": "fatti sui servizi",
     "puzzle": "pezzi del puzzle", "servizi": "servizi di intelligence riassunti", "basi_stati": "Stati con i siti militari letti",
-    "siti": "siti militari in elenco", "collegamenti": "collegamenti del quadro", "sintesi": "Stati con la sintesi"}
+    "siti": "siti militari in elenco", "collegamenti": "collegamenti del quadro", "sintesi": "Stati con la sintesi",
+    "magazzino_notizie": "notizie nel magazzino del telefono"}
 # verso: +1 più è meglio, -1 meno è meglio; poi la differenza più piccola che conta («rel» in proporzione, «abs» in valore)
 RAPPORTO_VERSO = {"giri": (1, "rel", 0.1), "voci_nuove": (1, "rel", 0.25), "errori_medi": (-1, "abs", 0.5),
                   "temp_max": (-1, "abs", 3), "fermo_max": (-1, "abs", 15), "live": (1, "rel", 0.03), "quota": (1, "abs", 1),
                   "d_pct": (-1, "abs", 1), "senza_n": (-1, "abs", 1), "fonti_attive": (1, "abs", 2), "tradotti": (1, "rel", 0.01),
                   "memoria": (1, "rel", 0.01), "sapere": (1, "abs", 1), "piano_stati": (1, "abs", 1), "accordi": (1, "abs", 1),
                   "appalti": (1, "abs", 1), "intel": (1, "abs", 1), "puzzle": (1, "abs", 1), "servizi": (1, "abs", 1),
-                  "basi_stati": (1, "abs", 1), "siti": (1, "abs", 1), "collegamenti": (1, "abs", 1), "sintesi": (1, "abs", 1)}
+                  "basi_stati": (1, "abs", 1), "siti": (1, "abs", 1), "collegamenti": (1, "abs", 1), "sintesi": (1, "abs", 1),
+                  "magazzino_notizie": (1, "rel", 0.01)}
 
 
 def _it(n, dec=0):
@@ -2359,6 +2361,8 @@ def _stato_numeri(z, live=None, basi=None, piano=None):
          "senza_n": len(z.get("senza") or []), "fonti_attive": (z.get("fonti") or [None])[0],
          "tradotti": z.get("tradotti"), "memoria": (z.get("memoria") or [0, None])[1], "sapere": z.get("sapere"),
          "servizi": z.get("servizi"), "basi_stati": z.get("basi"), "usd_oggi": z.get("usd_oggi"), "usd_mese": z.get("usd_mese")}
+    if z.get("mag"):
+        n["magazzino_mb"], n["magazzino_notizie"] = z["mag"][0], z["mag"][2]
     pz = z.get("piano") or []
     if len(pz) >= 6:
         n["piano_i"], n["piano_tot"], n["passata"] = pz[3], pz[4], pz[5]
@@ -2489,6 +2493,9 @@ def rapporto_dati(diario, live=None, basi=None, prec=None, fine=None, ore=12, cf
         T.append(f"- Siti militari letti: {numeri['basi_stati']} Stati su 198" + (f" ({_it(numeri['siti'])} siti in uso)" if numeri.get("siti") else "") + ".")
     if numeri.get("sintesi") is not None:
         T.append(f"- Sintesi per Stato scritte: {numeri['sintesi']}.")
+    n_bing = sum(x.get("bing") or 0 for x in G)
+    if n_bing:
+        T.append(f"- Bing News, la seconda fonte di ricerca: {_it(n_bing)} titoli in più.")
     if numeri.get("collegamenti") is not None:
         T.append(f"- Quadro: {numeri['collegamenti']} collegamenti tra i fatti.")
     T.append("")
@@ -2514,6 +2521,11 @@ def rapporto_dati(diario, live=None, basi=None, prec=None, fine=None, ore=12, cf
                  + (f" · batteria minima {att['batt_min']}%" if att.get("batt_min") is not None else "") + ".")
     else:
         T.append("- Temperatura: non letta (serve l'app Termux:API).")
+    mag_ = z.get("mag")
+    if mag_:
+        peso_ = f"{_it(mag_[0] / 1000, 1)} GB" if mag_[0] >= 1000 else f"{_it(mag_[0])} MB"
+        T.append(f"- Magazzino sul telefono: {peso_}, {mag_[1]} giorni, {_it(mag_[2])} notizie · spazio libero {_it(mag_[3], 1)} GB"
+                 + (" · copia di sicurezza: sì" if mag_[4] else " · copia di sicurezza spenta (si accende con: termux-setup-storage)") + ".")
     T.append(f"- Dati scaricati: {_it(att['mb'])} MB in {ore} ore (circa {_it(att['mb'] * 24 / ore / 1000, 1)} GB al giorno).")
     T.append(f"- Cervello (conto del programma, listino Haiku 5.5): {_it(att['spesa'], 2)} $ in {ore} ore · oggi {_it(numeri.get('usd_oggi', 0), 2)} $"
              f" su {_it(tetto_g, 2)} · mese {_it(numeri.get('usd_mese', 0), 2)} $ su {_it(tetto_m, 0)} · a questo ritmo {_it(proiezione, 2)} $ in 30 giorni.")
@@ -2727,7 +2739,7 @@ def _nome_in_lingua(stato, lingua, paesi):
     return paesi[stato][0] if lingua == "it" else nome_inglese(paesi[stato])
 
 
-def _piano_titoli(domande, giorni, errori, pausa=1.0):
+def _piano_titoli(domande, giorni, errori, pausa=1.0, bing=()):
     """Fa le domande a Google News e mette insieme i titoli, senza doppioni. Restituisce i titoli, le domande con quanti
     titoli ha portato ognuna, e quante domande sono fallite."""
     titoli, visti, fatte, fallite = [], set(), [], 0
@@ -2747,15 +2759,38 @@ def _piano_titoli(domande, giorni, errori, pausa=1.0):
             errori.append(f"Lavoro a piano ({q[:40]}): {e}")
         fatte.append([tipo, lingua, q, len(titoli) - n0])
         time.sleep(pausa)
+    # dalla 2.26: domande semplici anche a Bing News (seconda fonte: più titoli, e lavora quando Google rifiuta)
+    for tipo, q in bing:
+        n0 = len(titoli)
+        try:
+            for t_, u_, d_, f_, _s in bing_news(q, min(giorni, 30))[:25]:
+                chiave = re.sub(r"\W+", " ", (t_ or "").lower()).strip()[:90]
+                if len(chiave) < 12 or chiave in visti or RUMORE.search(" " + (f_ or "") + " ") or APPRESI.get(f_) == "scarto":
+                    continue
+                visti.add(chiave)
+                titoli.append({"t": pulisci(t_, 240), "u": solo_http(u_), "iso": d_ or "", "d": (d_ or "")[:10], "f": f_ or "",
+                               "k": tipo, "l": "en", "da": "bing"})
+        except SenzaRete:
+            raise
+        except Exception as e:
+            errori.append(f"Bing News ({q[:40]}): {str(e)[:120]}")
+        fatte.append([tipo, "bing", q, len(titoli) - n0])
+        _piano_titoli.bing = getattr(_piano_titoli, "bing", 0) + len(titoli) - n0
+        time.sleep(pausa)
     return titoli, fatte, fallite
 
 
-def _piano_domanda(stato, titoli, giorni, noti, tema=None):
-    pz = PIANO_PUZZLE.get(tema)
+def _piano_domanda(stato, titoli, giorni, noti, tema=None, tema2=None):
+    pz, pz2 = PIANO_PUZZLE.get(tema), PIANO_PUZZLE.get(tema2)
     parte5 = (f"PARTE 5, {pz['nome']}: fatti su {pz['cosa']}, che riguardano {stato}. Solo fatti accaduti o decisi, non "
               "commenti. Una riga per fatto:\n"
               "F | data | che cosa, in una frase in italiano | numeri dei titoli | rilevanza\n"
               "Se non ce ne sono scrivi «F | nessuno».\n\n") if pz else ""
+    if pz and pz2:  # dalla 2.26 due temi per Stato: il secondo con le righe G
+        parte5 += (f"PARTE 6, {pz2['nome']}: fatti su {pz2['cosa']}, che riguardano {stato}. Solo fatti accaduti o decisi, non "
+                   "commenti. Una riga per fatto:\n"
+                   "G | data | che cosa, in una frase in italiano | numeri dei titoli | rilevanza\n"
+                   "Se non ce ne sono scrivi «G | nessuno».\n\n")
     righe = "\n".join(f"{i + 1}. {x['d'] or 'senza data'} – {x['t']} – {x['f']}" for i, x in enumerate(titoli))
     gia = ("\nGIÀ IN ARCHIVIO per " + stato + " (non ripeterli, a meno che un titolo dica che qualcosa è cambiato):\n"
            + "\n".join("· " + n for n in noti[:14]) + "\n") if noti else ""
@@ -2782,7 +2817,7 @@ def _piano_domanda(stato, titoli, giorni, noti, tema=None):
             "annunciato è poi stato firmato, o se un accordo è stato ratificato). Una riga per domanda:\n"
             "D | lingua in cui cercare (it, en, oppure la sigla della lingua del posto) | da 3 a 7 parole da cercare, senza "
             "virgolette | che cosa vuoi sapere, in italiano\n\n" + parte5 +
-            "RILEVANZA, nelle righe A, C, I e F: scrivi R e un numero da 1 a 5 (per esempio R4), quanto conta il fatto per la "
+            "RILEVANZA, nelle righe A, C, I, F e G: scrivi R e un numero da 1 a 5 (per esempio R4), quanto conta il fatto per la "
             "difesa e la sicurezza. R5 = cambia gli equilibri tra Stati o in una regione (un'alleanza nuova, un grande contratto "
             "pluriennale, un cambio al vertice dei servizi dopo uno scandalo); R3 = importante per lo Stato; R1 = fatto minore o "
             "di routine.\n\n"
@@ -2791,7 +2826,7 @@ def _piano_domanda(stato, titoli, giorni, noti, tema=None):
             "titoli ne raccontano tappe diverse (annuncio, trattativa, firma): scrivi lo stato più avanzato, la data della tappa "
             "più recente e i numeri di tutti i titoli. Non scrivere note, commenti o rimandi («vedi sotto») dentro le righe. Niente giudizi, niente previsioni, niente dettagli operativi. Se un "
             "titolo riporta un'accusa o una voce, scrivi «secondo» e chi lo dice. Le notizie che non sono né accordi né appalti né "
-            "fatti sui servizi" + (" né fatti della parte 5" if pz else "") + " ignorale. Se una parte è vuota scrivi «A | nessuno», «C | nessuno» oppure «I | nessuno». Scrivi solo le righe, senza titoli e senza "
+            "fatti sui servizi" + ((" né fatti delle parti 5 e 6" if pz2 else " né fatti della parte 5") if pz else "") + " ignorale. Se una parte è vuota scrivi «A | nessuno», «C | nessuno» oppure «I | nessuno». Scrivi solo le righe, senza titoli e senza "
             "commenti.\n" + gia + "\nTITOLI\n" + righe)
 
 
@@ -2818,13 +2853,14 @@ def _piano_leggi(risposta, titoli):
 
     accordi, appalti, intel, domande_ = [], [], [], []
     _piano_leggi.puzzle = []  # le righe F (il tema del giro): le legge passo_piano, che sa di quale tema si tratta
+    _piano_leggi.puzzle2 = []  # le righe G (il secondo tema, dalla 2.26)
     ril_rx = re.compile(r"(?i)r(?:ilevanza)?\s*[:=]?\s*([1-5])(?:\s*/\s*5)?")
     for riga in (risposta or "").splitlines():
         p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
         sigla = p[0].upper().strip(" .:)") if p else ""
         # la rilevanza (R1…R5) si toglie prima di leggere le colonne: il suo numero non va mai preso per il numero di un titolo
         ril = None
-        if sigla in ("A", "C", "I", "F"):
+        if sigla in ("A", "C", "I", "F", "G"):
             resto = []
             for x in p[1:]:
                 m_r = ril_rx.fullmatch(x.strip())
@@ -2833,10 +2869,10 @@ def _piano_leggi(risposta, titoli):
                 else:
                     resto.append(x)
             p = p[:1] + resto
-            minimo = {"A": 6, "C": 8, "I": 6, "F": 4}[sigla]
+            minimo = {"A": 6, "C": 8, "I": 6, "F": 4, "G": 4}[sigla]
             if ril is None and len(p) > minimo and re.fullmatch(r"\s*[1-5]\s*", p[-1]):
                 ril, p = int(p[-1].strip()), p[:-1]  # rilevanza scritta senza la R, in fondo alla riga
-        if sigla in ("A", "C", "I", "F"):  # niente note o rimandi dentro le righe: «… nota: il titolo riguarda…, vedi sotto»
+        if sigla in ("A", "C", "I", "F", "G"):  # niente note o rimandi dentro le righe: «… nota: il titolo riguarda…, vedi sotto»
             p = [_piano_senza_note(x) for x in p]
         if sigla == "A" and len(p) >= 6:
             fonti = _piano_fonti(p[5], titoli)
@@ -2855,10 +2891,10 @@ def _piano_leggi(risposta, titoli):
                 ente = pulisci(p[2], 100).strip(" -–—")
                 intel.append({"d": data_di(p[1], fonti), "ente": ente, "cosa": pulisci(p[3], 300),
                               "tipo": next((t for t in PIANO_TIPI_INTEL if t in p[4].lower()), "altro"), "f": fonti, "r": ril})
-        elif sigla == "F" and len(p) >= 4:
+        elif sigla in ("F", "G") and len(p) >= 4:
             fonti = _piano_fonti(p[3], titoli)
             if fonti and len(p[2]) > 8:
-                _piano_leggi.puzzle.append({"d": data_di(p[1], fonti), "cosa": pulisci(p[2], 300), "f": fonti, "r": ril})
+                (_piano_leggi.puzzle if sigla == "F" else _piano_leggi.puzzle2).append({"d": data_di(p[1], fonti), "cosa": pulisci(p[2], 300), "f": fonti, "r": ril})
         elif sigla == "D" and len(p) >= 4:
             q = " ".join(re.sub(r'[<>{}\\"«»()]|https?:\S*', " ", p[2]).split())
             if 2 <= len(q.split()) <= 9 and len(q) <= 110:
@@ -2977,8 +3013,10 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
         P["riordinato"] = VERSIONE
         scrivi_json(perc, P)
     ordine = piano_ordine(cfg, paesi)
-    if not ordine or P.get("riposo", "") > adesso.isoformat():
-        return [0, 0, 0]  # dopo un rifiuto di Google News (429) il piano riposa tre quarti d'ora
+    riposo = P.get("riposo", "") > adesso.isoformat()  # dopo un rifiuto di Google News (429) Google riposa tre quarti d'ora
+    _piano_titoli.bing = 0
+    if not ordine or (riposo and not imp.get("bing", True)):
+        return [0, 0, 0]
     base = leggi_json(os.path.join(QUI, "piano_base.json"), {})
     giorni, imp_c = imp.get("giorni", 120), cfg.get("cervello", {})
     con_cervello = bool(chiavi.get("anthropic_key")) and imp_c.get("attivo", True)
@@ -3002,28 +3040,33 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
                 lg_i = lg if lg in PIANO_Q_INTEL else "it"  # la lingua del posto; dove non c'è, la stampa italiana
                 if lg_i != "en":
                     dom.append(("intelligence", lg_i, PIANO_Q_INTEL[lg_i].format(n=loc[1] if lg_i == lg else paesi[stato][0])))
-            # puzzle: un solo tema in più per Stato, a rotazione (ogni passata lo Stato riceve il tema successivo)
-            tema_p = PUZZLE_ORDINE[(P["i"] + P["passata"]) % len(PUZZLE_ORDINE)] if imp.get("puzzle", True) else None
-            if tema_p:
-                q_p = PIANO_PUZZLE[tema_p]["q"]
-                dom.append((tema_p, "en", q_p["en"].format(n=en)))
+            # puzzle: un tema in più per Stato a rotazione (dalla 2.26 due, opposti: in due passate tutti e quattro)
+            n_temi = max(1, min(2, imp.get("puzzle_temi", 1)))
+            temi_p = [PUZZLE_ORDINE[(P["i"] + P["passata"] + 2 * k_) % len(PUZZLE_ORDINE)] for k_ in range(n_temi)] \
+                if imp.get("puzzle", True) else []
+            tema_p = temi_p[0] if temi_p else None
+            for t_p in temi_p:
+                q_p = PIANO_PUZZLE[t_p]["q"]
+                dom.append((t_p, "en", q_p["en"].format(n=en)))
                 lg_p = lg if lg in q_p else "it"
                 if lg_p != "en":
-                    dom.append((tema_p, lg_p, q_p[lg_p].format(n=loc[1] if lg_p == lg else paesi[stato][0])))
+                    dom.append((t_p, lg_p, q_p[lg_p].format(n=loc[1] if lg_p == lg else paesi[stato][0])))
             vecchio = P["stati"].get(stato, {})
             dom += [("aperta", d["l"], d["q"] if _nome_in_lingua(stato, d["l"], paesi).lower() in d["q"].lower()
                      else '"%s" %s' % (_nome_in_lingua(stato, d["l"], paesi), d["q"]))
                     for d in vecchio.get("aperte", []) if not d.get("fatta")][:1]
-            titoli, fatte, fallite = _piano_titoli(dom, giorni, errori, imp.get("pausa", 1.0))
+            bq = [(k_, BING_Q[k_].format(n=en)) for k_ in dict.fromkeys(x[0] for x in dom) if k_ in BING_Q] if imp.get("bing", True) else []
+            titoli, fatte, fallite = _piano_titoli([] if riposo else dom, giorni, errori, imp.get("pausa", 1.0), bq)
             if fallite and any("429" in e for e in errori[-fallite:]):
                 P["riposo"] = (adesso + timedelta(minutes=45)).isoformat()  # Google News sta rifiutando: basta per ora
-            if fallite >= len(dom):
-                break  # Google News non risponde: si riprova più tardi, dallo stesso Stato
+                riposo = True
+            if not titoli and (riposo or fallite >= len(dom)):
+                break  # né Google News né Bing hanno risposto: si riprova più tardi, dallo stesso Stato
             titoli.sort(key=lambda x: x["iso"], reverse=True)
             # i titoli sui servizi hanno un loro tetto: non tolgono posto ad accordi e appalti, e viceversa
             titoli = [x for x in titoli if x["k"] != "intelligence" and x["k"] not in PIANO_PUZZLE][:imp.get("titoli_max", 70)] + \
                      [x for x in titoli if x["k"] == "intelligence"][:imp.get("titoli_intelligence", 25)] + \
-                     [x for x in titoli if x["k"] in PIANO_PUZZLE][:imp.get("titoli_puzzle", 20)]
+                     [x for x in titoli if x["k"] in PIANO_PUZZLE][:imp.get("titoli_puzzle", 20) * max(1, len(temi_p))]
             if notizia:  # i titoli della settimana entrano anche tra le notizie dal vivo
                 for x in (y for y in titoli if y["iso"] and y["k"] != "intelligence" and y["k"] not in PIANO_PUZZLE):
                     notizia("Industria e appalti" if x["k"] == "appalti" else "Alleanze e diplomazia", x["t"], x["u"], x["iso"],
@@ -3039,9 +3082,10 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
                 noti = [str(x) for x in b_.get("tr", []) + b_.get("ap", [])] + \
                        [x["cosa"] for x in vecchio.get("accordi", [])[:6]] + [x["ogg"] for x in vecchio.get("appalti", [])[:6]] + \
                        [x["cosa"] for x in vecchio.get("intel", [])[:5]] + \
-                       [x["cosa"] for x in vecchio.get("puzzle", []) if x.get("tema") == tema_p][:5]
+                       [x["cosa"] for x in vecchio.get("puzzle", []) if x.get("tema") in temi_p][:8]
                 try:
-                    risposta = chiedi_claude(chiavi, cfg, _piano_domanda(stato, titoli, giorni, noti, tema_p), 3600, conto)
+                    risposta = chiedi_claude(chiavi, cfg, _piano_domanda(stato, titoli, giorni, noti, tema_p,
+                                                                         temi_p[1] if len(temi_p) > 1 else None), 3600, conto)
                     conto["chiamate"] = conto.get("chiamate", 0) + 1
                 except Exception as e:
                     errori.append("Claude (lavoro a piano): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
@@ -3049,13 +3093,14 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
                 acc, app, intel, aperte = _piano_leggi(risposta, titoli)
                 _piano_nomi(acc, paesi)
                 _piano_nomi(app, paesi)
-                pezzi = [dict(x, tema=tema_p) for x in _piano_leggi.puzzle] if tema_p else []
+                pezzi = ([dict(x, tema=tema_p) for x in _piano_leggi.puzzle] if tema_p else []) + \
+                        ([dict(x, tema=temi_p[1]) for x in _piano_leggi.puzzle2] if len(temi_p) > 1 else [])
                 scheda.update({"accordi": _piano_unisci(vecchio.get("accordi"), acc, "cosa"),
                                "appalti": _piano_unisci(vecchio.get("appalti"), app, "ogg"),
                                "intel": _piano_unisci(vecchio.get("intel"), intel, "cosa", 20),
                                "puzzle": _piano_unisci(vecchio.get("puzzle"), pezzi, "cosa", 40), "aperte": aperte, "cervello": True})
                 scheda["nuovi"] = [len(acc), len(app), len(intel), len(pezzi)]
-                scheda["tema"] = tema_p
+                scheda["tema"], scheda["temi"] = tema_p, temi_p
                 n_acc, n_app, n_int, n_pz = n_acc + len(acc), n_app + len(app), n_int + len(intel), n_pz + len(pezzi)
                 if imp.get("sintesi", True) and (acc or app or intel or pezzi or not scheda.get("sintesi")) \
                         and _cervello_libero(conto, imp_c):
@@ -3134,12 +3179,8 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
     passo_piano.intel, passo_piano.puzzle = n_int, n_pz
     scrivi_json(perc, P)
     scrivi_json(os.path.join(DATI, "cervello.json"), conto)
-    try:
-        with open(os.path.join(WEB, "piano.js.tmp"), "w", encoding="utf-8") as f:
-            f.write("window.PIANO=" + json.dumps({"agg": P["agg"], "passata": P["passata"], "i": P["i"], "totale": len(ordine),
-                                                  "blocchi": cfg.get("piano", {}).get("blocchi", []), "ultimi": P["ultimi"],
-                                                  "stati": P["stati"]}, ensure_ascii=False, separators=(",", ":")) + ";")
-        os.replace(os.path.join(WEB, "piano.js.tmp"), os.path.join(WEB, "piano.js"))
+    try:  # dalla 2.26: piano.js leggero per la pagina e un file pieno per ogni Stato (web/piano/ISO.json)
+        scrivi_piano_web(P, cfg, len(ordine))
     except OSError:
         pass
     return [fatti, n_acc, n_app]
@@ -3321,6 +3362,356 @@ def sintesi_stato(chiavi, cfg, stato, scheda, memoria_stato, conto, errori):
     if not righe:
         return None
     return {"quando": datetime.now(timezone.utc).isoformat(), "righe": righe, "fatti": len(fatti)}
+
+
+# ----------------------------------------------------------------------------- magazzino sul telefono (dalla 2.26)
+
+# Il telefono di Savo è dedicato a PanGeo: tutto ciò che il programma raccoglie resta sul telefono, compresso, per anni.
+#   dati/magazzino/notizie/AAAA-MM-GG.jsonl.xz   ogni notizia di quel giorno (titolo, traduzione, fonte, Stati, livello,
+#                                                 conferma), scritta quando il giorno è «maturo» (2 giorni dopo: conferme e
+#                                                 traduzioni fatte) e riscritta se arrivano notizie o conferme in più
+#   dati/magazzino/giorni/AAAA-MM-GG/*.json.xz    una copia al giorno di memoria, piano, quadro e calore: la storia di che
+#                                                 cosa sapeva l'archivio quel giorno
+#   dati/magazzino/indice.json                    che cosa c'è, quanto pesa
+# Tetto: config.json › magazzino › max_gb (60) e spazio libero minimo sul telefono (min_libero_gb, 10): oltre, si tolgono
+# per primi i giorni più vecchi. Copia di sicurezza nella memoria condivisa (~/storage/shared/PanGeo), che resta anche se
+# Termux si disinstalla: si accende con  termux-setup-storage.
+
+def MAG(*p):
+    return os.path.join(DATI, "magazzino", *p)
+
+
+def _mag_scrivi(percorso, righe):
+    """Righe → JSON Lines compresso con xz (circa un sesto del peso); se xz manca, gzip."""
+    dati = ("\n".join(json.dumps(r, ensure_ascii=False, separators=(",", ":")) for r in righe) + "\n").encode("utf-8")
+    os.makedirs(os.path.dirname(percorso), exist_ok=True)
+    tmp = percorso + ".tmp"
+    try:
+        import lzma
+        with lzma.open(tmp, "wb", preset=6) as f:
+            f.write(dati)
+    except ImportError:
+        with gzip.open(tmp, "wb", compresslevel=9) as f:
+            f.write(dati)
+    os.replace(tmp, percorso)
+
+
+def _mag_apri(percorso):
+    with open(percorso, "rb") as f:
+        testa = f.read(6)
+    if testa.startswith(b"\xfd7zXZ"):
+        import lzma
+        return lzma.open(percorso, "rt", encoding="utf-8")
+    if testa.startswith(b"\x1f\x8b"):
+        return gzip.open(percorso, "rt", encoding="utf-8")
+    return open(percorso, encoding="utf-8")
+
+
+def _mag_leggi(percorso):
+    try:
+        with _mag_apri(percorso) as f:
+            for riga in f:
+                riga = riga.strip()
+                if riga:
+                    try:
+                        yield json.loads(riga)
+                    except ValueError:
+                        continue
+    except (OSError, EOFError):
+        return
+
+
+def _notizia_corta(k, v):
+    r = {"k": k, "t": v.get("t"), "it": v.get("it"), "u": v.get("u"), "f": v.get("fonte"), "d": v.get("data_iso"),
+         "p": v.get("paesi"), "tm": v.get("tema"), "lv": v.get("lv"), "c": 1 if v.get("conf") else 0, "nf": v.get("nf"),
+         "lg": v.get("lg")}
+    return {a: b for a, b in r.items() if b not in (None, "", [], 0) or a == "c"}
+
+
+def _mag_peso():
+    tot = 0
+    for radice, _, nomi in os.walk(MAG()):
+        for n in nomi:
+            try:
+                tot += os.path.getsize(os.path.join(radice, n))
+            except OSError:
+                pass
+    return tot
+
+
+def _mag_copia_dir(imp):
+    return os.path.expanduser(imp.get("copia", "~/storage/shared/PanGeo"))
+
+
+def _mag_pulisci(I, imp):
+    """Tiene il magazzino sotto il tetto e lascia libero lo spazio minimo sul telefono: via i giorni più vecchi."""
+    copia = bool(I.get("copia"))
+    tetto = imp.get("max_gb", 60) * 1e9 / (2 if copia else 1)  # la copia di sicurezza pesa quanto il magazzino
+    minimo = imp.get("min_libero_gb", 10) * 1e9
+    peso = _mag_peso()
+    try:
+        libero = shutil.disk_usage(DATI).free
+    except OSError:
+        libero = minimo + 1
+    tolti = 0
+    for d in sorted(I.get("giorni", {})):
+        if peso <= tetto and libero >= minimo:
+            break
+        for p in (MAG("notizie", d + ".jsonl.xz"), os.path.join(_mag_copia_dir(imp), "magazzino", "notizie", d + ".jsonl.xz")):
+            if os.path.exists(p):
+                b = os.path.getsize(p)
+                os.remove(p)
+                if p.startswith(MAG()):
+                    peso -= b
+                libero += b
+        del I["giorni"][d]
+        tolti += 1
+    # copie giornaliere di memoria e piano: le ultime N, più la prima di ogni mese
+    tieni = imp.get("istantanee_giorni", 30)
+    giorni_ist = sorted(os.listdir(MAG("giorni"))) if os.path.isdir(MAG("giorni")) else []
+    mesi_visti = set()
+    for d in giorni_ist[:-tieni] if len(giorni_ist) > tieni else []:
+        if d[:7] not in mesi_visti:
+            mesi_visti.add(d[:7])
+            continue
+        shutil.rmtree(MAG("giorni", d), ignore_errors=True)
+        tolti += 1
+    I["peso"], I["libero"] = _mag_peso(), libero
+    if tolti:
+        I["tolti"] = I.get("tolti", 0) + tolti
+    return tolti
+
+
+def _mag_copia(I, imp, adesso):
+    """Copia di sicurezza nella memoria condivisa del telefono (fuori da Termux), una volta al giorno, solo i file nuovi."""
+    dest = _mag_copia_dir(imp)
+    if not imp.get("copia_attiva", True) or not os.path.isdir(os.path.dirname(dest)):
+        I["copia"] = ""  # serve  termux-setup-storage  (una volta sola)
+        return
+    oggi = adesso.date().isoformat()
+    if I.get("copia_il") == oggi:
+        return
+    n = 0
+    for radice, _, nomi in os.walk(MAG()):
+        for nome in nomi:
+            if nome.endswith(".tmp"):
+                continue
+            src = os.path.join(radice, nome)
+            dst = os.path.join(dest, "magazzino", os.path.relpath(src, MAG()))
+            try:
+                if os.path.exists(dst) and os.path.getsize(dst) == os.path.getsize(src):
+                    continue
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copyfile(src, dst + ".tmp")
+                os.replace(dst + ".tmp", dst)
+                n += 1
+            except OSError:
+                continue
+    I["copia"], I["copia_il"], I["copia_file"] = dest, oggi, n
+
+
+def magazzino(archivio, cfg, adesso):
+    """A ogni giro: i giorni maturi nel magazzino (pochi a giro), la copia del giorno, la pulizia, la copia di sicurezza."""
+    imp = cfg.get("magazzino", {})
+    if not imp.get("attivo", True):
+        return None
+    I = leggi_json(MAG("indice.json"), {}) or {}
+    I.setdefault("giorni", {})
+    per = {}
+    for k, v in (archivio.get("notizie") or {}).items():
+        d = (v.get("data_iso") or "")[:10]
+        if len(d) == 10:
+            per.setdefault(d, {})[k] = v
+    maturo = (adesso - timedelta(days=imp.get("maturi_giorni", 2))).date().isoformat()
+    scritti = 0
+    for d in sorted(per, reverse=True):
+        if d > maturo:
+            continue
+        nuove, gia = per[d], I["giorni"].get(d) or {}
+        conf = sum(1 for v in nuove.values() if v.get("conf"))
+        trad = sum(1 for v in nuove.values() if v.get("it"))
+        if gia and gia.get("visti", 0) >= len(nuove) and gia.get("conf_a", 0) >= conf and gia.get("trad_a", 0) >= trad:
+            continue
+        perc = MAG("notizie", d + ".jsonl.xz")
+        tutte = {r.get("k"): r for r in _mag_leggi(perc)} if os.path.exists(perc) else {}
+        for k, v in nuove.items():
+            tutte[k] = _notizia_corta(k, v)
+        _mag_scrivi(perc, list(tutte.values()))
+        I["giorni"][d] = {"n": len(tutte), "conf": sum(1 for r in tutte.values() if r.get("c")), "byte": os.path.getsize(perc),
+                          "visti": len(nuove), "conf_a": conf, "trad_a": trad}
+        scritti += 1
+        if scritti >= imp.get("giorni_per_giro", 2):
+            break
+    oggi = adesso.date().isoformat()
+    if I.get("istantanea") != oggi:
+        for nome in ("memoria.json", "piano.json", "quadro.json", "calore_zone.json", "servizi.json", "basi_wd.json"):
+            src = os.path.join(DATI, nome)
+            if os.path.exists(src):
+                try:
+                    _mag_scrivi(MAG("giorni", oggi, nome + ".xz"), [leggi_json(src, {})])
+                except Exception:
+                    pass
+        I["istantanea"] = oggi
+    _mag_pulisci(I, imp)
+    _mag_copia(I, imp, adesso)
+    I["agg"] = adesso.isoformat()
+    scrivi_json(MAG("indice.json"), I)
+    return [round(I.get("peso", 0) / 1e6, 1), len(I["giorni"]), sum(g.get("n", 0) for g in I["giorni"].values()),
+            round(I.get("libero", 0) / 1e9, 1), 1 if I.get("copia") else 0]
+
+
+def _norm(t):
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(t or "").replace("’", "'")).encode("ascii", "ignore").decode()
+    return " ".join(re.sub(r"[^a-z0-9/'-]+", " ", t.lower()).split())
+
+
+def cerca(q, stato=None, giorni=3650, massimo=60):
+    """Cerca in tutto ciò che il telefono conserva: fatti confermati, notizie degli ultimi 7 giorni, lavoro a piano e il
+    magazzino, dal giorno più recente. Tutte le parole devono esserci (senza accenti e maiuscole)."""
+    parole_q = [w for w in _norm(q).split() if len(w) > 1]
+    if not parole_q:
+        return []
+    va = lambda testo: all(w in _norm(testo) for w in parole_q)
+    fuori, visti = [], set()
+
+    def metti(r):
+        k = r.get("u") or r.get("t")
+        if k in visti or len(fuori) >= massimo:
+            return
+        visti.add(k)
+        fuori.append(r)
+    for st_, l in (leggi_json(os.path.join(DATI, "memoria.json"), {}) or {}).items():
+        if stato and st_ != stato:
+            continue
+        for x in l:
+            if va(x[1]):
+                metti({"d": x[0], "t": x[1], "f": x[2], "u": x[4], "p": [st_], "dove": "fatto confermato", "c": 1})
+    P = (leggi_json(os.path.join(DATI, "piano.json"), {}) or {}).get("stati", {})
+    for st_, s in P.items():
+        if stato and st_ != stato:
+            continue
+        for campo, chiave in (("accordi", "cosa"), ("appalti", "ogg"), ("intel", "cosa"), ("puzzle", "cosa")):
+            for x in s.get(campo) or []:
+                testo = " ".join(str(x.get(c) or "") for c in (chiave, "con", "acq", "forn", "ente"))
+                if va(testo):
+                    f = (x.get("f") or [["", ""]])[0]
+                    metti({"d": x.get("d", ""), "t": x.get(chiave, ""), "f": f[0], "u": f[1] if len(f) > 1 else "",
+                           "p": [st_], "dove": "lavoro a piano: " + campo})
+    recenti = sorted((leggi_json(os.path.join(DATI, "archivio.json"), {}) or {}).get("notizie", {}).items(),
+                     key=lambda kv: kv[1].get("data_iso", ""), reverse=True)
+    for k, v in recenti:
+        if stato and stato not in (v.get("paesi") or []):
+            continue
+        if va((v.get("it") or "") + " " + (v.get("t") or "")):
+            metti({"d": (v.get("data_iso") or "")[:10], "t": v.get("it") if va(v.get("it") or "") else v.get("t"), "f": v.get("fonte"), "u": v.get("u"),
+                   "p": v.get("paesi") or [], "dove": "notizia", "c": 1 if v.get("conf") else 0})
+    limite = (datetime.now(timezone.utc) - timedelta(days=giorni)).date().isoformat()
+    for d in sorted((leggi_json(MAG("indice.json"), {}) or {}).get("giorni", {}), reverse=True):
+        if d < limite or len(fuori) >= massimo:
+            break
+        for r in _mag_leggi(MAG("notizie", d + ".jsonl.xz")):
+            if stato and stato not in (r.get("p") or []):
+                continue
+            if va((r.get("it") or "") + " " + (r.get("t") or "")):
+                metti({"d": (r.get("d") or "")[:10], "t": r.get("it") if va(r.get("it") or "") else r.get("t"), "f": r.get("f"), "u": r.get("u"),
+                       "p": r.get("p") or [], "dove": "notizia (magazzino)", "c": r.get("c", 0)})
+    return sorted(fuori, key=lambda r: str(r.get("d") or ""), reverse=True)
+
+
+# ----------------------------------------------------------------------------- seconda fonte di ricerca: Bing News (dalla 2.26)
+
+# domande semplici in inglese (Bing non regge le domande lunghe con OR e parentesi): una per tipo
+BING_Q = {"accordi": '"{n}" defence agreement', "appalti": '"{n}" military contract', "intelligence": '"{n}" intelligence service',
+          "energia": '"{n}" energy grid', "ia": '"{n}" military artificial intelligence', "trasporti": '"{n}" port railway',
+          "cibo": '"{n}" food security'}
+
+
+def bing_news(q, giorni=30):
+    """Notizie da Bing News (RSS gratuito): stesso formato di google_news, con l'indirizzo vero dell'articolo."""
+    url = "https://www.bing.com/news/search?" + urllib.parse.urlencode(
+        {"q": q, "format": "rss", "setlang": "en", "qft": 'interval="8"' if giorni <= 7 else 'interval="9"'})
+    testo = scarica(url, timeout=30).decode("utf-8", "replace")
+    limite = datetime.now(timezone.utc) - timedelta(days=giorni)
+    voci = []
+    for it in re.findall(r"<item>(.*?)</item>", testo, re.S):
+        def g(tag):
+            m = re.search(r"<%s>(.*?)</%s>" % (re.escape(tag), re.escape(tag)), it, re.S)
+            return html.unescape(re.sub(r"^<!\[CDATA\[|\]\]>$", "", m.group(1).strip())) if m else ""
+        link = g("link")
+        vero = (urllib.parse.parse_qs(urllib.parse.urlparse(link).query).get("url") or [link])[0]
+        try:
+            quando = email.utils.parsedate_to_datetime(g("pubDate")).astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            quando = None
+        if quando and quando < limite:
+            continue
+        voci.append((pulisci(g("title"), 240), vero, quando.isoformat() if quando else "", g("News:Source") or dominio(vero), dominio(vero)))
+    return voci
+
+
+# ----------------------------------------------------------------------------- file per Stato per il sito (dalla 2.26)
+
+def _file_stato(nome, cfg):
+    iso = (cfg.get("siti_militari", {}).get("iso") or {}).get(nome)
+    return iso or re.sub(r"[^a-z0-9]+", "-", _norm(nome)).strip("-") or "x"
+
+
+def _scrivi_se_cambia(percorso, testo):
+    try:
+        if open(percorso, encoding="utf-8").read() == testo:
+            return False
+    except OSError:
+        pass
+    os.makedirs(os.path.dirname(percorso), exist_ok=True)
+    with open(percorso + ".tmp", "w", encoding="utf-8") as f:
+        f.write(testo)
+    os.replace(percorso + ".tmp", percorso)
+    return True
+
+
+def scrivi_memoria_web(M, cfg):
+    """memoria.js leggero (gli ultimi 8 fatti di ogni Stato, quanti sono in tutto e il nome del file) più un file per Stato
+    con tutti i fatti (web/memoria/ISO.json): la pagina scarica solo quello dello Stato che apri."""
+    riga = lambda x: [x[0], x[1], x[2], x[3], x[4], x[6] if len(x) > 6 else ""]
+    file_ = {k: _file_stato(k, cfg) for k in M}
+    corto = {k: [riga(x) for x in l[:8]] for k, l in M.items()}
+    _scrivi_se_cambia(os.path.join(WEB, "memoria.js"),
+                      "window.MEMORIA=" + json.dumps(corto, ensure_ascii=False, separators=(",", ":")) + ";window.MEMORIA_N="
+                      + json.dumps({k: len(l) for k, l in M.items()}, separators=(",", ":")) + ";window.MEMORIA_FILE="
+                      + json.dumps(file_, ensure_ascii=False, separators=(",", ":")) + ";")
+    for k, l in M.items():
+        _scrivi_se_cambia(os.path.join(WEB, "memoria", file_[k] + ".json"),
+                          json.dumps({"stato": k, "fatti": [riga(x) for x in l]}, ensure_ascii=False, separators=(",", ":")))
+
+
+def _piano_corto(s):
+    """La scheda del piano per piano.js: una fonte per riga, tappe brevi, niente titoli da leggere né domande fatte."""
+    c = {k: v for k, v in s.items() if k not in ("domande", "da_leggere")}
+    c["risposte"] = (s.get("risposte") or [])[-2:]
+    for campo in ("accordi", "appalti", "intel", "puzzle"):
+        l = []
+        for r in s.get(campo) or []:
+            r = dict(r)
+            r["nf"] = len(r.get("f") or [])
+            r["f"] = [f[:2] for f in (r.get("f") or [])[:1]]
+            if r.get("tappe"):
+                r["tappe"] = [[t[0], t[1], str(t[2])[:110]] for t in r["tappe"] if len(t) > 2]
+            l.append(r)
+        c[campo] = l
+    c["pieno"] = False
+    return c
+
+
+def scrivi_piano_web(P, cfg, totale):
+    file_ = {k: _file_stato(k, cfg) for k in P["stati"]}
+    _scrivi_se_cambia(os.path.join(WEB, "piano.js"), "window.PIANO=" + json.dumps(
+        {"agg": P["agg"], "passata": P["passata"], "i": P["i"], "totale": totale, "blocchi": cfg.get("piano", {}).get("blocchi", []),
+         "ultimi": P["ultimi"], "file": file_, "stati": {k: _piano_corto(v) for k, v in P["stati"].items()}},
+        ensure_ascii=False, separators=(",", ":")) + ";")
+    for k, v in P["stati"].items():
+        _scrivi_se_cambia(os.path.join(WEB, "piano", file_[k] + ".json"),
+                          json.dumps(dict(v, stato=k, pieno=True), ensure_ascii=False, separators=(",", ":")))
 
 
 # ----------------------------------------------------------------------------- quadro: scaletta e collegamenti (dalla 2.23)
@@ -5009,6 +5400,11 @@ def _aggiorna(leggero=False):
         R_["verifiche"] = R_.get("verifiche", [])[-80:]
         scrivi_json(os.path.join(DATI, "ricerche.json"), R_)
     scrivi_json(os.path.join(DATI, "archivio.json"), archivio)  # con conferme, gruppi, verifiche e traduzioni
+    try:  # dalla 2.26: tutto resta sul telefono, compresso (magazzino), con tetto, pulizia e copia di sicurezza
+        stato_mag = magazzino(archivio, cfg, adesso)
+    except Exception as e:
+        stato_mag = None
+        errori.append(f"Magazzino: {str(e)[:120]}")
     analisi["segnali"] = segnali_stati(archivio, recente, analisi, dati_cielo, dati_calore)
     analisi["peggiora"] = andamento_stati(archivio)
     analisi["miglioratore"] = miglioratore(cfg, chiavi, analisi, auto, errori)
@@ -5108,16 +5504,13 @@ def _aggiorna(leggero=False):
         "richieste": sum(RICHIESTE.values()), "siti": sorted(RICHIESTE.items(), key=lambda x: -x[1])[:6],
         "rifiuti": dict(RIFIUTI), "errori": len(errori), "usd_oggi": conto_c.get("usd_oggi", 0),
         "usd_mese": conto_c.get("usd_mese", 0), "tradotti": sum(1 for v in archivio["notizie"].values() if v.get("it")),
+        "mag": stato_mag, "bing": getattr(_piano_titoli, "bing", 0),
     })
     scrivi_json(os.path.join(DATI, "diario.json"), diario[-120:])
     live["diario"] = [{k: v for k, v in x.items() if k not in ("ricerche", "siti")} for x in diario[-60:]]  # per la pagina
     try:
         shutil.copyfile(os.path.join(DATI, "diario.json"), os.path.join(WEB, "diario.json"))
-        mem_ = leggi_json(os.path.join(DATI, "memoria.json"), {})
-        with open(os.path.join(WEB, "memoria.js.tmp"), "w", encoding="utf-8") as f:
-            f.write("window.MEMORIA=" + json.dumps({k: [[x[0], x[1], x[2], x[3], x[4], x[6] if len(x) > 6 else ""] for x in l]
-                                                    for k, l in mem_.items()}, ensure_ascii=False, separators=(",", ":")) + ";")
-        os.replace(os.path.join(WEB, "memoria.js.tmp"), os.path.join(WEB, "memoria.js"))
+        scrivi_memoria_web(leggi_json(os.path.join(DATI, "memoria.json"), {}), cfg)
     except OSError:
         pass
     with open(os.path.join(WEB, "live.js.tmp"), "w", encoding="utf-8") as f:
@@ -5323,7 +5716,8 @@ def _js_dati(percorso):
     """Legge un file di dati del sito («window.NOME = {...};») e ne restituisce il contenuto."""
     with open(percorso, encoding="utf-8") as f:
         testo = f.read()
-    return json.loads(testo[testo.index("{"):testo.rindex("}") + 1])
+    # il primo oggetto dopo «=»: dalla 2.26 memoria.js ne contiene tre (MEMORIA, MEMORIA_N, MEMORIA_FILE)
+    return json.JSONDecoder().raw_decode(testo, testo.index("{"))[0]
 
 
 def _iso_da_mostra(testo, adesso):
@@ -5487,6 +5881,10 @@ def _ricostruisci(R, cfg):
 
     def _memoria():
         M_r = _js_dati(os.path.join(R, "memoria.js"))
+        for f_ in glob.glob(os.path.join(R, "memoria", "*.json")):  # dalla 2.26: tutti i fatti stanno nei file per Stato
+            x_ = leggi_json(f_, {})
+            if x_.get("stato") and isinstance(x_.get("fatti"), list):
+                M_r[x_["stato"]] = x_["fatti"]
         perc = os.path.join(DATI, "memoria.json")
         M = leggi_json(perc, {})
         n = 0
@@ -5507,10 +5905,7 @@ def _ricostruisci(R, cfg):
                 M[st_] = dopo_
         if n:
             scrivi_json(perc, M)
-            with open(os.path.join(WEB, "memoria.js.tmp"), "w", encoding="utf-8") as f:
-                f.write("window.MEMORIA=" + json.dumps({k: [[x[0], x[1], x[2], x[3], x[4], x[6] if len(x) > 6 else ""] for x in l]
-                                                        for k, l in M.items()}, ensure_ascii=False, separators=(",", ":")) + ";")
-            os.replace(os.path.join(WEB, "memoria.js.tmp"), os.path.join(WEB, "memoria.js"))
+            scrivi_memoria_web(M, cfg)
         return f"la memoria degli Stati ({n} fatti confermati)" if n else ""
 
     def _archivio():
@@ -5641,6 +6036,10 @@ def _ricostruisci(R, cfg):
         if not os.path.exists(sorgente):
             return ""
         P_r = _js_dati(sorgente)
+        for f_ in glob.glob(os.path.join(R, "piano", "*.json")):  # dalla 2.26 piano.js è leggero: le schede piene sono qui
+            x_ = leggi_json(f_, {})
+            if x_.get("stato") and (P_r.get("stati") or {}).get(x_["stato"]) is not None:
+                P_r["stati"][x_["stato"]] = {k: v for k, v in x_.items() if k not in ("stato", "pieno")}
         perc = os.path.join(DATI, "piano.json")
         P = leggi_json(perc, {})
         if (P_r.get("passata", 1), len(P_r.get("stati") or {})) <= (P.get("passata", 1), len(P.get("stati") or {})):
@@ -5650,8 +6049,23 @@ def _ricostruisci(R, cfg):
         for st_, v in (P.get("stati") or {}).items():  # ciò che il telefono ha lavorato dopo la reinstallazione resta
             P_n["stati"].setdefault(st_, v)
         scrivi_json(perc, P_n)
-        shutil.copyfile(sorgente, os.path.join(WEB, "piano.js"))
+        scrivi_piano_web(P_n, cfg, len(piano_ordine(cfg, leggi_json(os.path.join(QUI, "paesi.json"), {}))) or 198)
         return f"il lavoro a piano (Stati già lavorati: {len(P_n['stati'])})"
+
+    def _magazzino():  # dalla 2.26: il magazzino torna dalla copia di sicurezza nella memoria condivisa, se c'è
+        copia_ = os.path.join(_mag_copia_dir(cfg.get("magazzino", {})), "magazzino")
+        if not os.path.isdir(copia_):
+            return ""
+        n_ = 0
+        for radice_, _, nomi_ in os.walk(copia_):
+            for nome_m in nomi_:
+                src_ = os.path.join(radice_, nome_m)
+                dst_ = MAG(os.path.relpath(src_, copia_))
+                if not os.path.exists(dst_):
+                    os.makedirs(os.path.dirname(dst_), exist_ok=True)
+                    shutil.copyfile(src_, dst_)
+                    n_ += 1
+        return f"il magazzino dalla copia di sicurezza ({n_} file)" if n_ else ""
 
     def _storici():
         if os.path.exists(os.path.join(WEB, "index.html")) and prima:
@@ -5660,7 +6074,8 @@ def _ricostruisci(R, cfg):
 
     for nome_, funzione_ in (("pagina", _pagina), ("diario", _diario), ("conto della spesa", _conto), ("sapere", _sapere),
                              ("memoria", _memoria), ("ultime notizie", _archivio), ("copia di riserva", _riserva),
-                             ("fonti scoperte", _scoperte), ("lavoro a piano", _piano), ("storici", _storici)):
+                             ("fonti scoperte", _scoperte), ("lavoro a piano", _piano), ("magazzino", _magazzino),
+                             ("storici", _storici)):
         passo(nome_, funzione_)
     if fatto:
         print("Rimesso dal salvataggio su GitHub: " + "; ".join(fatto) + ".")
@@ -5801,6 +6216,10 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
                 subprocess.run(["git", "-C", cartella, "add", nome], check=True)
+        for cart_ in (() if solo_diario else ("memoria", "piano")):  # dalla 2.26: un file per Stato (git manda solo i cambiati)
+            if os.path.isdir(os.path.join(WEB, cart_)):
+                shutil.copytree(os.path.join(WEB, cart_), os.path.join(cartella, cart_), dirs_exist_ok=True)
+                subprocess.run(["git", "-C", cartella, "add", cart_], check=True)
         if subprocess.run(["git", "-C", cartella, "diff", "--cached", "--quiet"]).returncode != 0:
             subprocess.run(["git", "-C", cartella, "-c", "user.name=Castello", "-c", "user.email=castello@localhost",
                             "commit", "-m", "Dati live dal telefono"], check=True)
@@ -5875,6 +6294,20 @@ class Gestore(http.server.SimpleHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        if self.path.split("?")[0] == "/api/cerca":  # dalla 2.26: la pagina sul telefono cerca in tutto il magazzino
+            qs_ = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            try:
+                ris_ = cerca((qs_.get("q") or [""])[0][:120], (qs_.get("stato") or [None])[0],
+                             giorni=int((qs_.get("giorni") or ["120"])[0]), massimo=int((qs_.get("max") or ["60"])[0]))
+            except Exception as e:
+                ris_ = {"errore": str(e)[:120]}
+            corpo = json.dumps(ris_, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+            return
         if self.path.split("?")[0] == "/vivo":  # lo chiede il guardiano: chi sei, e che versione
             corpo = ("pangeo " + VERSIONE).encode("utf-8")
             self.send_response(200)
@@ -6109,6 +6542,27 @@ if __name__ == "__main__":
         cmd_piano()
     elif comando == "giri":
         giri(int(a[1]) if len(a) > 1 and a[1].isdigit() else 12)
+    elif comando == "cerca" and len(a) > 1:
+        st_c = a[a.index("--stato") + 1] if "--stato" in a and a.index("--stato") + 1 < len(a) else None
+        parole_c = [x for i_, x in enumerate(a[1:], 1) if x != "--stato" and not (i_ > 1 and a[i_ - 1] == "--stato")]
+        ris_ = cerca(" ".join(parole_c), st_c, massimo=40)
+        print(f"{len(ris_)} risultati per «{' '.join(parole_c)}»" + (f" ({st_c})" if st_c else "") + ":")
+        for r_ in ris_:
+            print(f"  {r_.get('d', '')} · {', '.join((r_.get('p') or [])[:3])} · {r_.get('dove', '')}" + (" · confermata" if r_.get("c") else ""))
+            print(f"    {r_.get('t', '')}")
+            print(f"    {r_.get('f') or ''} {r_.get('u') or ''}")
+    elif comando == "magazzino":
+        I_ = leggi_json(MAG("indice.json"), {}) or {}
+        g_ = I_.get("giorni", {})
+        print(f"Magazzino: {round(_mag_peso() / 1e6, 1)} MB · {len(g_)} giorni ({min(g_) if g_ else '-'} → {max(g_) if g_ else '-'}) · "
+              f"{sum(x.get('n', 0) for x in g_.values())} notizie, {sum(x.get('conf', 0) for x in g_.values())} confermate")
+        try:
+            print(f"Spazio libero sul telefono: {round(shutil.disk_usage(DATI).free / 1e9, 1)} GB · tetto del magazzino: "
+                  f"{leggi_json(os.path.join(QUI, 'config.json'), {}).get('magazzino', {}).get('max_gb', 60)} GB")
+        except OSError:
+            pass
+        print("Copia di sicurezza: " + (f"{I_['copia']} (ultima il {I_.get('copia_il', '?')})" if I_.get("copia") else
+                                        "spenta. Per accenderla, una volta sola:  termux-setup-storage  (e consenti l'accesso)"))
     elif comando == "rapporto12":
         r_ = rapporto_12(leggi_json(os.path.join(QUI, "config.json"), {}), forza=len(a) > 1 and a[1] == "scrivi") if len(a) > 1 \
             else rapporto_dati(leggi_json(os.path.join(DATI, "diario.json"), []), leggi_json(os.path.join(DATI, "live.json"), {}),

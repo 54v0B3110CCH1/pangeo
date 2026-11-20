@@ -405,6 +405,27 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.26 (20 novembre, pomeriggio) – IL TELEFONO DEDICATO: MAGAZZINO, PIÙ VELOCE, PIÙ FONTI
+- Magazzino sul telefono: ogni notizia resta per sempre, compressa con xz (circa un sesto del peso), un file per giorno in
+  dati/magazzino/notizie. Ogni giorno anche una copia di memoria, piano, quadro, calore, servizi e siti militari, per
+  vedere che cosa sapeva l'archivio quel giorno (le ultime 30, più la prima di ogni mese). Tetto: 60 GB e almeno 10 GB
+  liberi sul telefono (config.json › magazzino): oltre, via i giorni più vecchi. Stima reale: qualche centinaio di MB l'anno.
+      python castello.py magazzino            quanto pesa, quanti giorni e notizie, spazio libero
+      python castello.py cerca F-35 --stato Polonia     cerca in tutto (anche i mesi passati)
+  Nella pagina sul telefono la ricerca guarda anche nel magazzino (ultimi 120 giorni).
+- Copia di sicurezza nella memoria condivisa del telefono (cartella PanGeo), che resta anche se Termux si disinstalla.
+  Si accende una volta sola con:  termux-setup-storage  (e consenti l'accesso). Dopo una reinstallazione ricostruisci la
+  rimette a posto.
+- Memoria dei fatti confermati: fino a 300 per Stato (prima 40) e per un anno (prima 120 giorni). Sul sito un file per
+  Stato (memoria/ITA.json): la pagina scarica solo quello dello Stato che apri.
+- Lavoro a piano: piano.js leggero per la pagina e una scheda piena per Stato (piano/ITA.json).
+- Più veloce: 2 Stati per giro leggero (prima 1), 3 siti militari per giro (prima 1), 3 sintesi per giro (prima 1),
+  2 temi del puzzle per Stato a ogni passata (prima 1): tutti e quattro i temi in due passate.
+- Bing News come seconda fonte di ricerca accanto a Google News: domande semplici in inglese, indirizzi veri degli
+  articoli. Quando Google rifiuta (troppe richieste) il lavoro a piano continua con Bing.
+- Si spengono da config.json: magazzino › attivo, piano › bing; i ritmi in piano › per_giro_leggero, puzzle_temi,
+  sintesi_per_giro e siti_militari › per_giro.
+
 NOVITÀ 2.25 (20 novembre, pomeriggio) – RAPPORTO OGNI 12 ORE, SINTESI DI OGNI STATO, NOMI UNIFORMI
 - Rapporto alle 8 e alle 20: che cosa ha fatto il programma, quante informazioni ha, che cosa è migliorato o peggiorato
   rispetto al rapporto prima, telefono e costi. In prima riga il verdetto («Tutto regolare» o «ATTENZIONE: …»).
