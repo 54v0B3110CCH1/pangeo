@@ -405,6 +405,9 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.30.1 – Avvisi più puliti: un fatto grave dà un avviso solo con almeno 10 morti, una volta sola anche se lo
+  raccontano tante fonti; la lista tiene gli ultimi 300 avvisi (prima la prima volta ne entravano troppi).
+
 NOVITÀ 2.30 (20 novembre, sera) – ECONOMIA E CANALI CHE SI TROVANO DA SOLI
 - Economia, tutta da fonti pubbliche e gratuite, senza chiavi:
   · Banca Mondiale: PIL, importazioni ed esportazioni, investimenti esteri, debito pubblico ed estero, spesa

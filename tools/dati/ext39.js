@@ -44,7 +44,7 @@ function economiaStatoHtml(n) {
   const righe = [['pil', soldi], ['import', soldi], ['export', soldi], ['ide', soldi], ['debito_pil', v => num1(v) + '%'], ['debito_estero', soldi],
     ['mil_pil', v => num1(v) + '%'], ['mil', soldi], ['inflazione', v => num1(v) + '%'], ['conto_corrente', v => num1(v) + '%']].filter(r => b[r[0]]);
   let h = '<h3>Economia</h3><div class="item">';
-  if (righe.length) h += '<dl class="kv">' + righe.map(([k, f]) => '<dt>' + esc(N[k] || k) + '</dt><dd>' + f(b[k][1]) + ' <span class="s">(' + b[k][0] + ')</span></dd>').join('') + '</dl>';
+  if (righe.length) h += '<ul class="plain">' + righe.map(([k, f]) => '<li>' + esc(N[k] || k) + ': <b>' + f(b[k][1]) + '</b> <span class="s">(' + b[k][0] + ')</span></li>').join('') + '</ul>';
   if (S.valuta) h += '<div class="x" style="margin-top:6px">Moneta: <b>' + esc(S.valuta[0]) + '</b> · ' + num1(S.valuta[1]) + ' per un dollaro · in 7 giorni ' + varHtml(S.valuta[2]) +
     ', in 30 giorni ' + varHtml(S.valuta[3]) + ', in un anno ' + varHtml(S.valuta[4]) + ' <span class="s">(+ la moneta si rafforza, − si indebolisce)</span></div>';
   if (S.tasso) {
@@ -77,7 +77,7 @@ function viewEconomia() {
   h += '<h3>Materie prime</h3><div class="item">' + Object.values(E.materie || {}).map(m => miniLinea(m.nome, (m.s || []).slice(-120).map(x => [pianoData(x[0]), x[1]]), '--conf-f', '')).join('') + '</div>';
   const tas = Object.entries(S).filter(([n, x]) => x.tasso).map(([n, x]) => { const t = x.tasso, u = t[t.length - 1], p = t[t.length - 2]; return [n, u[1], p ? u[1] - p[1] : null, spreadDi(n), u[0]]; }).sort((a, b) => b[1] - a[1]);
   if (tas.length) h += '<h3>Titoli di Stato a 10 anni (' + tas.length + ' Stati)</h3><div class="item tab-wrap"><table class="fatti"><thead><tr><th>Stato</th><th>Tasso</th><th>In un mese</th><th>Spread con la Germania</th><th>Mese</th></tr></thead><tbody>' +
-    tas.map(r => '<tr><td>' + stLink(r[0]) + '</td><td><b>' + num1(r[1]) + '%</b></td><td>' + (r[2] == null ? '—' : (r[2] > 0 ? '+' : '') + num1(r[2])) + '</td><td>' + (r[3] == null ? '—' : r[3] + ' pb') + '</td><td>' + esc(r[4]) + '</td></tr>').join('') + '</tbody></table></div>';
+    tas.map(r => '<tr><td>' + stLink(r[0]) + '</td><td><b>' + num1(r[1]) + '%</b></td><td>' + (r[2] == null ? '—' : (r[2] > 0 ? '+' : '') + r[2].toFixed(2).replace('.', ',')) + '</td><td>' + (r[3] == null ? '—' : r[3] + ' pb') + '</td><td>' + esc(r[4]) + '</td></tr>').join('') + '</tbody></table></div>';
   const val = Object.entries(S).filter(([n, x]) => x.valuta && x.valuta[3] != null);
   if (val.length) {
     const deb = val.slice().sort((a, b) => a[1].valuta[3] - b[1].valuta[3]).slice(0, 12), forti = val.slice().sort((a, b) => b[1].valuta[3] - a[1].valuta[3]).slice(0, 8);

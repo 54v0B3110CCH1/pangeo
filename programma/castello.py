@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.30"
+VERSIONE = "2.30.1"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -4729,14 +4729,17 @@ def calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg):
         if giorni_noti >= imp.get("giorni_minimi", 5) and c_oggi >= max(imp.get("picco_minimo", 6), 3 * max(mediana, 1)):
             nuovi.append({"id": f"picco:{p}:{oggi}", "tipo": "picco", "stato": p, "livello": 2 if c_oggi >= 6 * max(mediana, 1) else 1,
                           "testo": f"{p}: {c_oggi} notizie confermate oggi, di solito {mediana} al giorno."})
-    for k, s in S_schede.items():
+    visti_f = set()  # lo stesso fatto (stesso Stato, stessi morti) raccontato da più fonti: un avviso solo
+    for k, s in sorted(S_schede.items(), key=lambda kv: -(kv[1].get("nf") or 1)):
         if s.get("d") not in (oggi, ieri):
             continue
         m_ = (s.get("num") or {}).get("morti") or 0
-        if m_ >= imp.get("morti_minimi", 10) or s.get("tipo") in ("nucleare",) and s.get("nf", 1) >= 3:
-            for p in (s.get("p") or [])[:2]:
-                nuovi.append({"id": f"fatto:{k}:{p}", "tipo": "fatto", "stato": p, "livello": 2 if m_ >= 50 else 1,
-                              "testo": f"{p}: {s.get('t', '')}", "u": s.get("u", ""), "f": s.get("f", "")})
+        p = (s.get("p") or [None])[0]
+        if not p or m_ < imp.get("morti_minimi", 10) or (p, m_) in visti_f:
+            continue
+        visti_f.add((p, m_))
+        nuovi.append({"id": f"fatto:{p}:{m_}:{s.get('d')}", "tipo": "fatto", "stato": p, "livello": 2 if m_ >= 50 else 1,
+                      "testo": f"{p}: {s.get('t', '')}", "u": s.get("u", ""), "f": s.get("f", "")})
     for p, v in ((dati_cielo or {}).get("paesi") or {}).items():
         if isinstance(v, list) and len(v) > 2 and v[2]:
             nuovi.append({"id": f"cielo:{p}:{oggi}", "tipo": "cielo", "stato": p, "livello": 1,
@@ -4762,7 +4765,7 @@ def avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg, chiavi):
     except Exception:
         pass
     nuovi = [dict(a, quando=adesso.isoformat()) for a in calcolati_ if a["id"] not in visti]
-    elenco = (elenco + nuovi)[-80:]
+    elenco = (elenco + nuovi)[-300:]
     V.update(elenco=elenco, agg=adesso.isoformat())
     scrivi_json(perc, V)
     os.makedirs(WEB, exist_ok=True)
