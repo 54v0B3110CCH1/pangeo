@@ -10,7 +10,7 @@ os.makedirs(os.path.join(T, "dati")); os.makedirs(os.path.join(T, "web"))
 spec = importlib.util.spec_from_file_location("castello", os.path.join(T, "castello.py"))
 C = importlib.util.module_from_spec(spec); spec.loader.exec_module(C)
 cfg = json.load(open(os.path.join(T, "config.json"))); paesi = json.load(open(os.path.join(T, "paesi.json")))
-cfg.setdefault("officina", {}).update({"attivo": True, "porta": 8093, "thread": 2, "secondi_per_giro": 400})
+cfg.setdefault("officina", {}).update({"attivo": True, "traduttore": True, "porta": 8093, "thread": 2, "secondi_per_giro": 400})
 ok = lambda c, m: print(("OK  " if c else "NO  ") + m) or (c or sys.exit(1))
 adesso = datetime.now(timezone.utc)
 # 1. spesa per lavoro

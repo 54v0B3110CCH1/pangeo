@@ -405,6 +405,10 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.30.2 – Traduttore del telefono spento: la prova del 20 novembre ha dato 86 secondi a titolo e traduzioni
+  sbagliate (il processore non basta per il modello da 4 miliardi). Lo spegne config.json › officina › traduttore;
+  le traduzioni le fa il cervello come prima. Il modello dei significati (più piccolo) continua a lavorare sul telefono.
+
 NOVITÀ 2.30.1 – Avvisi più puliti: un fatto grave dà un avviso solo con almeno 10 morti, una volta sola anche se lo
   raccontano tante fonti; la lista tiene gli ultimi 300 avvisi (prima la prima volta ne entravano troppi).
 

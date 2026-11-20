@@ -124,7 +124,8 @@ open(C.OFF("modello.gguf.part"), "wb").write(contenuto[:1_000_000])
 C._scarico_scrivi(stato="scarico", mb=1, vel=2.5)
 C.shutil.which = (lambda f: (lambda n: "/x/" + n if n == "llama-server" else f(n)))(shutil.which)
 C._su_termux = lambda: True
-S2 = C.officina(C.leggi_json(os.path.join(T, "config.json"), {}), {"in_carica": True, "temp": 30, "batteria": 80}, {}, [],
+cfg_t = C.leggi_json(os.path.join(T, "config.json"), {}); cfg_t["officina"]["traduttore"] = True
+S2 = C.officina(cfg_t, {"in_carica": True, "temp": 30, "batteria": 80}, {}, [],
                 datetime.now(timezone.utc))
 ok("1 MB su 3" in (S2 or {}).get("fase", "") and "2.5 MB/s" in S2["fase"] and not S2.get("pid_curl"),
    "l'officina mostra i MB scritti dal cuore e non lancia curl: " + (S2 or {}).get("fase", ""))

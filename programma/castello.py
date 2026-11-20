@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.30.1"
+VERSIONE = "2.30.2"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -3985,6 +3985,16 @@ def _off_server_su(S, porta):
         return False
 
 
+def _off_ferma_traduttore(S):
+    """Spegne solo il traduttore (llama-server con il modello grande), non il modello dei significati."""
+    if S.get("pid_server") and _vivo_pid(S["pid_server"]) and _e_llama(S["pid_server"]):
+        try:
+            os.kill(int(S["pid_server"]), signal.SIGTERM)
+        except OSError:
+            pass
+    S["pid_server"] = None
+
+
 def _off_ferma(S):
     for k_ in ("pid_sig",):  # dalla 2.29 anche il server dei significati
         if S.get(k_) and _vivo_pid(S[k_]) and _e_llama(S[k_]):  # mai un altro programma con lo stesso numero
@@ -4030,6 +4040,11 @@ def officina(cfg, tel, archivio, errori, adesso):
     S = _off_stato()
     S.setdefault("fase", "da installare")
     porta = imp.get("porta", 8091)
+    if not imp.get("traduttore", True):  # dalla 2.30.2: il traduttore si può spegnere da solo (il resto dell'officina lavora)
+        _off_ferma_traduttore(S)
+        S["fase"] = "traduttore spento in config.json (" + str(imp.get("perche_spento") or "scelta di Savo") + ")"
+        _off_salva(S)
+        return S
     # dalla 2.28.2 il telefono è dedicato a PanGeo: il traduttore lavora anche fuori carica, finché la batteria non scende
     # sotto la soglia (config.json › officina › batteria_min_fuori_carica) e il telefono resta al fresco
     fuori_ok_ = imp.get("lavora_senza_carica", True) and (tel.get("batteria") or 0) >= imp.get("batteria_min_fuori_carica", 35)
