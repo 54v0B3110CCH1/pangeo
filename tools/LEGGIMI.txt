@@ -42,3 +42,7 @@ poi tabelle.js; solo dopo si pubblica.
     node tools/build32.js index.html index.html
 - build33.js: avviso rosso dopo 45 minuti sul telefono e 75 sul sito, con le tre cause (rete, programma fermo, GitHub).
     node tools/build33.js index.html index.html
+  python3 tools/infra_base.py                   energia, trasporti, cibo, commercio e spesa per settori di ogni Stato, dalla copia
+                                                 d'archivio del CIA World Factbook: scrive tabelle/infra.json (lo legge la pagina)
+  node tools/build34.js base.html out.html      cartelle Energia, Trasporti e logistica, Cibo e risorse, Dipendenze e commercio,
+                                                 spesa per settori in «Numeri», vista #risorse (testo in dati/ext34.js)
