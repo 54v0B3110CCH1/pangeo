@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.24"
+VERSIONE = "2.25"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -2166,7 +2166,7 @@ def memoria_stati(archivio, adesso, cfg, ore=30):
     M = leggi_json(perc, {})
     da_ = (adesso - timedelta(hours=ore)).isoformat()
     limite = (adesso - timedelta(days=cfg.get("memoria_giorni", 120))).date().isoformat()
-    nuovi, visti = 0, set()
+    aggiunti, visti = [], set()
     ordine = {"A": 0, "B": 1, "C": 2, "D": 3}
     # prima i fatti con più fonti e, a parità, la fonte di livello migliore: di ogni fatto resta una riga sola
     for v in sorted(archivio["notizie"].values(), key=lambda v: (-(v.get("nf") or 1), ordine.get(v.get("lv"), 3))):
@@ -2182,11 +2182,14 @@ def memoria_stati(archivio, adesso, cfg, ore=30):
                 continue  # lo stesso fatto c'è già
             l.append([v["data_iso"][:10], v.get("it") or v["t"], v.get("fonte", ""), v.get("nf") or 1, v.get("u", ""),
                       " ".join(sorted(p_)), v.get("lv", "")])
-            nuovi += 1
+            aggiunti.append((st_, l[-1][1]))
     for st_ in list(M):
         M[st_] = sorted((x for x in M[st_] if x[0] >= limite), key=lambda x: x[0], reverse=True)[:cfg.get("memoria_per_stato", 40)]
         if not M[st_]:
             del M[st_]
+    # nuovi sono solo quelli che restano: negli Stati con più di 40 fatti recenti quelli in più escono subito, e
+    # prima della 2.25 venivano contati come nuovi a ogni giro
+    nuovi = sum(1 for st_, testo_ in aggiunti if any(x[1] == testo_ for x in M.get(st_, [])))
     scrivi_json(perc, M)
     return nuovi, sum(len(l) for l in M.values())
 
@@ -2272,6 +2275,294 @@ def rapporto(ore=24):
     print(f"Titoli tradotti in archivio: {z.get('tradotti', 0)} · spesa del cervello: oggi {z.get('usd_oggi', 0):.4f} $, questo mese {z.get('usd_mese', 0):.4f} $")
     if len(g) < 2:
         print("Per vedere dove migliora servono almeno due giri: riprova più tardi.")
+
+
+# ----------------------------------------------------------------------------- rapporto ogni 12 ore (dalla 2.25)
+
+SITO_PUBBLICO = "https://54v0b3110cch1.github.io/pangeo"
+RAPPORTO_NOMI = {
+    "giri": "giri", "voci_nuove": "voci nuove", "errori_medi": "avvisi per giro", "temp_max": "temperatura massima del telefono",
+    "fermo_max": "fermo più lungo (minuti)", "live": "notizie degli ultimi 3 giorni", "quota": "notizie confermate da due fonti (%)",
+    "d_pct": "notizie da fonti non classificate (%)", "senza_n": "Stati senza notizie", "fonti_attive": "fonti attive",
+    "tradotti": "titoli tradotti", "memoria": "fatti confermati in memoria", "sapere": "Stati studiati su Wikipedia",
+    "piano_stati": "Stati del lavoro a piano", "accordi": "accordi", "appalti": "appalti", "intel": "fatti sui servizi",
+    "puzzle": "pezzi del puzzle", "servizi": "servizi di intelligence riassunti", "basi_stati": "Stati con i siti militari letti",
+    "siti": "siti militari in elenco", "collegamenti": "collegamenti del quadro", "sintesi": "Stati con la sintesi"}
+# verso: +1 più è meglio, -1 meno è meglio; poi la differenza più piccola che conta («rel» in proporzione, «abs» in valore)
+RAPPORTO_VERSO = {"giri": (1, "rel", 0.1), "voci_nuove": (1, "rel", 0.25), "errori_medi": (-1, "abs", 0.5),
+                  "temp_max": (-1, "abs", 3), "fermo_max": (-1, "abs", 15), "live": (1, "rel", 0.03), "quota": (1, "abs", 1),
+                  "d_pct": (-1, "abs", 1), "senza_n": (-1, "abs", 1), "fonti_attive": (1, "abs", 2), "tradotti": (1, "rel", 0.01),
+                  "memoria": (1, "rel", 0.01), "sapere": (1, "abs", 1), "piano_stati": (1, "abs", 1), "accordi": (1, "abs", 1),
+                  "appalti": (1, "abs", 1), "intel": (1, "abs", 1), "puzzle": (1, "abs", 1), "servizi": (1, "abs", 1),
+                  "basi_stati": (1, "abs", 1), "siti": (1, "abs", 1), "collegamenti": (1, "abs", 1), "sintesi": (1, "abs", 1)}
+
+
+def _it(n, dec=0):
+    """Numero all'italiana: 12.345 · 0,28."""
+    if n is None:
+        return "–"
+    s = f"{n:,.{dec}f}"
+    return s.replace(",", "§").replace(".", ",").replace("§", ".")
+
+
+def _veri(giri):
+    return [x for x in giri if x.get("tipo") in ("completo", "leggero", None)]
+
+
+def _attivita(G, prima_di=None, fine=None):
+    """Che cosa è successo in una finestra di giri del diario."""
+    from statistics import median
+    tipi = {}
+    for x in G:
+        tipi[x.get("tipo") or "completo"] = tipi.get(x.get("tipo") or "completo", 0) + 1
+    t = [datetime.fromisoformat(x["iso"]) for x in G if x.get("iso")]
+    buchi = [((t[i + 1] - t[i]).total_seconds() / 60, G[i]) for i in range(len(t) - 1)]
+    if fine and t:
+        buchi.append(((fine - t[-1]).total_seconds() / 60, G[-1]))
+    lungo = max(buchi, key=lambda b: b[0]) if buchi else (0, {})
+    da = {}
+    for x in G:
+        for k, v in (x.get("da") or {}).items():
+            da[k] = da.get(k, 0) + v
+    temp = [x["tel"][0] for x in G if x.get("tel") and x["tel"][0] is not None]
+    batt = [x["tel"][1] for x in G if x.get("tel") and len(x["tel"]) > 1 and x["tel"][1] is not None]
+    veri = _veri(G)
+    rif = {}
+    for x in G:
+        for k, v in (x.get("rifiuti") or {}).items():
+            rif[k] = rif.get(k, 0) + v
+    spesa, prec = 0.0, (prima_di or {}).get("usd_mese")
+    for x in G:
+        u = x.get("usd_mese")
+        if u is None:
+            continue
+        if prec is not None:
+            spesa += (u - prec) if u >= prec else u  # mese nuovo: il conto riparte da zero
+        prec = u
+    return {"giri": len(veri), "tipi": tipi, "ritmo": round(median([b[0] for b in buchi[:-1] or buchi]), 1) if buchi else None,
+            "fermo_max": round(lungo[0]), "fermo_dopo": lungo[1].get("quando", ""), "voci_nuove": sum(x.get("nuove", 0) for x in veri),
+            "da": da, "errori_medi": round(sum(x.get("errori", 0) for x in veri) / len(veri), 1) if veri else None,
+            "temp_min": min(temp) if temp else None, "temp_med": round(median(temp), 1) if temp else None,
+            "temp_max": max(temp) if temp else None, "batt_min": min(batt) if batt else None,
+            "pause": [[x.get("quando", ""), x.get("motivo") or ""] for x in G if x.get("tipo") in ("pausa", "senza rete", "fermo")],
+            "mb": round(sum(x.get("mb") or 0 for x in G), 1), "rifiuti": rif, "spesa": round(spesa, 4),
+            "richieste": {k: int(median([x.get("richieste", 0) for x in veri if x.get("tipo") == k]))
+                          for k in ("completo", "leggero") if any(x.get("tipo") == k for x in veri)},
+            "versioni": sorted({x.get("v", "") for x in G if x.get("v")})}
+
+
+def _stato_numeri(z, live=None, basi=None, piano=None):
+    """I numeri dell'archivio alla fine di una finestra: dal giro (diario) e, se ci sono, dai dati completi."""
+    lv = z.get("livelli") or {}
+    n = {"live": z.get("live"), "quota": round(100 * (z.get("quota") or 0), 1),
+         "d_pct": round(100 * lv.get("D", 0) / max(sum(lv.values()), 1), 1) if lv else None,
+         "senza_n": len(z.get("senza") or []), "fonti_attive": (z.get("fonti") or [None])[0],
+         "tradotti": z.get("tradotti"), "memoria": (z.get("memoria") or [0, None])[1], "sapere": z.get("sapere"),
+         "servizi": z.get("servizi"), "basi_stati": z.get("basi"), "usd_oggi": z.get("usd_oggi"), "usd_mese": z.get("usd_mese")}
+    pz = z.get("piano") or []
+    if len(pz) >= 6:
+        n["piano_i"], n["piano_tot"], n["passata"] = pz[3], pz[4], pz[5]
+    if isinstance(z.get("intel"), list) and len(z["intel"]) > 1:
+        n["intel"] = z["intel"][1]
+    rp = (live or {}).get("piano") or {}
+    if rp:
+        n.update({"piano_stati": rp.get("con_scheda"), "accordi": rp.get("accordi"), "appalti": rp.get("appalti"),
+                  "intel": rp.get("intel"), "puzzle": sum((rp.get("puzzle") or {}).values()), "puzzle_temi": rp.get("puzzle") or {},
+                  "piano_i": rp.get("i", n.get("piano_i")), "piano_tot": rp.get("totale", n.get("piano_tot")),
+                  "passata": rp.get("passata", n.get("passata")), "sintesi": rp.get("sintesi")})
+    if piano and piano.get("stati"):
+        S = piano["stati"]
+        n["sintesi"] = sum(1 for v in S.values() if v.get("sintesi"))
+    q = (live or {}).get("quadro") or {}
+    if q:
+        n["collegamenti"] = len(q.get("collegamenti") or [])
+    if basi and basi.get("stati") is not None:
+        n["basi_stati"] = len(basi.get("letti") or {})
+        n["siti"] = sum(1 for l in basi["stati"].values() for e in l if not e.get("ch"))
+    return {k: v for k, v in n.items() if v is not None}
+
+
+def _confronta(ora, prima):
+    meglio, peggio = [], []
+    for k, (verso, modo, soglia) in RAPPORTO_VERSO.items():
+        a, b = prima.get(k), ora.get(k)
+        if not isinstance(a, (int, float)) or not isinstance(b, (int, float)) or a == b:
+            continue
+        if abs(b - a) < (soglia * abs(a) if modo == "rel" else soglia):
+            continue
+        dec = 1 if k in ("quota", "d_pct", "errori_medi", "temp_max") else 0
+        riga = f"{RAPPORTO_NOMI.get(k, k)}: {_it(a, dec)} → {_it(b, dec)}"
+        (meglio if (b - a) * verso > 0 else peggio).append(riga)
+    return meglio, peggio
+
+
+def rapporto_dati(diario, live=None, basi=None, prec=None, fine=None, ore=12, cfg=None, piano=None):
+    """Il rapporto delle ultime `ore`: che cosa ha fatto, quante informazioni ha, che cosa è migliorato o peggiorato
+    rispetto al rapporto di prima (o, se manca, rispetto alla fine della finestra precedente)."""
+    cfg = cfg or {}
+    fine = fine or datetime.now(timezone.utc)
+    da, da2 = fine - timedelta(hours=ore), fine - timedelta(hours=2 * ore)
+    G = [x for x in diario if x.get("iso") and da.isoformat() <= x["iso"] <= fine.isoformat()]
+    G0 = [x for x in diario if x.get("iso") and da2.isoformat() <= x["iso"] < da.isoformat()]
+    prima_di = next((x for x in reversed(diario) if x.get("iso", "") < da.isoformat()), None)
+    veri = _veri(diario)
+    z = (_veri(G) or veri or [{}])[-1]
+    att = _attivita(G, prima_di, fine)
+    att0 = _attivita(G0, next((x for x in reversed(diario) if x.get("iso", "") < da2.isoformat()), None), da) if G0 else None
+    numeri = _stato_numeri(z, live, basi, piano)
+    numeri.update({k: att[k] for k in ("giri", "voci_nuove", "errori_medi", "temp_max", "fermo_max") if att.get(k) is not None})
+    if prec and prec.get("numeri"):
+        prima, prima_quando = prec["numeri"], prec.get("quando", "")
+    else:
+        a0 = (_veri(G0) or [None])[-1]
+        prima = _stato_numeri(a0) if a0 else {}
+        if att0:
+            prima.update({k: att0[k] for k in ("giri", "voci_nuove", "errori_medi", "temp_max", "fermo_max") if att0.get(k) is not None})
+        prima_quando = "le " + str(ore) + " ore prima" if prima else ""
+    meglio, peggio = _confronta(numeri, prima) if prima else ([], [])
+    # problemi: il verdetto in prima riga
+    ultimo = datetime.fromisoformat(z["iso"]) if z.get("iso") else None
+    eta = (fine - ultimo).total_seconds() / 60 if ultimo else None
+    tetto_g = cfg.get("cervello", {}).get("max_usd_giorno", 1.5)
+    tetto_m = cfg.get("cervello", {}).get("max_usd_mese", 45)
+    proiezione = round(att["spesa"] * 24 / ore * 30, 2)
+    problemi = []
+    if eta is None or eta > 45:
+        problemi.append("il programma è fermo: ultimo giro " + (f"alle {z.get('quando', '?')}" if ultimo else "mai visto"))
+    if att["giri"] < ore * 60 / 15 * 0.5:
+        problemi.append(f"pochi giri: {att['giri']} in {ore} ore (attesi circa {ore * 4})")
+    if (att.get("temp_max") or 0) >= 40:
+        problemi.append(f"telefono caldo: fino a {_it(att['temp_max'], 1)} gradi")
+    if z.get("tetto"):
+        problemi.append("il cervello è fermo per il tetto di spesa (" + str(z["tetto"]) + ")")
+    if (numeri.get("usd_oggi") or 0) > 0.8 * tetto_g:
+        problemi.append(f"spesa di oggi vicina al tetto: {_it(numeri['usd_oggi'], 2)} $ su {_it(tetto_g, 2)}")
+    if proiezione > 0.8 * tetto_m:
+        problemi.append(f"proiezione su 30 giorni alta: {_it(proiezione, 2)} $ su {_it(tetto_m, 0)}")
+    if (att.get("errori_medi") or 0) > 3:
+        problemi.append(f"molti avvisi: {_it(att['errori_medi'], 1)} per giro")
+    if numeri.get("senza_n", 0) > 10:
+        problemi.append(f"{numeri['senza_n']} Stati senza notizie")
+    if prima.get("quota") is not None and numeri.get("quota") is not None and numeri["quota"] <= prima["quota"] - 3:
+        problemi.append(f"notizie confermate in calo: {_it(prima['quota'], 1)}% → {_it(numeri['quota'], 1)}%")
+    if prima.get("fonti_attive") and numeri.get("fonti_attive") and numeri["fonti_attive"] < 0.95 * prima["fonti_attive"]:
+        problemi.append(f"fonti attive in calo: {prima['fonti_attive']} → {numeri['fonti_attive']}")
+    verdetto = "Tutto regolare." if not problemi else "ATTENZIONE: " + "; ".join(problemi) + "."
+    try:  # l'ora italiana anche quando il rapporto lo calcola il cloud (che è in UTC)
+        from zoneinfo import ZoneInfo
+        locale = fine.astimezone(ZoneInfo("Europe/Rome"))
+    except Exception:
+        locale = fine.astimezone()
+    quando = locale.strftime("%d/%m %H:%M")
+    # avvisi che si ripetono: quelli dell'ultimo giro completo e i rifiuti dei siti nella finestra
+    avvisi = [e for e in ((live or {}).get("errori") or []) if e][:5]
+    for k, v in sorted(att["rifiuti"].items(), key=lambda x: -x[1])[:3]:
+        avvisi.append(f"{k}: {v} rifiuti per troppe richieste")
+    for c_ in (((live or {}).get("analisi") or {}).get("consigli") or [])[:3]:
+        if c_ not in avvisi:
+            avvisi.append(c_)
+    nomi_tappe = {"temi": "temi", "stati": "Stati", "ricerca": "ricerca autonoma", "lingue": "lingue", "piano": "piano",
+                  "feed": "feed", "telegram": "Telegram", "video": "YouTube", "altro": "altro"}
+    T = []
+    T.append(f"PanGeo · rapporto del {quando} (ultime {ore} ore) · programma {z.get('v', '?')}")
+    T.append("VERDETTO: " + verdetto)
+    T.append("")
+    T.append("CHE COSA HA FATTO")
+    tipi = att["tipi"]
+    pz_ = ", ".join(f"{p[0]} {p[1]}".strip() for p in att["pause"][:4])
+    T.append(f"- Giri: {att['giri']} ({tipi.get('completo', 0)} completi, {tipi.get('leggero', 0)} leggeri"
+             + (f", {len(att['pause'])} {'pausa o fermo' if len(att['pause']) == 1 else 'pause o fermi'}: {pz_}" if att["pause"] else "") + ")."
+             + (f" Un giro ogni {_it(att['ritmo'], 0)} minuti." if att.get("ritmo") else "")
+             + (f" Fermo più lungo: {att['fermo_max']} minuti (dopo il giro delle {att['fermo_dopo']})." if att["fermo_max"] >= 30 else ""))
+    T.append(f"- Voci nuove: {_it(att['voci_nuove'])}" + (" (" + " · ".join(f"{nomi_tappe.get(k, k)} {_it(v)}" for k, v in
+             sorted(att["da"].items(), key=lambda x: -x[1])[:6]) + ")" if att["da"] else "") + ".")
+    if numeri.get("piano_tot"):
+        d_st = (numeri.get("piano_stati") or 0) - (prima.get("piano_stati") or numeri.get("piano_stati") or 0)
+        T.append(f"- Lavoro a piano: {numeri.get('piano_stati', numeri.get('piano_i', 0))} Stati su {numeri['piano_tot']}"
+                 + (f" ({d_st:+d})" if d_st else "") + f", passata {numeri.get('passata', 1)}."
+                 + (f" Accordi {_it(numeri['accordi'])}, appalti {_it(numeri['appalti'])}, fatti sui servizi {_it(numeri.get('intel'))}."
+                    if numeri.get("accordi") is not None else ""))
+    if numeri.get("puzzle_temi"):
+        nomi_pz = {"energia": "energia", "ia": "IA militare", "trasporti": "trasporti", "cibo": "cibo"}
+        T.append("- Puzzle: " + ", ".join(f"{nomi_pz.get(k, k)} {v}" for k, v in numeri["puzzle_temi"].items()) + " pezzi.")
+    if numeri.get("basi_stati") is not None:
+        T.append(f"- Siti militari letti: {numeri['basi_stati']} Stati su 198" + (f" ({_it(numeri['siti'])} siti in uso)" if numeri.get("siti") else "") + ".")
+    if numeri.get("sintesi") is not None:
+        T.append(f"- Sintesi per Stato scritte: {numeri['sintesi']}.")
+    if numeri.get("collegamenti") is not None:
+        T.append(f"- Quadro: {numeri['collegamenti']} collegamenti tra i fatti.")
+    T.append("")
+    T.append("QUANTE INFORMAZIONI HA")
+    lv = z.get("livelli") or {}
+    T.append(f"- Notizie degli ultimi 3 giorni: {_it(numeri.get('live'))}, confermate da due fonti il {_it(numeri.get('quota'), 1)}%."
+             + (" Livelli: " + " · ".join(f"{k} {_it(lv[k])}" for k in sorted(lv)) + "." if lv else ""))
+    T.append(f"- Fatti confermati in memoria: {_it(numeri.get('memoria'))}. Stati studiati su Wikipedia: {numeri.get('sapere', '–')}."
+             f" Servizi di intelligence riassunti: {numeri.get('servizi', '–')}. Titoli tradotti: {_it(numeri.get('tradotti'))}.")
+    senza = z.get("senza") or []
+    T.append("- Stati senza notizie: " + (", ".join(senza[:12]) + (f" e altri {len(senza) - 12}" if len(senza) > 12 else "") if senza else "nessuno") + ".")
+    T.append("")
+    T.append("MEGLIO E PEGGIO" + (f" RISPETTO AL RAPPORTO DEL {prima_quando}" if prec else (" RISPETTO ALLE " + prima_quando.upper().replace("LE ", "", 1) if prima_quando else "")))
+    if not prima:
+        T.append("- Primo rapporto: il confronto arriva con il prossimo.")
+    else:
+        T += ["+ " + x for x in meglio] or ["+ niente di migliorato in modo visibile"]
+        T += ["- " + x for x in peggio] or ["- niente di peggiorato"]
+    T.append("")
+    T.append("TELEFONO E COSTI")
+    if att.get("temp_max") is not None:
+        T.append(f"- Temperatura: minima {_it(att['temp_min'], 1)}, media {_it(att['temp_med'], 1)}, massima {_it(att['temp_max'], 1)} gradi"
+                 + (f" · batteria minima {att['batt_min']}%" if att.get("batt_min") is not None else "") + ".")
+    else:
+        T.append("- Temperatura: non letta (serve l'app Termux:API).")
+    T.append(f"- Dati scaricati: {_it(att['mb'])} MB in {ore} ore (circa {_it(att['mb'] * 24 / ore / 1000, 1)} GB al giorno).")
+    T.append(f"- Cervello (conto del programma, listino Haiku 5.5): {_it(att['spesa'], 2)} $ in {ore} ore · oggi {_it(numeri.get('usd_oggi', 0), 2)} $"
+             f" su {_it(tetto_g, 2)} · mese {_it(numeri.get('usd_mese', 0), 2)} $ su {_it(tetto_m, 0)} · a questo ritmo {_it(proiezione, 2)} $ in 30 giorni.")
+    T.append("  Il credito vero si vede solo nella console: https://platform.claude.com/settings/billing")
+    if avvisi:
+        T.append("")
+        T.append("AVVISI")
+        T += ["- " + pulisci(a, 200) for a in avvisi[:6]]
+    T.append("")
+    T.append(f"Sito: {SITO_PUBBLICO}  ·  tutti i rapporti: {SITO_PUBBLICO}/#documenti")
+    oggetto = f"PanGeo · rapporto {quando} · " + ("tutto regolare" if not problemi else "ATTENZIONE: " + problemi[0])
+    return {"quando": quando, "fine": fine.isoformat(), "inizio": da.isoformat(), "ore": ore, "versione": z.get("v", ""),
+            "verdetto": verdetto, "problemi": problemi, "oggetto": oggetto[:180], "testo": "\n".join(T),
+            "numeri": numeri, "attivita": att, "meglio": meglio, "peggio": peggio, "prima": prima_quando}
+
+
+def _ultimo_turno(adesso_locale, ore_turni):
+    """L'ultimo orario del rapporto già passato (es. 8 e 20): «2026-11-20 20»."""
+    for giorno in (0, 1):
+        d = (adesso_locale - timedelta(days=giorno)).date()
+        for h in sorted(ore_turni, reverse=True):
+            t = datetime(d.year, d.month, d.day, h, tzinfo=adesso_locale.tzinfo)
+            if t <= adesso_locale:
+                return t.strftime("%Y-%m-%d %H")
+    return ""
+
+
+def rapporto_12(cfg, forza=False):
+    """Alle 8 e alle 20 (config.json › rapporto › ore) il programma scrive il rapporto: dati/rapporto.json (l'ultimo,
+    con il testo della mail) e dati/rapporti.json (gli ultimi 60). Vanno su GitHub; la mail la manda un'attività di
+    Claude che li legge da lì, così arriva anche quando il telefono è fermo (e lo dice)."""
+    imp = cfg.get("rapporto", {})
+    if not imp.get("attivo", True):
+        return None
+    adesso = datetime.now(timezone.utc)
+    turno = _ultimo_turno(adesso.astimezone(), imp.get("ore", [8, 20]))
+    perc_r, perc_l = os.path.join(DATI, "rapporto.json"), os.path.join(DATI, "rapporti.json")
+    ultimo = leggi_json(perc_r, {})
+    if not forza and ultimo.get("turno") == turno:
+        return None
+    R = rapporto_dati(leggi_json(os.path.join(DATI, "diario.json"), []), leggi_json(os.path.join(DATI, "live.json"), {}),
+                      leggi_json(os.path.join(DATI, "basi_wd.json"), {}), ultimo if ultimo.get("numeri") else None,
+                      adesso, imp.get("ore_finestra", 12), cfg, leggi_json(os.path.join(DATI, "piano.json"), {}))
+    R["turno"] = turno
+    scrivi_json(perc_r, R)
+    elenco = leggi_json(perc_l, [])
+    elenco.append({k: R[k] for k in ("turno", "quando", "fine", "versione", "verdetto", "problemi", "meglio", "peggio", "numeri", "testo")})
+    scrivi_json(perc_l, elenco[-imp.get("tieni", 60):])
+    return R
 
 
 CHIAVI_NO = set("""yesterday today tomorrow monday tuesday wednesday thursday friday saturday sunday january february
@@ -2674,6 +2965,8 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
         P.setdefault(campo, valore)
     if P.get("riordinato") != VERSIONE and P["stati"]:  # una volta per versione: lo stesso fatto resta una riga sola
         for sch_ in P["stati"].values():
+            _piano_nomi(sch_.get("accordi"), paesi)  # dalla 2.25: «Stati Uniti» → «USA», «Türkiye» → «Turchia»…
+            _piano_nomi(sch_.get("appalti"), paesi)
             for campo_, chiave_, max_ in (("accordi", "cosa", 30), ("appalti", "ogg", 30), ("intel", "cosa", 20), ("puzzle", "cosa", 40)):
                 if sch_.get(campo_):
                     sch_[campo_] = _piano_unisci([], sch_[campo_], chiave_, max_)
@@ -2739,6 +3032,8 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
                       "accordi": vecchio.get("accordi", []), "appalti": vecchio.get("appalti", []),
                       "intel": vecchio.get("intel", []), "puzzle": vecchio.get("puzzle", []), "aperte": [],
                       "risposte": vecchio.get("risposte", [])[-6:], "cervello": False}
+            if vecchio.get("sintesi"):
+                scheda["sintesi"] = vecchio["sintesi"]
             if titoli and con_cervello:
                 b_ = base.get(stato, {})
                 noti = [str(x) for x in b_.get("tr", []) + b_.get("ap", [])] + \
@@ -2752,6 +3047,8 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
                     errori.append("Claude (lavoro a piano): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
                     break  # il cervello non ha risposto: stesso Stato al prossimo giro
                 acc, app, intel, aperte = _piano_leggi(risposta, titoli)
+                _piano_nomi(acc, paesi)
+                _piano_nomi(app, paesi)
                 pezzi = [dict(x, tema=tema_p) for x in _piano_leggi.puzzle] if tema_p else []
                 scheda.update({"accordi": _piano_unisci(vecchio.get("accordi"), acc, "cosa"),
                                "appalti": _piano_unisci(vecchio.get("appalti"), app, "ogg"),
@@ -2760,6 +3057,12 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
                 scheda["nuovi"] = [len(acc), len(app), len(intel), len(pezzi)]
                 scheda["tema"] = tema_p
                 n_acc, n_app, n_int, n_pz = n_acc + len(acc), n_app + len(app), n_int + len(intel), n_pz + len(pezzi)
+                if imp.get("sintesi", True) and (acc or app or intel or pezzi or not scheda.get("sintesi")) \
+                        and _cervello_libero(conto, imp_c):
+                    s_ = sintesi_stato(chiavi, cfg, stato, scheda, leggi_json(os.path.join(DATI, "memoria.json"), {}).get(stato, []),
+                                       conto, errori)
+                    if s_:
+                        scheda["sintesi"] = s_
             elif titoli:  # senza cervello: restano i titoli da leggere a mano, divisi per domanda
                 scheda["da_leggere"] = [[x["t"], x["u"], x["f"], x["d"], x["k"]] for x in titoli[:16]]
             P["stati"][stato] = scheda
@@ -2768,6 +3071,21 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
             if P["i"] >= len(ordine):
                 P["i"], P["passata"] = 0, P["passata"] + 1
             fatti += 1
+        # sintesi degli Stati studiati prima della 2.25 (o con fatti più nuovi della sintesi): una per giro, senza ricerche
+        for _ in range(imp.get("sintesi_per_giro", 1) if (con_cervello and imp.get("sintesi", True)) else 0):
+            if not _cervello_libero(conto, imp_c):
+                break
+            scelta = next((s for s in list(reversed(P["ultimi"])) + [x for x in P["stati"] if x not in P["ultimi"]]
+                           if P["stati"].get(s, {}).get("cervello") and P["stati"][s].get("quando") != adesso.isoformat()
+                           and (P["stati"][s].get("sintesi") or {}).get("quando", "") < P["stati"][s].get("quando", "")), None)
+            if not scelta:
+                break
+            s_ = sintesi_stato(chiavi, cfg, scelta, P["stati"][scelta],
+                               leggi_json(os.path.join(DATI, "memoria.json"), {}).get(scelta, []), conto, errori)
+            if not s_:
+                P["stati"][scelta]["sintesi"] = {"quando": adesso.isoformat(), "righe": [], "fatti": 0}  # non riprovare subito
+                break
+            P["stati"][scelta]["sintesi"] = s_
         # domande rimaste aperte: il cervello le aveva scritte leggendo i titoli; qui si cercano e si risponde
         for _ in range(imp.get("seguiti_per_giro", 1) if con_cervello else 0):
             if not _cervello_libero(conto, imp_c) or P.get("riposo", "") > adesso.isoformat():
@@ -2840,6 +3158,7 @@ def piano_riassunto(cfg, paesi):
             "prossimi": [s for _, s in ordine[i:i + 6]], "con_scheda": len(S),
             "accordi": sum(len(v.get("accordi", [])) for v in S.values()), "appalti": sum(len(v.get("appalti", [])) for v in S.values()),
             "intel": sum(len(v.get("intel", [])) for v in S.values()),
+            "sintesi": sum(1 for v in S.values() if (v.get("sintesi") or {}).get("righe")),
             "puzzle": {t: sum(1 for v in S.values() for x in v.get("puzzle", []) if x.get("tema") == t) for t in PUZZLE_ORDINE},
             "ultimi": [[s, S[s].get("quando", ""), len(S[s].get("accordi", [])), len(S[s].get("appalti", [])), S[s].get("titoli", 0),
                         S[s].get("blocco", ""), len(S[s].get("intel", []))] for s in ult[:10]],
@@ -2848,6 +3167,160 @@ def piano_riassunto(cfg, paesi):
                        for d in S[s].get("aperte", [])][:12],
             "risposte": sorted(([s, r.get("perche") or r.get("q", ""), r.get("r", ""), r.get("f", []), r.get("quando", "")]
                                 for s in ult for r in S[s].get("risposte", [])), key=lambda x: x[4], reverse=True)[:8]}
+
+
+# ----------------------------------------------------------------------------- nomi degli Stati uniformi (dalla 2.25)
+
+# varianti che il cervello scrive al posto del nome italiano usato da PanGeo: con il nome giusto i fatti di due Stati
+# si collegano (l'accordo Italia–Grecia compare in tutte e due le cartelle)
+NOMI_VARIANTI = {
+    "stati uniti": "USA", "stati uniti d'america": "USA", "united states": "USA", "united states of america": "USA",
+    "us": "USA", "u.s.": "USA", "u.s.a.": "USA", "america": "USA", "turkiye": "Turchia", "turkey": "Turchia",
+    "moldova": "Moldavia", "czechia": "Repubblica Ceca", "cechia": "Repubblica Ceca", "czech republic": "Repubblica Ceca",
+    "uk": "Regno Unito", "u.k.": "Regno Unito", "gran bretagna": "Regno Unito", "inghilterra": "Regno Unito",
+    "united kingdom": "Regno Unito", "britain": "Regno Unito", "federazione russa": "Russia", "russian federation": "Russia",
+    "repubblica popolare cinese": "Cina", "rpc": "Cina", "prc": "Cina", "olanda": "Paesi Bassi", "netherlands": "Paesi Bassi",
+    "eau": "Emirati Arabi", "uae": "Emirati Arabi", "emirati": "Emirati Arabi", "emirati arabi uniti": "Emirati Arabi",
+    "united arab emirates": "Emirati Arabi", "south korea": "Corea del Sud", "repubblica di corea": "Corea del Sud",
+    "north korea": "Corea del Nord", "rdc": "RD Congo", "repubblica democratica del congo": "RD Congo",
+    "dr congo": "RD Congo", "drc": "RD Congo", "birmania": "Myanmar", "burma": "Myanmar", "macedonia": "Macedonia del Nord",
+    "bosnia": "Bosnia ed Erzegovina", "ivory coast": "Costa d’Avorio", "cote d'ivoire": "Costa d’Avorio",
+    "costa d'avorio": "Costa d’Avorio", "arabia": "Arabia Saudita", "saudi arabia": "Arabia Saudita",
+    "taiwan (repubblica di cina)": "Taiwan", "repubblica di cina": "Taiwan", "vietnam": "Vietnam", "viet nam": "Vietnam",
+}
+NOMI_NESSUNO = re.compile(r"^\(?\s*(nessun[oa]?\b|non (?:indicat|specificat|nominat)|sconosciut|ignot|ungenannt|unbekannt|"
+                          r"unknown|unnamed|not (?:named|specified)|n\.?\s?d\.?$|-+$|–$)", re.I)
+
+
+def _chiave_nome(testo):
+    import unicodedata
+    t = unicodedata.normalize("NFKD", (testo or "").replace("’", "'")).encode("ascii", "ignore").decode()
+    return " ".join(t.lower().strip(" .").split())
+
+
+def _alias_stati(paesi):
+    if getattr(_alias_stati, "fatto", None) is paesi:
+        return _alias_stati.mappa
+    m = {}
+    for it_, nomi in (paesi or {}).items():
+        for n in nomi:  # le varianti di paesi.json (nomi, capitali, aggettivi): prima le altre, poi il nome stesso
+            k = _chiave_nome(n)
+            if len(k) > 3 and k not in m:
+                m[k] = it_
+    m.update({_chiave_nome(k): v for k, v in NOMI_VARIANTI.items() if v in (paesi or {})})
+    for it_ in (paesi or {}):
+        m[_chiave_nome(it_)] = it_
+    _alias_stati.fatto, _alias_stati.mappa = paesi, m
+    return m
+
+
+def nome_controparte(testo, paesi):
+    """«Stati Uniti», «Türkiye (MKE)», «Moldova / UE» → «USA», «Turchia (MKE)», «Moldavia, UE». Ciò che non è uno
+    Stato (alleanze, aziende, enti) resta com'è; «nessuno indicato» e simili diventano vuoti."""
+    t = " ".join((testo or "").split()).strip(" .;,")
+    if not t or NOMI_NESSUNO.match(t):
+        return ""
+    alias = _alias_stati(paesi)
+    if _chiave_nome(t) in alias:
+        return alias[_chiave_nome(t)]
+    fuori, pezzi, prof, buf = [], [], 0, ""
+    for ch in t:  # si divide solo fuori dalle parentesi: «Italia (Segretariato / Direzione)» resta intero
+        prof += (ch == "(") - (ch == ")")
+        if ch in "/,;+" and prof <= 0:
+            pezzi.append(buf.strip())
+            buf = ""
+        else:
+            buf += ch
+    pezzi.append(buf.strip())
+    for p in pezzi:
+        if not p or NOMI_NESSUNO.match(p):
+            continue
+        m = re.match(r"^([^()]+?)\s*(\(.*\))?$", p)
+        testa, coda = (m.group(1), m.group(2) or "") if m else (p, "")
+        c = alias.get(_chiave_nome(testa))
+        fuori.append((c + (" " + coda if coda else "")) if c else p)
+    return ", ".join(dict.fromkeys(fuori))
+
+
+def _piano_nomi(righe, paesi):
+    """Mette i nomi giusti nelle righe del piano (controparte, acquirente, fornitore)."""
+    for r in righe or []:
+        for campo in ("con", "acq", "forn"):
+            if r.get(campo):
+                nuovo = nome_controparte(r[campo], paesi)
+                r[campo] = nuovo if (nuovo or campo == "con") else r[campo]
+    return righe
+
+
+# ----------------------------------------------------------------------------- sintesi di ogni Stato (dalla 2.25)
+
+SINTESI_SEZIONI = ("Alleanze e accordi", "Difesa e appalti", "Intelligence", "Energia e risorse", "Quadro")
+
+
+def _sintesi_fatti(scheda, memoria_stato, massimo=40):
+    """I fatti che il programma ha già salvato su uno Stato, numerati, con la loro prima fonte: è la sola base della sintesi."""
+    fatti = []
+    for campo, chiave, etichetta, n in (("accordi", "cosa", "accordo", 12), ("appalti", "ogg", "appalto", 12),
+                                        ("intel", "cosa", "intelligence", 8), ("puzzle", "cosa", "risorse", 8)):
+        righe = sorted(scheda.get(campo) or [], key=lambda x: (x.get("r") or 0, x.get("d") or ""), reverse=True)[:n]
+        for r in righe:
+            altro = r.get("con") or (" → ".join(x for x in (r.get("forn"), r.get("acq")) if x)) or r.get("ente") or r.get("tema") or ""
+            f = (r.get("f") or [[""]])[0]
+            fatti.append([etichetta, r.get("d", ""), (altro + ": " if altro else "") + (r.get(chiave) or ""), f[0] if f else "",
+                          f[1] if len(f) > 1 else ""])
+    for x in (memoria_stato or [])[:8]:  # [data, testo, fonte, n. fonti, link, parole, livello]
+        fatti.append(["confermato", x[0], x[1], x[2], x[4] if len(x) > 4 else ""])
+    return fatti[:massimo]
+
+
+def _sintesi_domanda(stato, fatti):
+    righe = "\n".join(f"{i + 1}. [{f[0]}] {f[1] or 'senza data'} – {f[2]}" for i, f in enumerate(fatti))
+    return (f"Ecco i fatti che un archivio pubblico ha raccolto su {stato}, ciascuno con la sua fonte:\n{righe}\n\n"
+            "Scrivi in italiano semplice una sintesi di questi fatti, da 3 a 6 righe, ognuna così:\n"
+            "S | sezione | frase | numeri dei fatti usati\n"
+            "Sezioni possibili: " + ", ".join(SINTESI_SEZIONI) + ".\n"
+            "Regole: usa SOLO i fatti dell'elenco, con le date quando ci sono; frasi brevi; niente giudizi, previsioni o "
+            "consigli; un'accusa sempre con la replica, se c'è nell'elenco, altrimenti lasciala fuori; non ripetere lo "
+            "stesso fatto in due righe. Nella sezione Quadro, al massimo una riga, metti solo un collegamento che si vede "
+            "dai fatti (per esempio due accordi con lo stesso Stato). Nessun altro testo prima o dopo le righe.")
+
+
+def _sintesi_leggi(risposta, fatti):
+    righe = []
+    for riga in (risposta or "").splitlines():
+        p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
+        if len(p) < 4 or p[0].upper().strip(" .:") != "S":
+            continue
+        numeri = [int(n) for n in re.findall(r"\d+", p[3]) if 1 <= int(n) <= len(fatti)]
+        frase = _piano_senza_note(pulisci(p[2], 320))
+        if not numeri or len(frase) < 15:
+            continue  # una frase senza i fatti da cui viene non entra
+        sez = next((s for s in SINTESI_SEZIONI if s.lower() in p[1].lower()), "Quadro")
+        fonti = []
+        for n in numeri[:4]:
+            f = fatti[n - 1]
+            if f[4] and [f[3], f[4]] not in fonti:
+                fonti.append([f[3], f[4]])
+        righe.append([sez, frase, fonti, [fatti[n - 1][1] for n in numeri[:4]]])
+    return righe[:6]
+
+
+def sintesi_stato(chiavi, cfg, stato, scheda, memoria_stato, conto, errori):
+    """Una chiamata breve al cervello: la sintesi dei fatti già salvati su uno Stato (accordi, appalti, servizi, puzzle,
+    fatti confermati). Ogni frase porta i numeri dei fatti da cui viene, quindi le sue fonti; senza fatti non si scrive."""
+    fatti = _sintesi_fatti(scheda, memoria_stato)
+    if len(fatti) < 3:
+        return None
+    try:
+        risposta = chiedi_claude(chiavi, cfg, _sintesi_domanda(stato, fatti), 700, conto)
+        conto["chiamate"] = conto.get("chiamate", 0) + 1
+    except Exception as e:
+        errori.append("Claude (sintesi di " + stato + "): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
+        return None
+    righe = _sintesi_leggi(risposta, fatti)
+    if not righe:
+        return None
+    return {"quando": datetime.now(timezone.utc).isoformat(), "righe": righe, "fatti": len(fatti)}
 
 
 # ----------------------------------------------------------------------------- quadro: scaletta e collegamenti (dalla 2.23)
@@ -4669,6 +5142,12 @@ def _aggiorna(leggero=False):
         print("  -", e)
     avvisa(cfg, segnali, dati_calore)
     avvisa_bot(chiavi, live, segnali)
+    try:
+        r_ = rapporto_12(cfg)
+        if r_:
+            print("Rapporto delle 12 ore scritto:", r_["verdetto"])
+    except Exception as e:  # il rapporto non deve mai fermare il giro
+        print("  - rapporto delle 12 ore:", e)
     if cfg.get("repo_git") or chiavi.get("repo_git") or cfg.get("repo_pubblico"):
         sincronizza(cfg, chiavi, solo_diario=leggero, nel_giro=True)
 
@@ -5315,7 +5794,9 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
                 print("Copia di riserva non riuscita (il resto va avanti):", str(e)[:80])
         # dopo un giro leggero su GitHub va solo il diario (pochi KB): i dati grossi ci vanno ogni 3 ore, così il
         # repository non cresce tre volte più in fretta
-        for nome in (("diario.json",) if solo_diario else ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json")):
+        for nome in (("diario.json", "rapporto.json", "rapporti.json") if solo_diario else
+                     ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json",
+                      "rapporto.json", "rapporti.json")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -5628,6 +6109,12 @@ if __name__ == "__main__":
         cmd_piano()
     elif comando == "giri":
         giri(int(a[1]) if len(a) > 1 and a[1].isdigit() else 12)
+    elif comando == "rapporto12":
+        r_ = rapporto_12(leggi_json(os.path.join(QUI, "config.json"), {}), forza=len(a) > 1 and a[1] == "scrivi") if len(a) > 1 \
+            else rapporto_dati(leggi_json(os.path.join(DATI, "diario.json"), []), leggi_json(os.path.join(DATI, "live.json"), {}),
+                               leggi_json(os.path.join(DATI, "basi_wd.json"), {}), leggi_json(os.path.join(DATI, "rapporto.json"), {}) or None,
+                               cfg=leggi_json(os.path.join(QUI, "config.json"), {}), piano=leggi_json(os.path.join(DATI, "piano.json"), {}))
+        print(r_["testo"] if r_ else "Rapporto già scritto per questo turno.")
     elif comando == "rapporto":
         rapporto(int(a[1]) if len(a) > 1 and a[1].isdigit() else 24)
     elif comando == "salute":

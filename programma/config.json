@@ -4387,6 +4387,8 @@
   "titoli_max": 70, "intelligence": true, "titoli_intelligence": 25,
   "puzzle": true,
   "titoli_puzzle": 20,
+  "sintesi": true,
+  "sintesi_per_giro": 1,
   "pausa": 1.0,
   "blocchi": [
    [
@@ -4647,6 +4649,7 @@
   "risposte_per_giro": 1,
   "tieni": 40
  },
+ "rapporto": {"attivo": true, "ore": [8, 20], "ore_finestra": 12, "tieni": 60},
  "siti_militari": {
   "attivo": true,
   "per_giro": 1,
