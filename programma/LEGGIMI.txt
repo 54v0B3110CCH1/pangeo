@@ -425,6 +425,9 @@ NOVITÀ 2.33 (20 novembre, sera) – LA STORIA DI OGNI STATO, COLLEGATA AL PRESE
   avviso, con «lo raccontano anche altri N titoli»; lo stesso tipo di avviso per lo stesso Stato non torna prima di 24 ore;
   al primo giro gli avvisi già scritti prima vengono ripuliti una volta con le regole nuove (sugli avvisi veri di stasera:
   da 56 avvisi di fatti a 21, per esempio i 5 sulla Somalia e gli Emirati diventano 1, i 3 sul diciottenne tedesco 1).
+- 2.33.2: la cronologia accetta anche le risposte del cervello scritte a tabella; se non resta nessuna tappa valida lo
+  Stato si riprova dopo un giorno invece che dopo 6 mesi; nel diario «storia» c'è anche l'ultimo Stato studiato con le
+  tappe proposte e quelle tenute.
 - Si regola in config.json › storia (attiva, giorni_archivi, cronologia, giorni_cronologia, stati_per_giro_carica,
   stati_per_giro). Nel diario: «storia» [cronologie scritte nel giro, Stati con cronologia, in coda, Stati negli
   archivi, conflitti, colpi di Stato].

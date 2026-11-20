@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.33.1"
+VERSIONE = "2.33.2"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -6230,10 +6230,16 @@ def _storia_controlla(righe, fonti, conflitti, golpe, recenti_anni):
     """Tiene solo le tappe il cui anno sta davvero nella fonte citata."""
     tenute, viste = [], set()
     for riga in (righe or "").splitlines():
-        p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
-        if len(p) < 4 or p[0].upper().strip(" .:") != "T":
+        # dalla 2.33.2 si accettano anche le righe a tabella («| T | 1861 | … | F |») e quelle senza la «T» davanti
+        p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").strip("|").split("|")]
+        if p and p[0].upper().strip(" .:") == "T":
+            p = p[1:]
+        if len(p) < 3 or not re.search(r"\d{3,4}|secol|century", p[0], re.I):
             continue
-        anno, tappa, f = p[1][:30], pulisci(p[2], 260), p[3].strip().upper()[:1]
+        anno, tappa = p[0][:30], pulisci(p[1], 260)
+        fw = p[2].strip().lower()
+        f = ("G" if fw.startswith(("g", "pow", "colp")) else "U" if fw.startswith(("u", "ucdp")) else "F" if fw.startswith(("f", "cia", "world"))
+             else "W" if fw.startswith(("w", "wiki")) else "R" if fw.startswith(("r", "fatt", "arch")) else "")
         if f not in "FWUGR" or not fonti.get(f) or len(tappa) < 12:
             continue
         a0, a1 = _storia_anni(anno)
@@ -6289,12 +6295,15 @@ def storia_studia(chiavi, cfg, adesso, tel, errori, A=None):
         if st not in paesi:
             continue
         k_ = K.get(st) or {}
-        if not k_ or k_.get("quando", "") < vecchia or k_.get("firma") != firma(st):
+        if not k_.get("tappe"):
+            if k_.get("riprova", "") <= adesso.isoformat() and not (k_.get("nota") == "fonti insufficienti" and k_.get("firma") == firma(st)):
+                da_fare.append(st)
+        elif k_.get("quando", "") < vecchia or k_.get("firma") != firma(st):
             da_fare.append(st)
     quanti = int(imp.get("stati_per_giro_carica", 3) if spinta(cfg, tel)["piena"] else imp.get("stati_per_giro", 1))
     S_ = leggi_json(os.path.join(DATI, "sapere.json"), {}) or {}
     M_ = leggi_json(os.path.join(DATI, "memoria.json"), {}) or {}
-    fatti = 0
+    fatti, ultimo_ = 0, None
     for st in da_fare[:quanti]:
         s = (A.get("stati") or {}).get(st, {})
         conf = s.get("conflitti") or []
@@ -6319,7 +6328,14 @@ def storia_studia(chiavi, cfg, adesso, tel, errori, A=None):
             errori.append("Claude (storia di " + st + "): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
             break
         tappe = _storia_controlla(risposta, fonti, conf, gol, {int(x[0][:4]) for x in mem_ if x[0][:4].isdigit()})
-        K[st] = {"quando": adesso.isoformat(), "tappe": tappe, "firma": firma(st),
+        proposte_ = sum(1 for r__ in (risposta or "").splitlines() if r__.count("|") >= 2 and re.search(r"\d{3,4}|secol", r__))
+        ultimo_ = [st, proposte_, len(tappe)]
+        if not tappe:  # nessuna tappa tenuta: si riprova tra un giorno (e si tiene l'inizio della risposta per capire)
+            K[st] = {"quando": "", "riprova": (adesso + timedelta(days=1)).isoformat(), "tappe": [], "firma": firma(st),
+                     "proposte": proposte_, "risposta": (risposta or "")[:1500]}
+            fatti += 1
+            continue
+        K[st] = {"quando": adesso.isoformat(), "tappe": tappe, "firma": firma(st), "proposte": proposte_,
                  "fonti": {"W": w_.get("url", ""), "F": "https://github.com/factbook/factbook.json/blob/master/"
                            + ((cfg.get("sapere", {}).get("factbook") or {}).get(st) or "") + ".json"},
                  "scartate": max(0, len(re.findall(r"(?m)^\s*[-•*]?\s*T\s*\|", risposta or "")) - len(tappe))}
@@ -6327,7 +6343,8 @@ def storia_studia(chiavi, cfg, adesso, tel, errori, A=None):
     scrivi_json(os.path.join(DATI, "cervello.json"), conto)
     os.makedirs(os.path.dirname(perc), exist_ok=True)
     scrivi_json(perc, K)
-    return {"fatti": fatti, "in_coda": max(0, len(da_fare) - fatti), "con_cronologia": sum(1 for v in K.values() if v.get("tappe"))}
+    return {"fatti": fatti, "in_coda": max(0, len(da_fare) - fatti), "con_cronologia": sum(1 for v in K.values() if v.get("tappe")),
+            "ultimo": ultimo_}
 
 
 def scrivi_storia_web(adesso):
@@ -8309,7 +8326,7 @@ def _aggiorna(leggero=False):
         "mag": stato_mag, "bing": getattr(_piano_titoli, "bing", 0),
         "off": [(stato_off or {}).get("fase", ""), getattr(officina_traduci, "fatti", 0)] if stato_off else None,
         "articoli": [(esito_229.get("articoli") or {}).get(c_) for c_ in ("letti", "poco_testo", "provati", "in_coda", "totale")],
-        "storia": [(esito_229.get("storia") or {}).get(c_) for c_ in ("fatti", "con_cronologia", "in_coda", "stati", "conflitti", "golpe")],
+        "storia": [(esito_229.get("storia") or {}).get(c_) for c_ in ("fatti", "con_cronologia", "in_coda", "stati", "conflitti", "golpe", "ultimo")],
         "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
     })
