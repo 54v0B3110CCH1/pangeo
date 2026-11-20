@@ -405,6 +405,26 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.33 (20 novembre, sera) – LA STORIA DI OGNI STATO, COLLEGATA AL PRESENTE
+- Una volta alla settimana il programma scarica due archivi accademici gratuiti (pochi KB): i conflitti armati dal 1946
+  dell'Università di Uppsala (UCDP/PRIO, con la violenza contro i civili e gli scontri tra gruppi armati) e l'elenco dei
+  colpi di Stato dal 1950 di Powell e Thyne. I nomi di una volta (Unione Sovietica, Jugoslavia, Zaire, Birmania…) sono
+  contati con lo Stato di oggi.
+- Cronologia di ogni Stato: il cervello la scrive (da 12 a 30 tappe) SOLO dall'introduzione storica del World Factbook,
+  dalla voce di Wikipedia (appoggio), dagli archivi UCDP e dei colpi di Stato e dai fatti confermati degli ultimi mesi.
+  Ogni tappa porta la lettera della sua fonte e il programma la tiene solo se l'anno compare davvero in quella fonte.
+  3 Stati a giro in carica, 1 fuori carica; prima quelli con avvisi negli ultimi 2 giorni, poi in ordine di area. Si
+  rifà ogni 6 mesi o quando gli archivi portano un conflitto o un colpo di Stato nuovo. Costo stimato: meno di 1 dollaro
+  per tutti i 198 Stati, dentro gli stessi tetti di spesa.
+- Negli avvisi i precedenti: un colpo di Stato porta con sé quelli di prima nello stesso Stato, una guerra o un attentato
+  i conflitti armati registrati dal 1946.
+- Nella pagina: «Storia» in prima pagina (colpi di Stato degli ultimi anni, Stati con più anni di guerra e più colpi di
+  Stato) e in ogni Stato, alla voce Storia, cronologia, conflitti, colpi di Stato, civili e gruppi armati, con le fonti.
+- python castello.py storia            riassunto      python castello.py storia Mali     la storia di uno Stato
+- Si regola in config.json › storia (attiva, giorni_archivi, cronologia, giorni_cronologia, stati_per_giro_carica,
+  stati_per_giro). Nel diario: «storia» [cronologie scritte nel giro, Stati con cronologia, in coda, Stati negli
+  archivi, conflitti, colpi di Stato].
+
 NOVITÀ 2.32 (20 novembre, sera) – SPINTA IN CARICA E LETTURA DEGLI ARTICOLI
 - 2.32.1, avvisi più puliti (il primo giro della 2.31 ne aveva dati 27, molti doppi o con lo Stato sbagliato): lo Stato
   dell'avviso deve essere nominato nel titolo, anche con l'aggettivo o la capitale («israeliani», «Riad»), non basta il

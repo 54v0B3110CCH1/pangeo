@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.32.1"
+VERSIONE = "2.33"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -3907,7 +3907,7 @@ def scrivi_piano_web(P, cfg, totale):
 LAVORI_CERVELLO = (("Traduci in italiano questi titoli", "traduzioni"), ("Traduci in italiano questi testi", "traduzioni del sapere"),
                    ("Sono titoli di giornali", "sala d'attesa"), ("Sei il redattore", "da sapere adesso"),
                    ("Lavori a un archivio", "lavoro a piano"), ("Ecco i fatti", "sintesi"), ("Domanda", "domande e risposte"),
-                   ("Sei il revisore", "revisore"))
+                   ("Sei il revisore", "revisore"), ("Sei lo storico", "storia"))
 
 
 def lavoro_di(testo):
@@ -4873,9 +4873,13 @@ def _avvisi_fatti(S_schede, oggi, ieri, imp):
         visti.add((scelta[0], scelta[3], s.get("d")))
         testi.add(firma)
         fatti_.append(parole_)
+        try:  # dalla 2.33: i precedenti storici (colpi di Stato, conflitti armati) dello stesso Stato
+            prec_ = precedenti(p, scelta[0])
+        except Exception:
+            prec_ = ""
         fuori.append({"id": f"fatto:{scelta[0]}:{scelta[3]}:{s.get('d')}", "tipo": "fatto", "sotto": scelta[0], "nome": scelta[1],
                       "stato": p, "livello": scelta[2], "testo": f"{p}: {testo}" + (f" ({s.get('nf')} fonti)" if (s.get("nf") or 1) > 1 else ""),
-                      "u": s.get("u", ""), "f": s.get("f", "")})
+                      "u": s.get("u", ""), "f": s.get("f", ""), **({"prec": prec_} if prec_ else {})})
     return fuori
 
 
@@ -5900,6 +5904,414 @@ def leggi_articoli(archivio, adesso, cfg, tel, errori):
             "totale": L_["totale"]}
 
 
+# 7. Storia (dalla 2.33): il programma studia il passato di ogni Stato e lo collega al presente.
+#   - archivi accademici gratuiti, scaricati una volta alla settimana (pochi KB): UCDP/PRIO dell'Università di Uppsala
+#     (conflitti armati dal 1946, violenza contro i civili, scontri tra gruppi armati) e l'elenco dei colpi di Stato di
+#     Powell e Thyne (dal 1950, aggiornato più volte l'anno);
+#   - la cronologia di ogni Stato: il cervello la scrive SOLO da quelle fonti, dall'introduzione storica del World Factbook,
+#     dalla voce di Wikipedia (appoggio) e dai fatti confermati degli ultimi mesi; una tappa entra solo se l'anno sta davvero
+#     nella fonte che cita (controllo fatto dal programma, non dal cervello);
+#   - i precedenti negli avvisi: un colpo di Stato o una guerra di oggi portano con sé quelli di prima.
+STORIA_FONTI = {
+    "U": ["UCDP/PRIO, conflitti armati dal 1946 (Università di Uppsala)", "https://ucdp.uu.se/downloads/"],
+    "G": ["Powell e Thyne, colpi di Stato dal 1950", "https://jonathanmpowell.com/coups/"],
+    "F": ["CIA World Factbook, introduzione storica (copia d'archivio, febbraio 2026)", "https://github.com/factbook/factbook.json"],
+    "W": ["Wikipedia, voce sulla storia (enciclopedia di appoggio, affidabilità media)", ""],
+    "R": ["Fatti confermati da più fonti nell'archivio di PanGeo", ""],
+}
+# nomi usati dagli archivi che non sono quelli di oggi (si tiene anche il nome storico, scritto nel dato)
+NOMI_STORICI = {
+    "bosnia-herzegovina": "Bosnia ed Erzegovina", "cambodia (kampuchea)": "Cambogia", "dr congo (zaire)": "RD Congo",
+    "madagascar (malagasy)": "Madagascar", "myanmar (burma)": "Myanmar", "russia (soviet union)": "Russia",
+    "serbia (yugoslavia)": "Serbia", "south vietnam": "Vietnam", "south yemen": "Yemen", "united states of america": "USA",
+    "vietnam (north vietnam)": "Vietnam", "yemen (north yemen)": "Yemen", "zimbabwe (rhodesia)": "Zimbabwe",
+    "democratic republic of the congo": "RD Congo", "republic of vietnam": "Vietnam", "yemen arab republic; n. yemen": "Yemen",
+    "yemen people's republic; s. yemen": "Yemen", "hyderabad": "India",
+}
+STORIA_TIPI = {"1": "coloniale", "2": "tra Stati", "3": "interno", "4": "interno con intervento straniero"}
+STORIA_POSTA = {"1": "territorio", "2": "governo", "3": "territorio e governo"}
+
+
+def _storia_nomi(paesi):
+    m = {k: v for k, v in NOMI_STORICI.items()}
+    for st, nomi in (paesi or {}).items():
+        for n in nomi:
+            m.setdefault(n.lower(), st)
+    return m
+
+
+def _storia_csv(grezzo):
+    """Un CSV, anche dentro uno zip (il primo file .csv)."""
+    import csv
+    import io
+    import zipfile
+    if grezzo[:2] == b"PK":
+        with zipfile.ZipFile(io.BytesIO(grezzo)) as z:
+            nome = next(n for n in z.namelist() if n.lower().endswith(".csv"))
+            grezzo = z.read(nome)
+    return list(csv.DictReader(io.StringIO(grezzo.decode("utf-8-sig", errors="replace"))))
+
+
+def _storia_link(pagina, rx):
+    """L'indirizzo più recente di un file nella pagina dei download (il numero di versione cambia)."""
+    h = scarica(pagina, timeout=40).decode("utf-8", errors="replace")
+    trovati = sorted(set(re.findall(rx, h)))
+    if not trovati:
+        raise ValueError("file non trovato nella pagina " + pagina)
+    u = trovati[-1]
+    return u if u.startswith("http") else urllib.parse.urljoin(pagina, u)
+
+
+def _storia_conflitti(righe, nomi):
+    """UCDP/PRIO: da una riga per conflitto e anno a un conflitto con i suoi anni, per ogni Stato in cui si combatte."""
+    per_c = {}
+    for r in righe:
+        c = per_c.setdefault(r.get("conflict_id"), {"loc": r.get("location", ""), "a": r.get("side_a", ""), "b": r.get("side_b", ""),
+                                                      "a2": r.get("side_a_2nd", ""), "terr": r.get("territory_name", ""),
+                                                      "inc": r.get("incompatibility", ""), "tipo": r.get("type_of_conflict", ""),
+                                                      "anni": set(), "guerra": set()})
+        try:
+            a_ = int(r.get("year") or 0)
+        except ValueError:
+            continue
+        c["anni"].add(a_)
+        if str(r.get("intensity_level")) == "2":
+            c["guerra"].add(a_)
+        c["tipo"] = r.get("type_of_conflict") or c["tipo"]
+    fuori = {}
+    for cid, c in per_c.items():
+        if not c["anni"]:
+            continue
+        a2_ = [x.strip().replace("Government of ", "") for x in (c["a2"] or "").split(",") if x.strip()]
+        c["a2"] = ", ".join(a2_) if len(a2_) <= 4 else ", ".join(a2_[:3]) + f" e altri {len(a2_) - 3}"
+        for x in c["loc"].split(","):
+            st = nomi.get(x.strip().lower())
+            if not st:
+                continue
+            fuori.setdefault(st, []).append([min(c["anni"]), max(c["anni"]), STORIA_TIPI.get(str(c["tipo"]), ""), c["a"], c["b"],
+                                             c["terr"], STORIA_POSTA.get(str(c["inc"]), ""), len(c["guerra"]), len(c["anni"]),
+                                             c["a2"], x.strip(), cid])
+    for l in fuori.values():
+        l.sort(key=lambda x: (-x[1], -x[0]))
+    return fuori
+
+
+def _storia_vittime(righe, nomi, campo_nome):
+    """UCDP: violenza contro i civili (un attore) o scontri tra gruppi armati (due attori), sommati per Stato e attore."""
+    agg = {}
+    for r in righe:
+        try:
+            a_, m_ = int(r.get("year") or 0), int(float(r.get("best_fatality_estimate") or 0))
+        except ValueError:
+            continue
+        for x in (r.get("location") or "").split(","):
+            st = nomi.get(x.strip().lower())
+            if not st:
+                continue
+            chi = campo_nome(r)
+            g = agg.setdefault(st, {}).setdefault(chi, [a_, a_, 0, r.get("is_government_actor", "")])
+            g[0], g[1], g[2] = min(g[0], a_), max(g[1], a_), g[2] + m_
+    return {st: sorted(([chi] + v for chi, v in d.items()), key=lambda x: -x[3])[:12] for st, d in agg.items()}
+
+
+def storia_archivi(cfg, adesso, errori):
+    """Scarica (una volta ogni «giorni_archivi» giorni) gli archivi UCDP e i colpi di Stato. dati/magazzino/storia/archivi.json."""
+    imp = cfg.get("storia", {}) or {}
+    perc = MAG("storia", "archivi.json")
+    A = leggi_json(perc, {}) or {}
+    if A.get("quando", "") > (adesso - timedelta(days=int(imp.get("giorni_archivi", 7)))).isoformat():
+        return A
+    nomi = _storia_nomi(leggi_json(os.path.join(QUI, "paesi.json"), {}))
+    nuovo, versioni = {"stati": {}}, {}
+    try:
+        pag_u = "https://ucdp.uu.se/downloads/"
+        u_acd = _storia_link(pag_u, r'href="([^"]*ucdp-prio-acd-\d+-csv\.zip)"')
+        conf = _storia_conflitti(_storia_csv(scarica(u_acd, timeout=60)), nomi)
+        versioni["U"] = u_acd.rsplit("/", 1)[-1]
+        civ = gru = {}
+        try:
+            u_os = _storia_link(pag_u, r'href="([^"]*ucdp-onesided-\d+-csv\.zip)"')
+            civ = _storia_vittime(_storia_csv(scarica(u_os, timeout=60)), nomi, lambda r: r.get("actor_name", ""))
+            u_ns = _storia_link(pag_u, r'href="([^"]*ucdp-nonstate-\d+-csv\.zip)"')
+            gru = _storia_vittime(_storia_csv(scarica(u_ns, timeout=60)), nomi,
+                                  lambda r: (r.get("side_a_name") or "") + " contro " + (r.get("side_b_name") or ""))
+        except Exception as e:
+            errori.append(f"Storia (UCDP, civili e gruppi): {str(e)[:100]}")
+        for st in set(conf) | set(civ) | set(gru):
+            s_ = nuovo["stati"].setdefault(st, {})
+            if conf.get(st):
+                s_["conflitti"] = conf[st]
+            if civ.get(st):
+                s_["civili"] = civ[st]
+            if gru.get(st):
+                s_["gruppi"] = gru[st]
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Storia (UCDP): {str(e)[:100]}")
+        return A
+    try:
+        u_pt = _storia_link("https://jonathanmpowell.com/coups/", r'href="([^"]*/pt_\d+[^"]*\.csv)"')
+        for r in _storia_csv(scarica(u_pt, timeout=60)):
+            st = nomi.get((r.get("country") or "").strip().lower())
+            if not st:
+                continue
+            try:
+                d_ = "%04d-%02d-%02d" % (int(r["year"]), int(r.get("month") or 1), int(r.get("day") or 1))
+            except (KeyError, ValueError):
+                continue
+            nuovo["stati"].setdefault(st, {}).setdefault("golpe", []).append([d_, 1 if str(r.get("coup")) == "2" else 0, r.get("country", "")])
+        for s_ in nuovo["stati"].values():
+            if s_.get("golpe"):
+                s_["golpe"].sort(reverse=True)
+        versioni["G"] = u_pt.rsplit("/", 1)[-1]
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Storia (colpi di Stato): {str(e)[:100]}")
+        for st, s_ in (A.get("stati") or {}).items():  # si tiene l'elenco della volta prima
+            if s_.get("golpe"):
+                nuovo["stati"].setdefault(st, {})["golpe"] = s_["golpe"]
+    nuovo.update(quando=adesso.isoformat(), versioni=versioni, fonti={k: STORIA_FONTI[k] for k in ("U", "G")})
+    os.makedirs(os.path.dirname(perc), exist_ok=True)
+    scrivi_json(perc, nuovo)
+    return nuovo
+
+
+_STORIA_CACHE = {"m": 0, "A": None}
+
+
+def _storia_carica():
+    perc = MAG("storia", "archivi.json")
+    try:
+        m_ = os.path.getmtime(perc)
+    except OSError:
+        return {}
+    if _STORIA_CACHE["m"] != m_:
+        _STORIA_CACHE.update(m=m_, A=leggi_json(perc, {}) or {})
+    return _STORIA_CACHE["A"] or {}
+
+
+def precedenti(stato, tipo):
+    """Una riga con i precedenti storici di un fatto di oggi (per gli avvisi), oppure ''."""
+    tutti_ = _storia_carica().get("stati") or {}
+    if not tutti_:
+        return ""  # archivi non ancora scaricati
+    s = tutti_.get(stato) or {}
+    if tipo == "golpe":
+        g = s.get("golpe") or []
+        if not g:
+            return "Precedenti: nessun colpo di Stato registrato dal 1950 (Powell e Thyne)."
+        ok_ = [x for x in g if x[1]]
+        return (f"Precedenti: {len(ok_)} colpi di Stato riusciti e {len(g) - len(ok_)} falliti dal 1950, l'ultimo nel {g[0][0][:4]}"
+                f" ({'riuscito' if g[0][1] else 'fallito'}; Powell e Thyne).")
+    if tipo in ("guerra", "truppe", "missili", "terrorismo", "esplosioni", "morti", "spazio aereo"):
+        c = s.get("conflitti") or []
+        if not c:
+            return "Precedenti: nessun conflitto armato registrato dal 1946 (UCDP)."
+        guerra_ = sum(x[7] for x in c)
+        return (f"Precedenti: {len(c)} conflitti armati registrati dal 1946, l'ultimo attivo nel {max(x[1] for x in c)}"
+                + (f", {guerra_} anni con più di mille morti" if guerra_ else "") + " (UCDP).")
+    return ""
+
+
+def _storia_factbook(stato, cfg, errori):
+    """L'introduzione storica del World Factbook (copia d'archivio), tenuta in cache sul telefono."""
+    perc = MAG("storia", "factbook", re.sub(r"[^\w]+", "_", stato) + ".txt")
+    try:
+        return open(perc, encoding="utf-8").read()
+    except OSError:
+        pass
+    p_ = (cfg.get("sapere", {}).get("factbook") or {}).get(stato)
+    if not p_:
+        return ""
+    try:
+        d = json.loads(scarica("https://raw.githubusercontent.com/factbook/factbook.json/master/" + p_ + ".json", timeout=30))
+        t = testo_factbook(((d.get("Introduction") or {}).get("Background")))
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Storia (Factbook, {stato}): {str(e)[:80]}")
+        return ""
+    os.makedirs(os.path.dirname(perc), exist_ok=True)
+    with open(perc, "w", encoding="utf-8") as f:
+        f.write(t or "")
+    return t or ""
+
+
+def _storia_domanda(stato, fonti):
+    pezzi = []
+    if fonti.get("F"):
+        pezzi.append("F = CIA World Factbook, introduzione storica:\n" + fonti["F"])
+    if fonti.get("W"):
+        pezzi.append("W = Wikipedia, voce sulla storia (enciclopedia di appoggio):\n" + fonti["W"])
+    if fonti.get("U"):
+        pezzi.append("U = UCDP, conflitti armati dal 1946 (anni · tipo · parti · posta in gioco · anni con più di mille morti):\n" + fonti["U"])
+    if fonti.get("G"):
+        pezzi.append("G = colpi di Stato dal 1950 (Powell e Thyne):\n" + fonti["G"])
+    if fonti.get("R"):
+        pezzi.append("R = fatti confermati da più fonti negli ultimi mesi (archivio):\n" + fonti["R"])
+    return (f"Sei lo storico di un archivio pubblico su difesa e geopolitica. Stato: {stato}.\n"
+            "Fonti (usa SOLO queste):\n\n" + "\n\n".join(pezzi) + "\n\n"
+            f"Scrivi la cronologia di {stato}: da 12 a 30 tappe, dalla più antica alla più recente, una per riga, così:\n"
+            "T | anno | tappa | fonte\n"
+            "- anno: un anno (1960), un intervallo (1960-1962) o un secolo (XIV secolo), come risulta dalla fonte;\n"
+            "- tappa: in italiano semplice, al massimo 25 parole, solo fatti, senza giudizi né previsioni;\n"
+            "- fonte: una sola lettera tra " + ", ".join(k for k in "FWUGR" if fonti.get(k)) + ".\n"
+            "Metti le tappe che servono a capire lo Stato di oggi: origini, indipendenza, regimi e costituzioni, guerre e "
+            "conflitti interni, colpi di Stato, trattati e alleanze, crisi recenti. Per i conflitti usa U e G, per gli ultimi "
+            "mesi R. Niente che non stia nelle fonti. Nessun altro testo prima o dopo le righe.")
+
+
+def _storia_anni(anno):
+    """Gli anni scritti in una tappa: (primo, ultimo) oppure (None, None) per un secolo."""
+    a = [int(x) for x in re.findall(r"\b(\d{3,4})\b", anno or "")]
+    if a:
+        return min(a), max(a)
+    return None, None
+
+
+def _storia_controlla(righe, fonti, conflitti, golpe, recenti_anni):
+    """Tiene solo le tappe il cui anno sta davvero nella fonte citata."""
+    tenute, viste = [], set()
+    for riga in (righe or "").splitlines():
+        p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
+        if len(p) < 4 or p[0].upper().strip(" .:") != "T":
+            continue
+        anno, tappa, f = p[1][:30], pulisci(p[2], 260), p[3].strip().upper()[:1]
+        if f not in "FWUGR" or not fonti.get(f) or len(tappa) < 12:
+            continue
+        a0, a1 = _storia_anni(anno)
+        if a0 is None:
+            if not (f in "FW" and re.search(r"secol|century|centuries|\bsec\.", anno + " " + fonti[f], re.I)):
+                continue
+        elif f in "FW":
+            if str(a0) not in fonti[f] or str(a1) not in fonti[f]:
+                continue
+        elif f == "U":
+            if not any(c[0] - 1 <= a0 and a1 <= c[1] + 1 for c in conflitti):
+                continue
+        elif f == "G":
+            if a0 not in {int(g[0][:4]) for g in golpe}:
+                continue
+        elif f == "R":
+            if a0 not in recenti_anni:
+                continue
+        chiave = (a0, tappa[:40].lower())
+        if chiave in viste:
+            continue
+        viste.add(chiave)
+        tenute.append([anno, tappa, f, a0 if a0 is not None else -1])
+    tenute.sort(key=lambda x: x[3])
+    return [x[:3] for x in tenute[:30]]
+
+
+def storia_studia(chiavi, cfg, adesso, tel, errori, A=None):
+    """Il cervello scrive la cronologia di pochi Stati a giro (prima quelli con avvisi recenti, poi nell'ordine del piano).
+    Si rifà dopo «giorni_cronologia» giorni o quando gli archivi portano conflitti o colpi di Stato nuovi."""
+    imp = cfg.get("storia", {}) or {}
+    ic = cfg.get("cervello", {}) or {}
+    if not imp.get("cronologia", True) or not chiavi.get("anthropic_key") or not ic.get("attivo", True):
+        return {"fatti": 0, "perche": "cervello spento o senza chiave"}
+    conto = _conto_cervello()
+    if not _cervello_libero(conto, ic) or conto.get("passo"):
+        return {"fatti": 0, "perche": "tetto di spesa o spesa a passo"}
+    A = A or _storia_carica()
+    perc = MAG("storia", "cronologie.json")
+    K = leggi_json(perc, {}) or {}
+    paesi = leggi_json(os.path.join(QUI, "paesi.json"), {}) or {}
+    ordine = [s for _, l in (cfg.get("piano", {}).get("blocchi") or []) for s in l] or sorted(paesi)
+    V_ = leggi_json(os.path.join(DATI, "avvisi.json"), {}) or {}
+    due_g = (adesso - timedelta(days=2)).isoformat()
+    caldi = [a.get("stato") for a in reversed(V_.get("elenco", [])) if a.get("quando", "") >= due_g and a.get("stato")]
+    vecchia = (adesso - timedelta(days=int(imp.get("giorni_cronologia", 180)))).isoformat()
+
+    def firma(st):
+        s = (A.get("stati") or {}).get(st, {})
+        return [len(s.get("conflitti") or []), len(s.get("golpe") or [])]
+    da_fare = []
+    for st in list(dict.fromkeys(caldi + ordine)):
+        if st not in paesi:
+            continue
+        k_ = K.get(st) or {}
+        if not k_ or k_.get("quando", "") < vecchia or k_.get("firma") != firma(st):
+            da_fare.append(st)
+    quanti = int(imp.get("stati_per_giro_carica", 3) if spinta(cfg, tel)["piena"] else imp.get("stati_per_giro", 1))
+    S_ = leggi_json(os.path.join(DATI, "sapere.json"), {}) or {}
+    M_ = leggi_json(os.path.join(DATI, "memoria.json"), {}) or {}
+    fatti = 0
+    for st in da_fare[:quanti]:
+        s = (A.get("stati") or {}).get(st, {})
+        conf = s.get("conflitti") or []
+        gol = s.get("golpe") or []
+        fonti = {"F": _storia_factbook(st, cfg, errori)[:4000]}
+        w_ = (S_.get(st) or {}).get("storia") or {}
+        fonti["W"] = (w_.get("testo") or "")[:1500]
+        fonti["U"] = "\n".join(f"{c[0]}-{c[1]} · {c[2]} · {c[3]} contro {c[4]}" + (f" ({c[5]})" if c[5] else "") + f" · {c[6]} · {c[7]}"
+                               + (f" · con l'appoggio di {c[9]}" if c[9] else "") for c in conf[:40])
+        fonti["G"] = "; ".join(f"{g[0]} {'riuscito' if g[1] else 'fallito'}" for g in gol[:40])
+        mem_ = sorted(M_.get(st) or [], key=lambda x: x[0], reverse=True)[:12]
+        fonti["R"] = "\n".join(f"{x[0]} – {x[1]} ({x[2]})" for x in mem_)
+        if sum(len(v) for v in fonti.values()) < 200:
+            K[st] = {"quando": adesso.isoformat(), "tappe": [], "firma": firma(st), "nota": "fonti insufficienti"}
+            continue
+        try:
+            risposta = chiedi_claude(chiavi, cfg, _storia_domanda(st, fonti), 1800, conto)
+            conto["chiamate"] = conto.get("chiamate", 0) + 1
+        except SenzaRete:
+            raise
+        except Exception as e:
+            errori.append("Claude (storia di " + st + "): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
+            break
+        tappe = _storia_controlla(risposta, fonti, conf, gol, {int(x[0][:4]) for x in mem_ if x[0][:4].isdigit()})
+        K[st] = {"quando": adesso.isoformat(), "tappe": tappe, "firma": firma(st),
+                 "fonti": {"W": w_.get("url", ""), "F": "https://github.com/factbook/factbook.json/blob/master/"
+                           + ((cfg.get("sapere", {}).get("factbook") or {}).get(st) or "") + ".json"},
+                 "scartate": max(0, len(re.findall(r"(?m)^\s*[-•*]?\s*T\s*\|", risposta or "")) - len(tappe))}
+        fatti += 1
+    scrivi_json(os.path.join(DATI, "cervello.json"), conto)
+    os.makedirs(os.path.dirname(perc), exist_ok=True)
+    scrivi_json(perc, K)
+    return {"fatti": fatti, "in_coda": max(0, len(da_fare) - fatti), "con_cronologia": sum(1 for v in K.values() if v.get("tappe"))}
+
+
+def scrivi_storia_web(adesso):
+    """storia.js per la pagina: per ogni Stato la cronologia, i conflitti (i 40 più recenti), i colpi di Stato, la violenza
+    contro i civili e gli scontri tra gruppi armati, e un riassunto."""
+    A = _storia_carica()
+    K = leggi_json(MAG("storia", "cronologie.json"), {}) or {}
+    stati = {}
+    for st in set(A.get("stati") or {}) | set(K):
+        s = (A.get("stati") or {}).get(st, {})
+        c = s.get("conflitti") or []
+        g = s.get("golpe") or []
+        k = K.get(st) or {}
+        stati[st] = {"t": k.get("tappe") or [], "tq": (k.get("quando") or "")[:10], "tf": k.get("fonti") or {},
+                     "c": [x[:10] for x in c[:40]], "g": [x[:2] for x in g], "v": (s.get("civili") or [])[:8], "n": (s.get("gruppi") or [])[:8],
+                     "r": [len(c), sum(x[7] for x in c), sum(1 for x in g if x[1]), sum(1 for x in g if not x[1]),
+                           max((x[1] for x in c), default=None)]}
+    if not stati:
+        return False
+    return _scrivi_se_cambia(os.path.join(WEB, "storia.js"), "window.STORIA=" + json.dumps(
+        {"agg": adesso.date().isoformat(), "fonti": STORIA_FONTI, "versioni": A.get("versioni") or {}, "stati": stati},
+        ensure_ascii=False, separators=(",", ":")) + ";")
+
+
+def storia_passo(chiavi, cfg, adesso, tel, errori, leggero):
+    """Il lavoro sulla storia dentro il giro: archivi (una volta alla settimana), cronologie (poche a giro), storia.js."""
+    imp = cfg.get("storia", {}) or {}
+    if not imp.get("attiva", True):
+        return None
+    A = storia_archivi(cfg, adesso, errori)
+    r_ = storia_studia(chiavi, cfg, adesso, tel, errori, A) or {}
+    if not leggero or r_.get("fatti"):
+        scrivi_storia_web(adesso)
+    s_ = A.get("stati") or {}
+    r_.update(stati=len(s_), conflitti=sum(len(x.get("conflitti") or []) for x in s_.values()),
+              golpe=sum(len(x.get("golpe") or []) for x in s_.values()), archivi=(A.get("quando") or "")[:10])
+    return r_
+
+
 def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, errori, leggero):
     """Il lavoro della 2.29 dentro il giro: schede, andamento, avvisi, indice e vettori. Nulla di questo ferma il giro."""
     esito = {}
@@ -5925,6 +6337,10 @@ def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, erro
         esito["articoli"] = leggi_articoli(archivio, adesso, cfg, tel, errori)
     except Exception as e:
         errori.append(f"Lettura degli articoli: {str(e)[:100]}")
+    try:  # dalla 2.33: la storia di ogni Stato (archivi UCDP e colpi di Stato, cronologie scritte dal cervello)
+        esito["storia"] = storia_passo(chiavi, cfg, adesso, tel, errori, leggero)
+    except Exception as e:
+        errori.append(f"Storia: {str(e)[:100]}")
     try:
         esito["indice"] = indice_aggiorna(archivio, adesso, cfg, secondi=cfg.get("indice", {}).get("secondi", 45))
     except Exception as e:
@@ -7838,6 +8254,7 @@ def _aggiorna(leggero=False):
         "mag": stato_mag, "bing": getattr(_piano_titoli, "bing", 0),
         "off": [(stato_off or {}).get("fase", ""), getattr(officina_traduci, "fatti", 0)] if stato_off else None,
         "articoli": [(esito_229.get("articoli") or {}).get(c_) for c_ in ("letti", "poco_testo", "provati", "in_coda", "totale")],
+        "storia": [(esito_229.get("storia") or {}).get(c_) for c_ in ("fatti", "con_cronologia", "in_coda", "stati", "conflitti", "golpe")],
         "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
     })
@@ -8546,7 +8963,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         # repository non cresce tre volte più in fretta
         for nome in (("diario.json", "rapporto.json", "rapporti.json", "avvisi.json") if solo_diario else
                      ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json",
-                      "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js", "economia.js")):
+                      "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js", "economia.js", "storia.js")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -8958,6 +9375,11 @@ if __name__ == "__main__":
             if ind_:
                 print(f"Indice istantaneo: {ind_.get('totale', 0)} testi ({ind_.get('motore', '?')}), {ind_.get('nuovi', 0)} nuovi nell'ultimo giro")
             print(f"Schede dei fatti nuove nell'ultimo giro: {l229_.get('schede', 0)} · avvisi nuovi: {(l229_.get('avvisi') or [0])[0]}")
+            so_ = l229_.get("storia") or {}
+            if so_:
+                print(f"Storia: archivi del {so_.get('archivi') or '?'} ({so_.get('conflitti', 0)} conflitti e {so_.get('golpe', 0)} colpi di Stato in "
+                      f"{so_.get('stati', 0)} Stati) · cronologie scritte: {so_.get('con_cronologia', 0)}, in coda {so_.get('in_coda', 0)}"
+                      + (f" · {so_['perche']}" if so_.get("perche") else ""))
             ar_ = l229_.get("articoli") or {}
             if ar_:
                 print(f"Articoli letti nell'ultimo giro: {ar_.get('letti', 0)} su {ar_.get('provati', 0)} aperti ({ar_.get('poco_testo', 0)} con poco "
@@ -8984,6 +9406,28 @@ if __name__ == "__main__":
         c_ = leggi_json(os.path.join(DATI, "cervello.json"), {})
         if c_.get("lavori_mese"):
             print("Spesa del cervello questo mese, per lavoro: " + " · ".join(f"{k} {v:.2f} $" for k, v in sorted(c_["lavori_mese"].items(), key=lambda x: -x[1])))
+    elif comando == "storia":  # dalla 2.33: la storia di uno Stato (o il riassunto di tutti)
+        A_s = _storia_carica()
+        K_s = leggi_json(MAG("storia", "cronologie.json"), {}) or {}
+        nome_s = " ".join(a[1:]).strip()
+        if not nome_s:
+            print(f"Archivi storici del {(A_s.get('quando') or 'mai')[:10]}: {len(A_s.get('stati') or {})} Stati · cronologie scritte: "
+                  f"{sum(1 for v in K_s.values() if v.get('tappe'))} su 198")
+            print("Per uno Stato:  python castello.py storia Mali")
+        else:
+            st_s = next((x for x in sorted(set(A_s.get("stati") or {}) | set(K_s)) if x.lower() == nome_s.lower()), nome_s)
+            s_s = (A_s.get("stati") or {}).get(st_s, {})
+            k_s = K_s.get(st_s) or {}
+            print(f"{st_s}: cronologia del {(k_s.get('quando') or 'mai')[:10]}")
+            for t_ in k_s.get("tappe") or []:
+                print(f"  {t_[0]:>12}  {t_[1]}  [{t_[2]}]")
+            c_s, g_s = s_s.get("conflitti") or [], s_s.get("golpe") or []
+            print(f"Conflitti armati dal 1946 (UCDP): {len(c_s)}")
+            for c_ in c_s[:12]:
+                print(f"  {c_[0]}-{c_[1]} · {c_[2]} · {c_[3]} contro {c_[4]}" + (f" ({c_[5]})" if c_[5] else "") + (f" · {c_[7]} anni di guerra" if c_[7] else ""))
+            print(f"Colpi di Stato dal 1950 (Powell e Thyne): {len(g_s)}" + ("" if not g_s else " · " + ", ".join(
+                f"{g_[0][:4]} {'riuscito' if g_[1] else 'fallito'}" for g_ in g_s[:12])))
+            print("Lettere delle fonti: " + " · ".join(f"{k} = {v[0]}" for k, v in STORIA_FONTI.items()))
     elif comando == "avvisi":  # dalla 2.29: gli avvisi delle ultime 48 ore
         V_ = leggi_json(os.path.join(DATI, "avvisi.json"), {}) or {}
         da_ = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()

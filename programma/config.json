@@ -4465,6 +4465,15 @@
   "temp_ok": 38,
   "batteria_min": 15
  },
+ "storia": {
+  "attiva": true,
+  "perche": "dalla 2.33: il programma studia la storia di ogni Stato (conflitti armati dal 1946 dell'Università di Uppsala, colpi di Stato dal 1950 di Powell e Thyne, introduzione storica del World Factbook, Wikipedia come appoggio, fatti confermati degli ultimi mesi) e la collega al presente",
+  "giorni_archivi": 7,
+  "cronologia": true,
+  "giorni_cronologia": 180,
+  "stati_per_giro_carica": 3,
+  "stati_per_giro": 1
+ },
  "articoli": {
   "attivo": true,
   "perche": "dalla 2.32: il telefono apre le pagine delle notizie confermate degli ultimi 2 giorni e ne tiene il testo nell'indice (solo sul telefono, mai sul sito pubblico)",
