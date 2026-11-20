@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.28.2"
+VERSIONE = "2.29"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -3682,6 +3682,12 @@ def cerca(q, stato=None, giorni=3650, massimo=60):
     parole_q = [w for w in _norm(q).split() if len(w) > 1]
     if not parole_q:
         return []
+    try:  # dalla 2.29: l'indice istantaneo (SQLite), se c'è; altrimenti si legge tutto come prima
+        r_ = indice_cerca(q, stato, massimo)
+        if r_:
+            return r_
+    except Exception:
+        pass
     va = lambda testo: all(w in _norm(testo) for w in parole_q)
     fuori, visti = [], set()
 
@@ -3947,6 +3953,13 @@ def _off_server_su(S, porta):
 
 
 def _off_ferma(S):
+    for k_ in ("pid_sig",):  # dalla 2.29 anche il server dei significati
+        if S.get(k_) and _vivo_pid(S[k_]):
+            try:
+                os.kill(int(S[k_]), signal.SIGTERM)
+            except OSError:
+                pass
+        S[k_] = None
     if S.get("pid_server") and _vivo_pid(S["pid_server"]):
         try:
             os.kill(int(S["pid_server"]), signal.SIGTERM)
@@ -4198,12 +4211,14 @@ def _blocco_scarico():
         return None
 
 
-def scarica_modello(imp=None, max_secondi=None):
-    """Un tratto di download del modello dell'officina. Restituisce i secondi da aspettare prima del prossimo tratto."""
+def scarica_modello(imp=None, max_secondi=None, modello=None):
+    """Un tratto di download di un modello dell'officina (il traduttore o, dalla 2.29, quello dei significati).
+    Restituisce i secondi da aspettare prima del prossimo tratto."""
     imp = imp if imp is not None else leggi_json(os.path.join(QUI, "config.json"), {}).get("officina", {})
     if not imp.get("attivo", True):
         return 900
-    mod, tot = OFF("modello.gguf"), OFFICINA_MODELLO["byte"]
+    M_ = modello or OFFICINA_MODELLO
+    mod, tot = OFF(M_.get("file", "modello.gguf")), M_["byte"]
     parte = mod + ".part"
     if os.path.exists(mod) and os.path.getsize(mod) == tot:
         return 1800
@@ -4212,7 +4227,7 @@ def scarica_modello(imp=None, max_secondi=None):
         return 120  # sta scaricando qualcun altro
     try:
         S = _off_stato()
-        if S.get("pid_curl") and _vivo_pid(S["pid_curl"]):
+        if modello is None and S.get("pid_curl") and _vivo_pid(S["pid_curl"]):
             return 120  # c'è ancora il curl della versione di prima: si aspetta che finisca o che si chiuda
         ok, perche = _scarico_ok(imp)
         fatto = os.path.getsize(parte) if os.path.exists(parte) else 0
@@ -4226,11 +4241,11 @@ def scarica_modello(imp=None, max_secondi=None):
             os.replace(parte, mod)
             _scarico_scrivi(stato="finito", mb=round(tot / 1e6), errore=None)
             return 60
-        req = urllib.request.Request(OFFICINA_MODELLO["url"], headers={
+        req = urllib.request.Request(M_["url"], headers={
             "User-Agent": "PanGeo/" + VERSIONE + " (archivio personale)", "Range": f"bytes={fatto}-"})
         inizio = time.time()
         controllo, letto = inizio + 300, 0
-        _scarico_scrivi(stato="scarico", mb=round(fatto / 1e6), errore=None)
+        _scarico_scrivi(stato="scarico", mb=round(fatto / 1e6), errore=None, modello=M_.get("nome"), tot=round(tot / 1e6))
         with urllib.request.urlopen(req, timeout=60) as r:
             modo = "ab"
             if fatto and getattr(r, "status", 200) != 206:  # il server non riprende da metà: si ricomincia
@@ -4279,6 +4294,9 @@ def _scaricatore():
         try:
             if _su_termux() and shutil.which("llama-server"):
                 pausa_ = scarica_modello()
+                imp_ = leggi_json(os.path.join(QUI, "config.json"), {}).get("officina", {})
+                if pausa_ == 1800 and imp_.get("significato", True):  # dalla 2.29: poi il modello dei significati
+                    pausa_ = scarica_modello(imp_, modello=SIGNIFICATO_MODELLO)
         except Exception as e:
             print("Scaricatore:", e)
         time.sleep(max(pausa_, 1))
@@ -4482,6 +4500,554 @@ def filtro_primi_esempi(archivio):
                 f.write(json.dumps([notizie_[k]["t"][:300], 1, notizie_[k].get("fonte", "")], ensure_ascii=False) + "\n")
                 n_ += 1
     return n_
+
+
+# ----------------------------------------------------------------------------- 2.29: andamento, fatti in schede, avvisi,
+# indice istantaneo e ricerca per significato. Tutto gratis, sul telefono, anche senza rete.
+
+# 1. Fatti in schede: da ogni notizia confermata il telefono tira fuori tipo, Stati, numeri e data con regole fisse
+# (sul testo italiano). Nessun cervello: è gratis, veloce e sempre uguale, quindi i conteggi si possono confrontare.
+SCHEDE_TIPI = (  # (tipo, nome, regola): conta il primo che corrisponde, in quest'ordine
+    ("tregua", "Tregue e negoziati di pace", r"tregua|cessate il fuoco|armistizi|accordo di pace|negoziati di pace|colloqui di pace"),
+    ("disastro", "Disastri ed emergenze", r"terremoto|alluvion|uragan|tifone|incendi|frana|eruzion|epidemi|siccità"),
+    ("terrorismo", "Terrorismo e attentati", r"terroris|attentat|kamikaze|jihadist|ostagg"),
+    ("attacco", "Attacchi e bombardamenti", r"attacc|bombard|raid|missil[ei] .{0,40}(lanciat|cadut|colpit|abbattut|intercettat)|"
+                                            r"droni? .{0,30}(colpit|abbattut|intercettat|lanciat)|esplosion|razzi|offensiv|"
+                                            r"colpisc|colpito|colpita|uccis|morti|vittime"),
+    ("scontri", "Combattimenti e scontri armati", r"combattiment|scontri armati|battaglia|ribelli|milizi|insorti|guerriglier|avanzat"),
+    ("cyber", "Attacchi informatici", r"informatic|hacker|cyber|ransomware"),
+    ("nucleare", "Nucleare e missili strategici", r"nuclear|atomic|uranio|test missilistic|missile balistic|icbm|ipersonic"),
+    ("esercitazione", "Esercitazioni militari", r"esercitazion|manovre|addestrament|wargame"),
+    ("acquisto", "Acquisti, appalti e forniture di armi", r"acquist|compra|commess|appalt|contratto|fornitur|consegn|ordin[ea] |vende|vendita"),
+    ("accordo", "Accordi, trattati e alleanze", r"accordo|intesa|firma|memorandum|patto|trattat|partenariat|alleanza|cooperazione"),
+    ("sanzioni", "Sanzioni e dazi", r"sanzion|dazi|embargo|tariff"),
+    ("proteste", "Proteste e scioperi", r"protest|manifestan|manifestazion|sciopero|rivolt"),
+    ("politica", "Governi, elezioni e nomine", r"elezion|voto|governo|dimission|nominat|nomina|premier|parlamento|colpo di stato|golpe|"
+                                              r"presidente|ministro"),
+    ("diplomazia", "Diplomazia e vertici", r"ambasciat|vertice|incontr|colloqui|visita|negoziat|diplomat"),
+)
+_RX_TIPI = None
+_NUMERO = r"(\d{1,3}(?:[.\s]\d{3})+|\d+(?:,\d+)?)"
+_RX_NUMERI = (
+    ("morti", re.compile(_NUMERO + r"\s+(?:morti|vittime|uccis[ie]|persone uccise|civili uccisi|soldati uccisi)")),
+    ("feriti", re.compile(_NUMERO + r"\s+feriti")),
+    ("droni", re.compile(_NUMERO + r"\s+droni")),
+    ("missili", re.compile(_NUMERO + r"\s+(?:missili|razzi)")),
+    ("valore", re.compile(_NUMERO + r"\s*(miliardi|mld|milioni|mln)\s*(?:di\s+)?(euro|dollari|€|\$|sterline)")),
+)
+
+
+def _numero(s):
+    s = s.replace(" ", "").replace(".", "") if re.search(r"\d[.\s]\d{3}", s) else s
+    try:
+        return float(s.replace(",", "."))
+    except ValueError:
+        return None
+
+
+def scheda_di(v):
+    """La scheda di un fatto: tipo, Stati, numeri (morti, feriti, droni, missili, valore in milioni) e data."""
+    global _RX_TIPI
+    if _RX_TIPI is None:
+        _RX_TIPI = [(t, re.compile(r)) for t, _, r in SCHEDE_TIPI]
+    testo = (v.get("it") or v.get("t") or "")
+    basso = testo.lower()
+    tipo = next((t for t, rx in _RX_TIPI if rx.search(basso)), "altro")
+    num = {}
+    for nome, rx in _RX_NUMERI:
+        m = rx.search(basso)
+        if not m:
+            continue
+        n = _numero(m.group(1))
+        if n is None:
+            continue
+        if nome == "valore":
+            n = n * (1000 if m.group(2) in ("miliardi", "mld") else 1)
+            num["valore"] = [round(n, 1), {"euro": "€", "€": "€", "dollari": "$", "$": "$"}.get(m.group(3), m.group(3))]
+        else:
+            num[nome] = int(n)
+    return {"d": (v.get("data_iso") or "")[:10], "tipo": tipo, "p": list(v.get("paesi") or [])[:6], "num": num,
+            "t": testo[:220], "u": v.get("u", ""), "f": v.get("fonte", ""), "nf": v.get("nf") or 1}
+
+
+def schede_fatti(archivio, adesso, cfg):
+    """Mette in schede le notizie confermate nuove. dati/schede.json: {chiave: scheda}, per un anno (al massimo 80.000)."""
+    perc = os.path.join(DATI, "schede.json")
+    S = leggi_json(perc, {}) or {}
+    nuove = 0
+    for k, v in archivio.get("notizie", {}).items():
+        if v.get("conf") and k not in S and v.get("paesi"):
+            S[k] = scheda_di(v)
+            nuove += 1
+    limite = (adesso - timedelta(days=cfg.get("schede", {}).get("giorni", 365))).date().isoformat()
+    S = {k: s for k, s in S.items() if s.get("d", "") >= limite}
+    if len(S) > 80000:
+        S = dict(sorted(S.items(), key=lambda kv: kv[1].get("d", ""))[-80000:])
+    if nuove:
+        scrivi_json(perc, S)
+    return S, nuove
+
+
+def scrivi_schede_web(S, adesso):
+    """schede.js per la pagina: conteggi per Stato e tipo (30 giorni e un anno), per mese, e le ultime schede con numeri."""
+    trenta = (adesso - timedelta(days=30)).date().isoformat()
+    conta, mesi = {}, {}
+    for s in S.values():
+        for p in s.get("p") or []:
+            c = conta.setdefault(p, {}).setdefault(s["tipo"], [0, 0])
+            c[1] += 1
+            if s.get("d", "") >= trenta:
+                c[0] += 1
+            m = mesi.setdefault(p, {}).setdefault(s.get("d", "")[:7], {})
+            m[s["tipo"]] = m.get(s["tipo"], 0) + 1
+    gravi = sorted((s for s in S.values() if s.get("num")), key=lambda s: s.get("d", ""), reverse=True)[:400]
+    _scrivi_se_cambia(os.path.join(WEB, "schede.js"), "window.SCHEDE_FATTI=" + json.dumps(
+        {"agg": adesso.astimezone().strftime("%d/%m/%Y %H:%M"), "tipi": [[t, n] for t, n, _ in SCHEDE_TIPI] + [["altro", "Altro"]],
+         "conta": conta, "mesi": mesi, "ultime": gravi, "totale": len(S)}, ensure_ascii=False, separators=(",", ":")) + ";")
+
+
+# 2. Andamento: per ogni Stato e ogni giorno quante notizie, quante confermate, quanti fatti con morti o feriti,
+# quanto calore dal satellite e quanti aerei in volo (il massimo del giorno). dati/andamento.json, per un anno.
+def andamento(archivio, adesso, S_schede):
+    perc = os.path.join(DATI, "andamento.json")
+    A = leggi_json(perc, {}) or {}
+    G = A.setdefault("giorni", {})  # {data: {Stato: [notizie, confermate, gravi, calore, cielo]}}
+    conta = {}
+    for v in archivio.get("notizie", {}).values():
+        d = (v.get("data_iso") or "")[:10]
+        if not d:
+            continue
+        for p in v.get("paesi") or []:
+            c = conta.setdefault(d, {}).setdefault(p, [0, 0, 0, None, None])
+            c[0] += 1
+            c[1] += 1 if v.get("conf") else 0
+    for s in S_schede.values():
+        num_ = s.get("num") or {}
+        if num_.get("morti") or num_.get("feriti"):
+            for p in s.get("p") or []:
+                c = conta.setdefault(s.get("d", ""), {}).setdefault(p, [0, 0, 0, None, None])
+                c[2] += 1
+    for d, stati in conta.items():
+        g = G.setdefault(d, {})
+        for p, c in stati.items():
+            vecchio = g.get(p) or [0, 0, 0, None, None]
+            # l'archivio tiene 7 giorni e poi li toglie: per i giorni vecchi vale il massimo visto
+            g[p] = [max(vecchio[0], c[0]), max(vecchio[1], c[1]), max(vecchio[2], c[2]), vecchio[3], vecchio[4]]
+    zone_ = (leggi_json(os.path.join(DATI, "calore_zone.json"), {}) or {}).get("giorni", {})
+    for d, z in zone_.items():
+        for p, val in (z.get("s") or {}).items():
+            r = G.setdefault(d, {}).setdefault(p, [0, 0, 0, None, None])
+            r[3] = val[0] if isinstance(val, list) and val else r[3]
+    for p, serie in (leggi_json(os.path.join(DATI, "cielo_storico.json"), {}) or {}).items():
+        for x in serie or []:
+            if isinstance(x, list) and len(x) > 1 and isinstance(x[1], (int, float)):
+                d = str(x[0])[:10]
+                r = G.setdefault(d, {}).setdefault(p, [0, 0, 0, None, None])
+                r[4] = max(r[4] or 0, x[1])
+    limite = (adesso - timedelta(days=366)).date().isoformat()
+    A["giorni"] = {d: g for d, g in G.items() if d >= limite}
+    A["agg"] = adesso.isoformat()
+    scrivi_json(perc, A)
+    return A
+
+
+def scrivi_andamento_web(A, adesso, giorni=120):
+    date_ = [(adesso - timedelta(days=i)).date().isoformat() for i in range(giorni - 1, -1, -1)]
+    G = A.get("giorni", {})
+    stati = sorted({p for d in date_ for p in (G.get(d) or {})})
+    serie = {}
+    for p in stati:
+        righe = [[(G.get(d) or {}).get(p, [0, 0, 0, None, None])[i] for d in date_] for i in range(5)]
+        if any(any(x for x in r if x) for r in righe):
+            serie[p] = righe
+    _scrivi_se_cambia(os.path.join(WEB, "andamento.js"), "window.ANDAMENTO=" + json.dumps(
+        {"agg": adesso.astimezone().strftime("%d/%m/%Y %H:%M"), "date": date_, "serie": serie,
+         "voci": ["notizie", "confermate", "fatti con morti o feriti", "fonti di calore", "aerei in volo"]},
+        ensure_ascii=False, separators=(",", ":")) + ";")
+
+
+# 3. Avvisi: quando uno Stato si accende (molte più notizie confermate del solito, fatti con molti morti, cielo che si
+# svuota, calore in forte aumento). Vanno in cima alla pagina, come notifica sul telefono e, se Savo lo vuole, sul suo
+# telefono personale con l'app gratuita ntfy (python castello.py chiave ntfy_canale) o con il suo bot Telegram.
+def calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg):
+    imp = cfg.get("avvisi", {})
+    oggi = adesso.date().isoformat()
+    ieri = (adesso - timedelta(days=1)).date().isoformat()
+    G = A.get("giorni", {})
+    prima = [(adesso - timedelta(days=i)).date().isoformat() for i in range(2, 16)]
+    nuovi = []
+    for p in sorted({p for d in (oggi, ieri) for p in (G.get(d) or {})}):
+        c_oggi = max(((G.get(oggi) or {}).get(p) or [0, 0])[1], 0)
+        storia = sorted(((G.get(d) or {}).get(p) or [0, 0])[1] for d in prima)
+        mediana = storia[len(storia) // 2] if storia else 0
+        giorni_noti = sum(1 for d in prima if d in G)
+        if giorni_noti >= imp.get("giorni_minimi", 5) and c_oggi >= max(imp.get("picco_minimo", 6), 3 * max(mediana, 1)):
+            nuovi.append({"id": f"picco:{p}:{oggi}", "tipo": "picco", "stato": p, "livello": 2 if c_oggi >= 6 * max(mediana, 1) else 1,
+                          "testo": f"{p}: {c_oggi} notizie confermate oggi, di solito {mediana} al giorno."})
+    for k, s in S_schede.items():
+        if s.get("d") not in (oggi, ieri):
+            continue
+        m_ = (s.get("num") or {}).get("morti") or 0
+        if m_ >= imp.get("morti_minimi", 10) or s.get("tipo") in ("nucleare",) and s.get("nf", 1) >= 3:
+            for p in (s.get("p") or [])[:2]:
+                nuovi.append({"id": f"fatto:{k}:{p}", "tipo": "fatto", "stato": p, "livello": 2 if m_ >= 50 else 1,
+                              "testo": f"{p}: {s.get('t', '')}", "u": s.get("u", ""), "f": s.get("f", "")})
+    for p, v in ((dati_cielo or {}).get("paesi") or {}).items():
+        if isinstance(v, list) and len(v) > 2 and v[2]:
+            nuovi.append({"id": f"cielo:{p}:{oggi}", "tipo": "cielo", "stato": p, "livello": 1,
+                          "testo": f"{p}: cielo {'vuoto' if v[2] == 'vuoto' else 'in forte calo'} ({v[0]} aerei in volo, di solito {v[1]}). "
+                                   "Può essere uno spazio aereo chiuso, ma anche meteo o ricevitori spenti."})
+    for p, v in ((dati_calore or {}).get("paesi") or {}).items():
+        if isinstance(v, list) and len(v) > 2 and v[2]:
+            nuovi.append({"id": f"calore:{p}:{oggi}", "tipo": "calore", "stato": p, "livello": 1,
+                          "testo": f"{p}: fonti di calore da satellite in forte aumento ({v[0]} in 24 ore, media {v[1]}). "
+                                   "Possono essere incendi, industria o attacchi: da confermare con le notizie."})
+    return nuovi
+
+
+def avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg, chiavi):
+    """Aggiorna dati/avvisi.json (gli ultimi 80) e manda solo quelli nuovi. Restituisce [nuovi, attivi]."""
+    perc = os.path.join(DATI, "avvisi.json")
+    V = leggi_json(perc, {}) or {}
+    elenco = V.setdefault("elenco", [])
+    visti = {a["id"] for a in elenco}
+    nuovi = [dict(a, quando=adesso.isoformat()) for a in calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg)
+             if a["id"] not in visti]
+    elenco = (elenco + nuovi)[-80:]
+    V.update(elenco=elenco, agg=adesso.isoformat())
+    scrivi_json(perc, V)
+    os.makedirs(WEB, exist_ok=True)
+    scrivi_json(os.path.join(WEB, "avvisi.json"), V)
+    imp = cfg.get("avvisi", {})
+    da_mandare = [a for a in nuovi if a.get("livello", 1) >= imp.get("livello_notifica", 1)][:imp.get("massimo_per_giro", 5)]
+    if da_mandare and imp.get("attivi", True):
+        testo = "\n".join("• " + a["testo"][:200] for a in da_mandare)
+        if cfg.get("notifiche", True) and shutil.which("termux-notification"):
+            subprocess.run(["termux-notification", "--id", "pangeo-avvisi", "--title", f"PanGeo: {len(da_mandare)} avvisi",
+                            "--content", testo[:900], "--action", "termux-open-url http://127.0.0.1:8080/#avvisi"],
+                           check=False, timeout=30)
+        if chiavi.get("ntfy_canale"):
+            try:
+                req = urllib.request.Request("https://ntfy.sh/" + urllib.parse.quote(chiavi["ntfy_canale"]), data=testo.encode("utf-8"),
+                                             headers={"Title": f"PanGeo: {len(da_mandare)} avvisi", "Tags": "warning",
+                                                      "Click": SITO_PUBBLICO + "/#avvisi"})
+                urllib.request.urlopen(req, timeout=20).read()
+            except Exception as e:
+                print("  - avviso con ntfy non partito:", str(e)[:80])
+        if chiavi.get("telegram_bot") and chiavi.get("telegram_chat") and imp.get("telegram", True):
+            bot_telegram(chiavi, "PanGeo – avvisi\n" + testo)
+    return [len(nuovi), len([a for a in elenco if a.get("quando", "") >= (adesso - timedelta(hours=24)).isoformat()])]
+
+
+# 4. Indice istantaneo: tutte le notizie (anche quelle già nel magazzino), i fatti confermati e il lavoro a piano in un
+# indice SQLite con ricerca a parole (FTS5). Cerca in tutto in pochi millisecondi, anche con decine di GB e senza rete.
+def _indice_apri():
+    import sqlite3
+    os.makedirs(MAG(), exist_ok=True)
+    db = sqlite3.connect(MAG("indice.sqlite"), timeout=30)
+    db.execute("CREATE TABLE IF NOT EXISTS visti (k TEXT PRIMARY KEY)")
+    db.execute("CREATE TABLE IF NOT EXISTS info (k TEXT PRIMARY KEY, v TEXT)")
+    tab = db.execute("SELECT name FROM sqlite_master WHERE name='testi'").fetchone()
+    if not tab:
+        for motore in ("fts5", "fts4"):
+            try:
+                opz = "tokenize='unicode61 remove_diacritics 2'" if motore == "fts5" else "tokenize=unicode61"
+                db.execute(f"CREATE VIRTUAL TABLE testi USING {motore}(testo, d, p, f, u, dove, c, {opz})")
+                db.execute("INSERT OR REPLACE INTO info VALUES ('motore', ?)", (motore,))
+                break
+            except Exception:
+                continue
+    return db
+
+
+def indice_aggiorna(archivio, adesso, cfg, secondi=60):
+    """Mette nell'indice ciò che non c'è ancora. La prima volta anche tutti i giorni del magazzino (a pezzi, per giro)."""
+    if not cfg.get("indice", {}).get("attivo", True):
+        return None
+    t0 = time.time()
+    db = _indice_apri()
+    if not db.execute("SELECT name FROM sqlite_master WHERE name='testi'").fetchone():
+        return {"errore": "SQLite senza ricerca a parole"}
+    nuovi = 0
+
+    def metti(k, testo, d, p, f, u, dove, c):
+        nonlocal nuovi
+        if db.execute("SELECT 1 FROM visti WHERE k=?", (k,)).fetchone():
+            return
+        db.execute("INSERT INTO visti VALUES (?)", (k,))
+        db.execute("INSERT INTO testi (testo, d, p, f, u, dove, c) VALUES (?,?,?,?,?,?,?)",
+                   (testo, d, "|".join(p or []), f or "", u or "", dove, c))
+        nuovi += 1
+    for k, v in archivio.get("notizie", {}).items():
+        metti("n:" + k, ((v.get("it") or "") + " · " + (v.get("t") or "")).strip(" ·"), (v.get("data_iso") or "")[:10],
+              v.get("paesi"), v.get("fonte"), v.get("u"), "notizia", 1 if v.get("conf") else 0)
+    P = (leggi_json(os.path.join(DATI, "piano.json"), {}) or {}).get("stati", {})
+    for st_, s in P.items():
+        for campo, chiave in (("accordi", "cosa"), ("appalti", "ogg"), ("intel", "cosa"), ("puzzle", "cosa")):
+            for x in s.get(campo) or []:
+                testo = " · ".join(str(x.get(c) or "") for c in (chiave, "con", "acq", "forn", "ente") if x.get(c))
+                f = (x.get("f") or [["", ""]])[0]
+                metti("p:" + hashlib.md5((st_ + campo + testo).encode()).hexdigest()[:16], testo, x.get("d", ""), [st_],
+                      f[0] if f else "", f[1] if len(f) > 1 else "", "lavoro a piano: " + campo, 1)
+    # il magazzino: un giorno alla volta, dal più recente, finché c'è tempo
+    fatti_ = set(json.loads((db.execute("SELECT v FROM info WHERE k='giorni_mag'").fetchone() or ["[]"])[0]))
+    for d in sorted((leggi_json(MAG("indice.json"), {}) or {}).get("giorni", {}), reverse=True):
+        if d in fatti_ or d >= adesso.date().isoformat():
+            continue
+        if time.time() - t0 > secondi:
+            break
+        for r in _mag_leggi(MAG("notizie", d + ".jsonl.xz")):
+            metti("n:" + str(r.get("k") or r.get("u") or r.get("t")), ((r.get("it") or "") + " · " + (r.get("t") or "")).strip(" ·"),
+                  (r.get("d") or "")[:10], r.get("p"), r.get("f"), r.get("u"), "notizia (magazzino)", r.get("c", 0))
+        fatti_.add(d)
+        db.execute("INSERT OR REPLACE INTO info VALUES ('giorni_mag', ?)", (json.dumps(sorted(fatti_)),))
+    db.commit()
+    tot = db.execute("SELECT count(*) FROM visti").fetchone()[0]
+    motore = (db.execute("SELECT v FROM info WHERE k='motore'").fetchone() or ["?"])[0]
+    db.close()
+    return {"nuovi": nuovi, "totale": tot, "motore": motore, "secondi": round(time.time() - t0, 1)}
+
+
+def indice_cerca(q, stato=None, massimo=60):
+    """Ricerca istantanea: tutte le parole (anche l'inizio di una parola con *), dalla più pertinente e più recente."""
+    if not os.path.exists(MAG("indice.sqlite")):
+        return None
+    parole_q = [w for w in re.findall(r"[\w*]+", q or "", re.U) if len(w.strip("*")) > 1][:8]
+    if not parole_q:
+        return []
+    db = _indice_apri()
+    motore = (db.execute("SELECT v FROM info WHERE k='motore'").fetchone() or ["fts5"])[0]
+    domanda = " ".join('"' + w.strip("*").replace('"', "") + '"' + ("*" if w.endswith("*") else "") for w in parole_q)
+    ordine = "bm25(testi)" if motore == "fts5" else "d DESC"
+    sql = f"SELECT testo, d, p, f, u, dove, c FROM testi WHERE testi MATCH ? {'AND p LIKE ?' if stato else ''} ORDER BY {ordine} LIMIT ?"
+    arg = [domanda] + (["%" + stato + "%"] if stato else []) + [massimo * 3]
+    try:
+        righe = db.execute(sql, arg).fetchall()
+    except Exception:
+        db.close()
+        return None
+    db.close()
+    fuori, visti = [], set()
+    for testo, d, p, f, u, dove, c in righe:
+        if (u or testo) in visti:
+            continue
+        visti.add(u or testo)
+        it_ = testo.split(" · ")[0]
+        fuori.append({"d": d, "t": it_, "f": f, "u": u, "p": [x for x in (p or "").split("|") if x], "dove": dove, "c": c})
+    fuori.sort(key=lambda r: (str(r.get("d") or "")), reverse=True)
+    return fuori[:massimo]
+
+
+# 5. Ricerca per significato: un secondo modello piccolo (Qwen3 Embedding 0.6B, Apache 2.0) trasforma ogni fatto
+# confermato in un vettore. Cerchi «carri armati alla Polonia» e trova anche la notizia in russo o in coreano che lo dice
+# con altre parole. Gira sul telefono (porta 8092), anche senza rete; i vettori stanno nel magazzino (512 numeri a fatto).
+SIGNIFICATO_MODELLO = {"nome": "Qwen3 Embedding 0.6B (Q8_0)", "licenza": "Apache 2.0", "byte": 639150592, "file": "significato.gguf",
+                       "url": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf"}
+SIG_DIM = 512  # i primi 512 numeri del vettore: provato il 20/11, metà spazio e quasi la stessa precisione
+SIG_ISTRUZIONE = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"
+
+
+def _sig_server(imp, accendi=True):
+    """Il server dei vettori: acceso se serve (in carica, o fuori carica con batteria buona), spento se no."""
+    porta = imp.get("porta_significato", 8092)
+    S = _off_stato()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{porta}/health", timeout=3) as r:
+            if r.status == 200:
+                return porta
+    except Exception:
+        pass
+    mod = OFF(SIGNIFICATO_MODELLO["file"])
+    if not accendi or not shutil.which("llama-server") or not os.path.exists(mod) or os.path.getsize(mod) != SIGNIFICATO_MODELLO["byte"]:
+        return None
+    if not (S.get("pid_sig") and _vivo_pid(S["pid_sig"])):
+        log = open(OFF("significato.log"), "ab")
+        p = subprocess.Popen(["llama-server", "-m", mod, "--embedding", "--pooling", "last", "--host", "127.0.0.1", "--port", str(porta),
+                              "-c", "2048", "-ub", "2048", "-t", str(imp.get("thread", 4))], stdout=log, stderr=log,
+                             stdin=subprocess.DEVNULL, start_new_session=True)
+        S["pid_sig"] = p.pid
+        _off_salva(S)
+    for _ in range(40):  # il modello piccolo si carica in pochi secondi
+        time.sleep(1)
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{porta}/health", timeout=3) as r:
+                if r.status == 200:
+                    return porta
+        except Exception:
+            continue
+    return None
+
+
+def _sig_ferma():
+    S = _off_stato()
+    if S.get("pid_sig") and _vivo_pid(S["pid_sig"]):
+        try:
+            os.kill(int(S["pid_sig"]), signal.SIGTERM)
+        except OSError:
+            pass
+    S["pid_sig"] = None
+    _off_salva(S)
+
+
+def _sig_vettori(testi, porta):
+    req = urllib.request.Request(f"http://127.0.0.1:{porta}/v1/embeddings", data=json.dumps({"input": testi}).encode(),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=180) as r:
+        d = json.load(r)
+    fuori = []
+    for x in sorted(d["data"], key=lambda x: x.get("index", 0)):
+        v = x["embedding"][:SIG_DIM]  # i primi numeri bastano (il modello è fatto per accorciarli)
+        n = math.sqrt(sum(a * a for a in v)) or 1.0
+        fuori.append(bytes((max(-127, min(127, round(a / n * 127))) & 0xFF) for a in v))
+    return fuori
+
+
+def significato_aggiorna(archivio, cfg, tel, errori, secondi=None):
+    """Mette nei vettori i fatti confermati che mancano (prima i più recenti), finché c'è tempo nel giro."""
+    imp = cfg.get("officina", {})
+    if not imp.get("significato", True) or not _su_termux():
+        return None
+    ok_ = (bool(tel.get("in_carica")) or (tel.get("batteria") or 0) >= imp.get("batteria_min_fuori_carica", 35)) \
+        and (tel.get("temp") or 99) < imp.get("temp_max", 38)
+    if not ok_:
+        _sig_ferma()
+        return {"fase": "in pausa (batteria o temperatura)"}
+    cart = MAG("significato")
+    os.makedirs(cart, exist_ok=True)
+    visti = set()
+    try:
+        with open(os.path.join(cart, "testi.jsonl"), encoding="utf-8") as f:
+            for r in f:
+                try:
+                    visti.add(json.loads(r)[0])
+                except (ValueError, IndexError):
+                    pass
+    except OSError:
+        pass
+    da_fare = sorted(((k, v) for k, v in archivio.get("notizie", {}).items() if v.get("conf") and "n:" + k not in visti),
+                     key=lambda kv: kv[1].get("data_iso") or "", reverse=True)
+    M_ = leggi_json(os.path.join(DATI, "memoria.json"), {}) or {}
+    for st_, l in M_.items():
+        for x in l:
+            k_ = "m:" + hashlib.md5((st_ + x[1]).encode()).hexdigest()[:16]
+            if k_ not in visti:
+                da_fare.append((k_, {"it": x[1], "data_iso": x[0], "paesi": [st_], "fonte": x[2], "u": x[4] if len(x) > 4 else ""}))
+    if len(visti) > 3000:  # con tanti vettori serve numpy (pacchetto di Termux): si prova a installarlo una volta al giorno
+        try:
+            import numpy  # noqa: F401
+        except ImportError:
+            S_n = _off_stato()
+            if S_n.get("numpy_provato") != datetime.now().date().isoformat():
+                S_n["numpy_provato"] = datetime.now().date().isoformat()
+                _off_salva(S_n)
+                try:
+                    subprocess.run(["pkg", "install", "-y", "python-numpy"], capture_output=True, timeout=900, stdin=subprocess.DEVNULL,
+                                   env=dict(os.environ, DEBIAN_FRONTEND="noninteractive"))
+                except (OSError, subprocess.SubprocessError):
+                    pass
+    if not da_fare:
+        return {"fase": "pronto", "fatti": len(visti), "nuovi": 0}
+    porta = _sig_server(imp)
+    if not porta:
+        return {"fase": "accendo il modello dei significati" if os.path.exists(OFF(SIGNIFICATO_MODELLO["file"])) else "aspetto il modello",
+                "fatti": len(visti)}
+    t0, fatti = time.time(), 0
+    limite = secondi if secondi is not None else imp.get("secondi_significato", 120)
+    with open(os.path.join(cart, "vettori.bin"), "ab") as fv, open(os.path.join(cart, "testi.jsonl"), "a", encoding="utf-8") as ft:
+        for i in range(0, len(da_fare), 32):
+            if time.time() - t0 > limite:
+                break
+            gruppo = da_fare[i:i + 32]
+            try:
+                vett = _sig_vettori([(v.get("it") or v.get("t") or "")[:400] for _, v in gruppo], porta)
+            except Exception as e:
+                errori.append(f"Ricerca per significato: {str(e)[:100]}")
+                break
+            for (k, v), b in zip(gruppo, vett):
+                k_ = k if k.startswith("m:") else "n:" + k
+                fv.write(b)
+                ft.write(json.dumps([k_, (v.get("data_iso") or "")[:10], (v.get("it") or v.get("t") or "")[:300], v.get("paesi") or [],
+                                     v.get("fonte", ""), v.get("u", "")], ensure_ascii=False) + "\n")
+                fatti += 1
+    return {"fase": "pronto", "fatti": len(visti) + fatti, "nuovi": fatti, "secondi": round(time.time() - t0, 1)}
+
+
+def significato_cerca(q, stato=None, massimo=30):
+    cart = MAG("significato")
+    if not os.path.exists(os.path.join(cart, "vettori.bin")):
+        return None
+    imp = leggi_json(os.path.join(QUI, "config.json"), {}).get("officina", {})
+    porta = _sig_server(imp)
+    if not porta:
+        return {"errore": "il modello dei significati non è acceso (batteria, temperatura o modello non ancora scaricato)"}
+    qv = _sig_vettori([SIG_ISTRUZIONE + q[:300]], porta)[0]
+    dati = open(os.path.join(cart, "vettori.bin"), "rb").read()
+    testi = []
+    with open(os.path.join(cart, "testi.jsonl"), encoding="utf-8") as f:
+        for r in f:
+            try:
+                testi.append(json.loads(r))
+            except ValueError:
+                testi.append(None)
+    n = min(len(dati) // SIG_DIM, len(testi))
+    qi = [b - 256 if b > 127 else b for b in qv]
+    try:
+        import numpy as np
+        V = np.frombuffer(dati[:n * SIG_DIM], dtype=np.int8).reshape(n, SIG_DIM).astype(np.int32)
+        punti = (V @ np.array(qi, dtype=np.int32)).tolist()
+    except ImportError:  # senza numpy: più lento, ma funziona
+        import array
+        A_ = array.array("b", dati[:n * SIG_DIM])
+        punti = [sum(a * b for a, b in zip(A_[i * SIG_DIM:(i + 1) * SIG_DIM], qi)) for i in range(n)]
+    ordine = sorted(range(n), key=lambda i: -punti[i])
+    fuori, visti = [], set()
+    for i in ordine:
+        r = testi[i]
+        if not r or (stato and stato not in (r[3] or [])) or (r[5] or r[2]) in visti:
+            continue
+        visti.add(r[5] or r[2])
+        fuori.append({"d": r[1], "t": r[2], "p": r[3], "f": r[4], "u": r[5], "dove": "per significato",
+                      "s": round(punti[i] / (127 * 127), 3), "c": 1})
+        if len(fuori) >= massimo:
+            break
+    return fuori
+
+
+def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, errori, leggero):
+    """Il lavoro della 2.29 dentro il giro: schede, andamento, avvisi, indice e vettori. Nulla di questo ferma il giro."""
+    esito = {}
+    S_ = {}
+    try:
+        S_, esito["schede"] = schede_fatti(archivio, adesso, cfg)
+    except Exception as e:
+        errori.append(f"Schede dei fatti: {str(e)[:100]}")
+    A_ = {}
+    try:
+        A_ = andamento(archivio, adesso, S_)
+    except Exception as e:
+        errori.append(f"Andamento: {str(e)[:100]}")
+    try:
+        esito["avvisi"] = avvisi(A_, S_, dati_cielo, dati_calore, adesso, cfg, chiavi)
+    except Exception as e:
+        errori.append(f"Avvisi: {str(e)[:100]}")
+    try:
+        esito["indice"] = indice_aggiorna(archivio, adesso, cfg, secondi=cfg.get("indice", {}).get("secondi", 45))
+    except Exception as e:
+        errori.append(f"Indice: {str(e)[:100]}")
+    try:
+        esito["significato"] = significato_aggiorna(archivio, cfg, tel, errori)
+    except Exception as e:
+        errori.append(f"Ricerca per significato: {str(e)[:100]}")
+    if not leggero:
+        try:
+            scrivi_schede_web(S_, adesso)
+            scrivi_andamento_web(A_, adesso)
+        except Exception as e:
+            errori.append(f"Schede e andamento per la pagina: {str(e)[:100]}")
+    S2 = _off_stato()
+    S2["lavoro_229"] = {k: v for k, v in esito.items()}
+    _off_salva(S2)
+    return esito
 
 
 def _cerca_e_rispondi(chiavi, cfg, conto, errori, chi, perche, q, lingua, giorni=30, pausa=1.0):
@@ -6223,6 +6789,11 @@ def _aggiorna(leggero=False):
     scrivi_json(os.path.join(DATI, "fonti_auto.json"), auto)  # con i siti proposti dal cervello
     mem_nuovi, mem_totale = memoria_stati(archivio, adesso, cfg)
     scrivi_json(os.path.join(DATI, "analisi.json"), analisi)
+    try:  # dalla 2.29: schede dei fatti, andamento per Stato, avvisi, indice istantaneo e ricerca per significato
+        esito_229 = lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, telefono(), errori, leggero)
+    except Exception as e:
+        esito_229 = {}
+        errori.append(f"Lavoro 2.29: {str(e)[:120]}")
     # 6b. Quadro (dalla 2.23): scaletta di rilevanza, collegamenti tra i fatti e le domande per verificarli
     try:
         quadro_giro = quadro(chiavi, cfg, archivio, leggero, errori)
@@ -6324,6 +6895,8 @@ def _aggiorna(leggero=False):
         "usd_mese": conto_c.get("usd_mese", 0), "tradotti": sum(1 for v in archivio["notizie"].values() if v.get("it")),
         "mag": stato_mag, "bing": getattr(_piano_titoli, "bing", 0),
         "off": [(stato_off or {}).get("fase", ""), getattr(officina_traduci, "fatti", 0)] if stato_off else None,
+        "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
+                 (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
     })
     scrivi_json(os.path.join(DATI, "diario.json"), diario[-120:])
     live["diario"] = [{k: v for k, v in x.items() if k not in ("ricerche", "siti")} for x in diario[-60:]]  # per la pagina
@@ -6352,7 +6925,7 @@ def _aggiorna(leggero=False):
         print("  miglioratore chiede:", x_)
     for e in errori:
         print("  -", e)
-    avvisa(cfg, segnali, dati_calore)
+    # dalla 2.29 le notifiche sul telefono le manda avvisi() (dentro lavoro_229), con i picchi e i fatti gravi
     avvisa_bot(chiavi, live, segnali)
     try:
         r_ = rapporto_12(cfg)
@@ -7028,9 +7601,9 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
                 print("Copia di riserva non riuscita (il resto va avanti):", str(e)[:80])
         # dopo un giro leggero su GitHub va solo il diario (pochi KB): i dati grossi ci vanno ogni 3 ore, così il
         # repository non cresce tre volte più in fretta
-        for nome in (("diario.json", "rapporto.json", "rapporti.json") if solo_diario else
+        for nome in (("diario.json", "rapporto.json", "rapporti.json", "avvisi.json") if solo_diario else
                      ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json",
-                      "rapporto.json", "rapporti.json")):
+                      "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -7116,8 +7689,13 @@ class Gestore(http.server.SimpleHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/cerca":  # dalla 2.26: la pagina sul telefono cerca in tutto il magazzino
             qs_ = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             try:
-                ris_ = cerca((qs_.get("q") or [""])[0][:120], (qs_.get("stato") or [None])[0],
-                             giorni=int((qs_.get("giorni") or ["120"])[0]), massimo=int((qs_.get("max") or ["60"])[0]))
+                if (qs_.get("modo") or [""])[0] == "significato":  # dalla 2.29: per significato, in tutte le lingue
+                    ris_ = significato_cerca((qs_.get("q") or [""])[0][:200], (qs_.get("stato") or [None])[0],
+                                             massimo=int((qs_.get("max") or ["30"])[0]))
+                    ris_ = ris_ if ris_ is not None else {"errore": "la ricerca per significato non è ancora pronta"}
+                else:
+                    ris_ = cerca((qs_.get("q") or [""])[0][:120], (qs_.get("stato") or [None])[0],
+                                 giorni=int((qs_.get("giorni") or ["120"])[0]), massimo=int((qs_.get("max") or ["60"])[0]))
             except Exception as e:
                 ris_ = {"errore": str(e)[:120]}
             corpo = json.dumps(ris_, ensure_ascii=False).encode("utf-8")
@@ -7421,9 +7999,34 @@ if __name__ == "__main__":
                   f"{fi_.get('scartati', 0)} scartati) · " + (f"scarta da solo il {round((fi_.get('copre') or 0) * 100)}% dei titoli "
                   f"inutili, errore misurato {round((fi_.get('errore') or 0) * 100, 1)}% · oggi {fi_.get('scartati_oggi', 0)} titoli "
                   f"risparmiati" if fi_.get("attivo") else "non scarta ancora: " + (fi_.get("perche") or "sta imparando")))
+        l229_ = S_.get("lavoro_229") or {}
+        if l229_:
+            sig_ = l229_.get("significato") or {}
+            ind_ = l229_.get("indice") or {}
+            print(f"Ricerca per significato: {sig_.get('fase', 'non ancora partita')} · fatti con il vettore: {sig_.get('fatti', 0)}"
+                  + (" · modello: " + ("pronto" if os.path.exists(OFF(SIGNIFICATO_MODELLO["file"])) else "da scaricare (lo fa il cuore)")))
+            if ind_:
+                print(f"Indice istantaneo: {ind_.get('totale', 0)} testi ({ind_.get('motore', '?')}), {ind_.get('nuovi', 0)} nuovi nell'ultimo giro")
+            print(f"Schede dei fatti nuove nell'ultimo giro: {l229_.get('schede', 0)} · avvisi nuovi: {(l229_.get('avvisi') or [0])[0]}")
+        if sc_ and sc_.get("modello") == SIGNIFICATO_MODELLO["nome"] and not os.path.exists(OFF(SIGNIFICATO_MODELLO["file"])):
+            print(f"  scarico del modello dei significati: {sc_.get('stato')} · {sc_.get('mb', 0)} MB su {sc_.get('tot', 639)}")
         c_ = leggi_json(os.path.join(DATI, "cervello.json"), {})
         if c_.get("lavori_mese"):
             print("Spesa del cervello questo mese, per lavoro: " + " · ".join(f"{k} {v:.2f} $" for k, v in sorted(c_["lavori_mese"].items(), key=lambda x: -x[1])))
+    elif comando == "avvisi":  # dalla 2.29: gli avvisi delle ultime 48 ore
+        V_ = leggi_json(os.path.join(DATI, "avvisi.json"), {}) or {}
+        da_ = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+        l_ = [x for x in V_.get("elenco", []) if x.get("quando", "") >= da_]
+        print(f"Avvisi delle ultime 48 ore: {len(l_)}" + ("" if l_ else " (nessuno)"))
+        for x_ in reversed(l_[-20:]):
+            print(f"  {datetime.fromisoformat(x_['quando']).astimezone().strftime('%d/%m %H:%M')} · {x_['testo'][:160]}")
+    elif comando == "significato":  # dalla 2.29: python castello.py significato carri armati alla Polonia
+        r_ = significato_cerca(" ".join(a[1:]))
+        if r_ is None or isinstance(r_, dict):
+            print("La ricerca per significato non è ancora pronta:", (r_ or {}).get("errore", "manca l'indice dei vettori"))
+        else:
+            for x_ in r_[:20]:
+                print(f"  {x_['d']} · {', '.join(x_['p'][:3])} · {x_['t'][:140]} ({x_['f']})")
     elif comando == "magazzino":
         I_ = leggi_json(MAG("indice.json"), {}) or {}
         g_ = I_.get("giorni", {})
