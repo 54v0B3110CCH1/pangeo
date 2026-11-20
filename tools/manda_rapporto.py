@@ -43,7 +43,8 @@ def main(repo):
                         leggi(os.path.join(repo, "piano.js"), True, {}))
     ultimo = diario[-1] if diario else {}
     if ultimo.get("iso") and datetime.fromisoformat(ultimo["iso"]) < adesso - timedelta(minutes=45):
-        perche = f"il telefono non manda giri dalle {ultimo.get('quando', '?')}"
+        perche = (f"il telefono non manda dati dalle {ultimo.get('quando', '?')}: è senza rete (lavora lo stesso e manda tutto "
+                  f"quando la rete torna) oppure è fermo; se dura più di qualche ora, apri Termux e lancia bash avvia.sh")
     elif ultimo.get("v", "") < "2.25":
         perche = f"sul telefono gira ancora la versione {ultimo.get('v', '?')}, che non scrive il rapporto (serve «approva»)"
     else:

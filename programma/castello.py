@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.27.1"
+VERSIONE = "2.27.2"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -2327,7 +2327,8 @@ def _attivita(G, prima_di=None, fine=None):
     for x in G:
         tipi[x.get("tipo") or "completo"] = tipi.get(x.get("tipo") or "completo", 0) + 1
     t = [datetime.fromisoformat(x["iso"]) for x in G if x.get("iso")]
-    buchi = [((t[i + 1] - t[i]).total_seconds() / 60, G[i]) for i in range(len(t) - 1)]
+    # un tratto senza rete non è un fermo: il telefono lavora lo stesso (e scrive nel diario una riga all'ora)
+    buchi = [((t[i + 1] - t[i]).total_seconds() / 60, G[i]) for i in range(len(t) - 1) if G[i + 1].get("tipo") != "senza rete"]
     if fine and t:
         buchi.append(((fine - t[-1]).total_seconds() / 60, G[-1]))
     lungo = max(buchi, key=lambda b: b[0]) if buchi else (0, {})
@@ -2440,7 +2441,12 @@ def rapporto_dati(diario, live=None, basi=None, prec=None, fine=None, ore=12, cf
     tetto_m = cfg.get("cervello", {}).get("max_usd_mese", 45)
     proiezione = round(att["spesa"] * 24 / ore * 30, 2)
     problemi = []
-    if eta is None or eta > 45:
+    ult_ = diario[-1] if diario else {}
+    eta_u = (fine - datetime.fromisoformat(ult_["iso"])).total_seconds() / 60 if ult_.get("iso") else None
+    if ult_.get("tipo") == "senza rete" and eta_u is not None and eta_u <= 45:
+        problemi.append("telefono senza rete dalle " + (datetime.fromisoformat(ult_["senza_rete_dal"]).astimezone().strftime("%H:%M")
+                        if ult_.get("senza_rete_dal") else ult_.get("quando", "?")) + ": lavora su quello che ha e recupera al ritorno della rete")
+    elif eta is None or eta > 45:
         problemi.append("il programma è fermo: ultimo giro " + (f"alle {z.get('quando', '?')}" if ultimo else "mai visto"))
     if att["giri"] < ore * 60 / 15 * 0.5:
         problemi.append(f"pochi giri: {att['giri']} in {ore} ore (attesi circa {ore * 4})")
@@ -2477,14 +2483,14 @@ def rapporto_dati(diario, live=None, basi=None, prec=None, fine=None, ore=12, cf
     nomi_tappe = {"temi": "temi", "stati": "Stati", "ricerca": "ricerca autonoma", "lingue": "lingue", "piano": "piano",
                   "feed": "feed", "telegram": "Telegram", "video": "YouTube", "altro": "altro"}
     T = []
-    T.append(f"PanGeo · rapporto del {quando} (ultime {ore} ore) · programma {z.get('v', '?')}")
+    T.append(f"PanGeo · rapporto del {quando} ora italiana ({fine.astimezone(timezone.utc).strftime('%H:%M')} GMT), ultime {ore} ore · programma {z.get('v', '?')}")
     T.append("VERDETTO: " + verdetto)
     T.append("")
     T.append("CHE COSA HA FATTO")
     tipi = att["tipi"]
     pz_ = ", ".join(f"{p[0]} {p[1]}".strip() for p in att["pause"][:4])
     T.append(f"- Giri: {att['giri']} ({tipi.get('completo', 0)} completi, {tipi.get('leggero', 0)} leggeri"
-             + (f", {len(att['pause'])} {'pausa o fermo' if len(att['pause']) == 1 else 'pause o fermi'}: {pz_}" if att["pause"] else "") + ")."
+             + (f", {len(att['pause'])} {'tra pause, fermi e ore senza rete' if len(att['pause']) > 1 else 'pausa, fermo o ora senza rete'}: {pz_}" if att["pause"] else "") + ")."
              + (f" Un giro ogni {_it(att['ritmo'], 0)} minuti." if att.get("ritmo") else "")
              + (f" Fermo più lungo: {att['fermo_max']} minuti (dopo il giro delle {att['fermo_dopo']})." if att["fermo_max"] >= 30 else ""))
     T.append(f"- Voci nuove: {_it(att['voci_nuove'])}" + (" (" + " · ".join(f"{nomi_tappe.get(k, k)} {_it(v)}" for k, v in
@@ -2537,6 +2543,12 @@ def rapporto_dati(diario, live=None, basi=None, prec=None, fine=None, ore=12, cf
                  + (f" · batteria minima {att['batt_min']}%" if att.get("batt_min") is not None else "") + ".")
     else:
         T.append("- Temperatura: non letta (serve l'app Termux:API).")
+    off_rete = [x for x in G if x.get("tipo") == "senza rete"]
+    if off_rete:
+        T.insert(T.index("CHE COSA HA FATTO") + 1, f"- Senza rete per un tratto (dalle {datetime.fromisoformat(off_rete[0]['senza_rete_dal']).astimezone().strftime('%H:%M') if off_rete[0].get('senza_rete_dal') else off_rete[0].get('quando', '?')}): "
+                 f"lavoro sul telefono in {len(off_rete)} {'ora' if len(off_rete) == 1 else 'ore'}, {sum((x.get('offline') or [0])[0] for x in off_rete)} conferme in più, "
+                 f"{sum((x.get('offline') or [0, 0])[1] for x in off_rete)} fatti riordinati in memoria"
+                 + (f", {sum((x.get('offline') or [0, 0, 0])[2] for x in off_rete if len(x.get('offline') or []) > 2)} titoli tradotti dall'officina" if any(len(x.get('offline') or []) > 2 for x in off_rete) else "") + ".")
     mag_ = z.get("mag")
     if mag_:
         peso_ = f"{_it(mag_[0] / 1000, 1)} GB" if mag_[0] >= 1000 else f"{_it(mag_[0])} MB"
@@ -2587,7 +2599,10 @@ def rapporto_12(cfg, forza=False):
     if not imp.get("attivo", True):
         return None
     adesso = datetime.now(timezone.utc)
-    turno = _ultimo_turno(adesso.astimezone(), imp.get("ore", [8, 20]))
+    if imp.get("ore_utc"):  # dalla 2.27.2: ore di Greenwich, uguali tutto l'anno (l'ora legale non le sposta)
+        turno = _ultimo_turno(adesso.astimezone(timezone.utc), imp["ore_utc"]) + " GMT"
+    else:
+        turno = _ultimo_turno(adesso.astimezone(), imp.get("ore", [8, 20]))
     perc_r, perc_l = os.path.join(DATI, "rapporto.json"), os.path.join(DATI, "rapporti.json")
     ultimo = leggi_json(perc_r, {})
     if not forza and ultimo.get("turno") == turno:
@@ -3552,6 +3567,7 @@ def magazzino(archivio, cfg, adesso):
     imp = cfg.get("magazzino", {})
     if not imp.get("attivo", True):
         return None
+    os.makedirs(MAG(), exist_ok=True)
     I = leggi_json(MAG("indice.json"), {}) or {}
     I.setdefault("giorni", {})
     per = {}
@@ -4935,6 +4951,36 @@ def programma_cron(cfg):
         return ""
 
 
+def _offline_locale(adesso):
+    """Senza rete il telefono non sta fermo (dalla 2.27.2): a ogni giro traduce con l'officina i titoli rimasti (se il
+    traduttore è acceso: in carica e al fresco), mette nel magazzino i giorni maturi e scrive il rapporto se è l'ora.
+    Tutto resta sul telefono e va su GitHub quando la rete torna."""
+    cfg = leggi_json(os.path.join(QUI, "config.json"), {})
+    fatto, errori = {}, []
+    try:
+        archivio = leggi_json(os.path.join(DATI, "archivio.json"), {"notizie": {}})
+        S = officina(cfg, telefono(), archivio, errori, adesso)
+        if S and S.get("fase") == "attivo" and S.get("ok_tel"):
+            ric = Riconoscitore(leggi_json(os.path.join(QUI, "paesi.json"), {}))
+            da = sorted((v for v in archivio.get("notizie", {}).values() if not v.get("it") and not v.get("gia_it")
+                         and (NON_LATINO.search(v.get("t") or "") or v.get("lg") or lingua_titolo(v.get("t") or "") != "it")),
+                        key=lambda v: v.get("data_iso") or "", reverse=True)
+            o_ = cfg.get("officina", {})
+            cfg_o = dict(cfg, officina=dict(o_, secondi_per_giro=o_.get("secondi_offline", 420), per_giro=o_.get("per_giro_offline", 120)))
+            officina_traduci.fatti = 0
+            officina_traduci(da, cfg_o, ric, errori)
+            fatto["tradotti"] = getattr(officina_traduci, "fatti", 0)
+            if fatto["tradotti"]:
+                scrivi_json(os.path.join(DATI, "archivio.json"), archivio)
+        fatto["magazzino"] = magazzino(archivio, cfg, adesso)
+        fatto["rapporto"] = bool(rapporto_12(cfg))
+    except Exception as e:
+        fatto["errore"] = str(e)[:120]
+    if errori:
+        fatto["avvisi"] = errori[:3]
+    return fatto
+
+
 def _senza_rete():
     """La rete non c'è: niente raccolta e nessuna fonte penalizzata. Il programma lavora su quello che ha già:
     rifà gruppi e conferme su tutti i 7 giorni dell'archivio (non solo sugli ultimi 3), consolida la memoria dei fatti
@@ -4947,9 +4993,15 @@ def _senza_rete():
         st_r = {"giu_dal": adesso.isoformat(), "tentativi": 0}
     st_r["tentativi"] = st_r.get("tentativi", 0) + 1
     da_ = datetime.fromisoformat(st_r["giu_dal"]).astimezone().strftime("%d/%m %H:%M")
+    locale_ = _offline_locale(adesso)
+    st_r["locale"] = {"quando": adesso.isoformat(), **{k: v for k, v in locale_.items() if k != "magazzino"}}
+    if locale_.get("tradotti"):
+        st_r["tradotti_offline"] = st_r.get("tradotti_offline", 0) + locale_["tradotti"]
     if st_r.get("lavoro", "") >= (adesso - timedelta(minutes=55)).isoformat():
         scrivi_json(perc_r, st_r)
-        print(f"Rete assente dal {da_}. Il lavoro senza rete è già stato fatto in quest'ora: riprovo al prossimo giro.")
+        print(f"Rete assente dal {da_}. Intanto il telefono ha tradotto {locale_.get('tradotti', 0)} titoli con l'officina"
+              f"{' e ha scritto il rapporto' if locale_.get('rapporto') else ''}; il resto del lavoro senza rete è già fatto "
+              f"in quest'ora: riprovo al prossimo giro.")
         return
     cfg = leggi_json(os.path.join(QUI, "config.json"), {})
     auto = leggi_json(os.path.join(DATI, "fonti_auto.json"), {})
@@ -4977,7 +5029,8 @@ def _senza_rete():
                  "durata": int(time.time() - inizio), "nuove": 0, "da": {}, "fonti_nuove": [], "richieste": 0, "siti": [],
                  "rifiuti": {}, "errori": 0, "seguiti": [0, 0], "verifiche": [0, 0], "lingue": {}, "ricerche": [],
                  "memoria": [nuovi_m, tot_m], "senza_rete_dal": st_r["giu_dal"],
-                 "offline": [confermate_dopo - confermate_prima, nuovi_m]})
+                 "offline": [confermate_dopo - confermate_prima, nuovi_m, st_r.get("tradotti_offline", 0)],
+                 "mag": locale_.get("magazzino")})
     for campo, valore in (("live", len(voci)), ("quota", 0), ("livelli", {}), ("scoperti", 0), ("senza", []), ("fonti", [0, 0]),
                           ("sapere", 0), ("tradotti", 0), ("usd_oggi", 0), ("usd_mese", 0), ("confermate", confermate_dopo)):
         base.setdefault(campo, valore)
@@ -4996,6 +5049,7 @@ def _senza_rete():
         except OSError:
             pass
     st_r["lavoro"] = adesso.isoformat()
+    st_r["tradotti_offline"] = 0  # contati nel diario: si riparte da zero per l'ora dopo
     scrivi_json(perc_r, st_r)
     print(f"Rete assente dal {da_}: nessuna raccolta e nessuna fonte penalizzata. Intanto ho lavorato su quello che ho: "
           f"{len(voci)} notizie di 7 giorni rilette, {confermate_dopo - confermate_prima:+d} conferme, {nuovi_m} fatti nuovi in memoria "

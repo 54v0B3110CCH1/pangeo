@@ -405,6 +405,15 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.27.2 (20 novembre, sera) – RAPPORTI ALLE 12 E ALLE 24 GMT, PIÙ LAVORO SENZA RETE
+- Rapporto alle 12:00 e alle 00:00 di Greenwich (GMT), cioè le 13 e l'1 di notte in Italia d'inverno (le 14 e le 2
+  d'estate): config.json › rapporto › ore_utc. La mail arriva alle 12:41 e alle 00:41 GMT. In cima c'è l'ora italiana e GMT.
+- Senza rete il telefono lavora a ogni giro, non più solo una volta all'ora: traduce con l'officina i titoli rimasti
+  (se è in carica e al fresco, fino a 120 titoli e 7 minuti a giro), mette nel magazzino i giorni maturi e scrive il
+  rapporto se è l'ora. Tutto va su GitHub quando la rete torna.
+- Il rapporto distingue «senza rete» da «fermo»: un'ora senza rete non è più contata come un fermo, e il rapporto dice
+  che cosa il telefono ha fatto intanto (conferme, fatti riordinati, titoli tradotti).
+
 NOVITÀ 2.27 (20 novembre, pomeriggio) – L'OFFICINA: IL TELEFONO SI FA DA SOLO GLI ATTREZZI GRATUITI
 - Conta quanto costa ogni lavoro del cervello (traduzioni, sala d'attesa, lavoro a piano, sintesi, quadro…): nel
   rapporto delle 12 ore e con  python castello.py officina
