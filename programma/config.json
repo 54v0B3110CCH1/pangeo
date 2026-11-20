@@ -4653,7 +4653,7 @@
  },
  "rapporto": {"attivo": true, "ore": [8, 20], "ore_finestra": 12, "tieni": 60},
  "magazzino": {"attivo": true, "max_gb": 60, "min_libero_gb": 10, "maturi_giorni": 2, "giorni_per_giro": 2, "istantanee_giorni": 30, "copia_attiva": true, "copia": "~/storage/shared/PanGeo"},
- "officina": {"attivo": true, "temp_max": 38, "porta": 8091, "thread": 4, "per_giro": 40, "secondi_per_giro": 150, "prova_titoli": 24, "somiglianza_minima": 0.45, "secondi_max_a_titolo": 20, "scarica_senza_wifi": false},
+ "officina": {"attivo": false, "temp_max": 38, "porta": 8091, "thread": 4, "per_giro": 40, "secondi_per_giro": 150, "prova_titoli": 24, "somiglianza_minima": 0.45, "secondi_max_a_titolo": 20, "scarica_senza_wifi": false},
  "memoria_per_stato": 300,
  "memoria_giorni": 365,
  "siti_militari": {
