@@ -4381,8 +4381,8 @@
  },
  "piano": {
   "attivo": true,
-  "per_giro_completo": 3,
-  "per_giro_leggero": 2,
+  "per_giro_completo": 5,
+  "per_giro_leggero": 3,
   "seguiti_per_giro": 1,
   "giorni": 120,
   "titoli_max": 70, "intelligence": true, "titoli_intelligence": 25,
