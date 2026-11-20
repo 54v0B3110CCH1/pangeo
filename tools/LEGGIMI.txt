@@ -61,3 +61,6 @@ poi tabelle.js; solo dopo si pubblica.
   python3 tools/manda_rapporto.py .             il rapporto da mandare per mail: quello del telefono se è delle ultime 3 ore,
                                                  altrimenti lo calcola dai file su GitHub e dice perché (lo usa l'attività
                                                  programmata «PanGeo: rapporto ogni 12 ore»)
+  node tools/build37.js base.html out.html      (programma 2.26) memoria e lavoro a piano pieni per Stato, scaricati quando si apre
+                                                 lo Stato; ricerca nei fatti del programma e, sul telefono, nel magazzino
+                                                 (testo in dati/ext37.js)

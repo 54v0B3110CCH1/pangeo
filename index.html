@@ -9070,6 +9070,7 @@ function viewStati() {
 function viewStato(sl, only) {
   const s = Object.values(STATI).find(v => v.slug === sl);
   if (!s) return viewStati();
+  caricaFileStato(s.nome);
   const U = only ? SUB.find(u => u.id === only) : null;
   crumbs([['#stati', 'Stati'], ['#stati/' + s.slug, s.nome]].concat(U ? [['', U.nome]] : []));
   const subs = subOrdinati().filter(u => hasSub(s, u.id));
@@ -9736,7 +9737,7 @@ function diarioHtml(L) {
 }
 function memoriaHtml(nome) {
   const m = window.MEMORIA && window.MEMORIA[nome]; if (!m || !m.length) return '';
-  return '<details class="crit"><summary>Fatti confermati negli ultimi mesi (' + m.length + ')</summary><ul class="plain">' + m.slice(0, 40).map(x => '<li>' + esc(String(x[0]).split('-').reverse().join('/')) + ' · ' + collega(x[1]) + ' <span class="s"><a href="' + safeU(x[4]) + '" target="_blank" rel="noopener">' + esc(x[2]) + '</a> e altre ' + (x[3] - 1) + (x[3] === 2 ? ' fonte' : ' fonti') + '</span></li>').join('') + '</ul><div class="s">La memoria del programma: tiene per 120 giorni i fatti riportati da almeno due fonti, di cui una affidabile. Sono titoli di giornale, da leggere alla fonte.</div></details>';
+  return '<details class="crit"><summary>Fatti confermati negli ultimi mesi (' + memoriaTot(nome) + ')</summary><ul class="plain">' + m.slice(0, 80).map(x => '<li>' + esc(String(x[0]).split('-').reverse().join('/')) + ' · ' + collega(x[1]) + ' <span class="s"><a href="' + safeU(x[4]) + '" target="_blank" rel="noopener">' + esc(x[2]) + '</a> e altre ' + (x[3] - 1) + (x[3] === 2 ? ' fonte' : ' fonti') + '</span></li>').join('') + '</ul><div class="s">La memoria del programma: tiene per un anno (fino a 300 per Stato) i fatti riportati da almeno due fonti, di cui una affidabile. Sono titoli di giornale, da leggere alla fonte.</div></details>';
 }
 function caricaMemoria() {
   if (!(APP_OK || location.protocol === 'file:')) return;
@@ -9756,7 +9757,7 @@ function pianoData(d) { const m = String(d || '').match(/^(\d{4})-(\d\d)-(\d\d)/
 function pianoOra(iso) { const t = Date.parse(iso || ''); return t ? new Date(t).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : ''; }
 function pianoFonti(f) { return (f || []).map(x => '<a href="' + safeU(x[1]) + '" target="_blank" rel="noopener" title="' + esc(x[3] || '') + '">' + esc(x[0] || 'fonte') + '</a>').join(' · '); }
 function pianoStato(st) { return st ? '<span class="badge" style="--c:var(' + (PIANO_COL[st] || '--muted') + ')">' + esc(st) + '</span> ' : ''; }
-function pianoPiede(x) { return '<div class="s">' + rilBadge(x.r) + pianoStato(x.st) + ((x.f || []).length > 1 ? 'più fonti' : 'una fonte') + ': ' + pianoFonti(x.f) + '</div>' + tappeHtml(x); }
+function pianoPiede(x) { return '<div class="s">' + rilBadge(x.r) + pianoStato(x.st) + ((x.nf || (x.f || []).length) > 1 ? 'più fonti' : 'una fonte') + ': ' + pianoFonti(x.f) + '</div>' + tappeHtml(x); }
 function pianoAccordo(x) { return '<div class="item"><div class="t"><span class="dot" style="background:var(--b-nato)"></span> ' + collega(x.cosa) + '</div><div class="m">' + [esc(pianoData(x.d)), x.con ? 'con ' + collega(x.con) : ''].filter(Boolean).join(' · ') + '</div>' + pianoPiede(x) + '</div>'; }
 function pianoAppalto(x) { return '<div class="item"><div class="t"><span class="dot" style="background:var(--aziende)"></span> ' + collega(x.ogg) + '</div><div class="m">' + [esc(pianoData(x.d)), x.acq ? 'compra ' + (STATI[x.acq] ? stLink(x.acq) : collega(x.acq)) : '', x.forn ? 'fornisce ' + collega(x.forn) : '', x.val ? esc(x.val) : ''].filter(Boolean).join(' · ') + '</div>' + pianoPiede(x) + '</div>'; }
 const PIANO_NOTA = 'Sono titoli di giornale letti dal programma, non un registro ufficiale: «firmato» o «in consegna» lo dice il titolo. Prima di usarli vanno confermati alla fonte.';
@@ -9784,6 +9785,7 @@ function pianoScheda(nome) {
 }
 function viewPiano(slug) {
   const nome = slug ? Object.keys(STATI).find(n => STATI[n].slug === slug) : '';
+  if (nome) caricaFileStato(nome);
   crumbs([['#live', 'Live dal mondo']].concat(nome ? [['#piano', 'Lavoro a piano'], ['', nome]] : [['', 'Lavoro a piano']]));
   if (nome) return '<h2>Lavoro a piano: ' + esc(nome) + '</h2>' + pianoScheda(nome);
   const P = pianoDati(), R = pianoRias();
@@ -9892,7 +9894,7 @@ PIANO_TIPO.intelligence = 'servizi di intelligence';
 function intelDi(nome) { return INTEL.stati[nome] || []; }
 function intelScambiDi(nome) { return INTEL_SCAMBI.filter(a => a.m().includes(nome)); }
 function intelServizio(x) { const v = servizioSintesi(x[4]); return '<li><a href="' + safeU(x[2]) + '" target="_blank" rel="noopener">' + esc(x[0]) + '</a>' + (x[1] ? ' <span class="s">dal ' + esc(x[1]) + '</span>' : '') + (x[3] ? ' · <a href="' + safeU(x[3]) + '" target="_blank" rel="noopener">sito ufficiale</a>' : '') + (v ? '<div class="x" style="margin:2px 0 8px">' + esc(v.s) + ' <span class="s">(riassunto dal programma, dalla <a href="' + safeU(v.u || x[2]) + '" target="_blank" rel="noopener">voce di Wikipedia</a>)</span></div>' : '') + '</li>'; }
-function intelFatto(x, stato) { const t = INTEL_TIPO[x.tipo] || INTEL_TIPO.altro; return '<div class="item"><div class="t"><span class="dot" style="background:var(--numeri)"></span> ' + collega(x.cosa) + '</div><div class="m">' + [stato ? stLink(stato, 'intelligence') : '', esc(pianoData(x.d)), x.ente ? esc(x.ente) : ''].filter(Boolean).join(' · ') + '</div><div class="s">' + rilBadge(x.r) + '<span class="badge" style="--c:var(' + t[1] + ')">' + esc(t[0]) + '</span> ' + ((x.f || []).length > 1 ? 'più fonti' : 'una fonte') + ': ' + pianoFonti(x.f) + '</div></div>'; }
+function intelFatto(x, stato) { const t = INTEL_TIPO[x.tipo] || INTEL_TIPO.altro; return '<div class="item"><div class="t"><span class="dot" style="background:var(--numeri)"></span> ' + collega(x.cosa) + '</div><div class="m">' + [stato ? stLink(stato, 'intelligence') : '', esc(pianoData(x.d)), x.ente ? esc(x.ente) : ''].filter(Boolean).join(' · ') + '</div><div class="s">' + rilBadge(x.r) + '<span class="badge" style="--c:var(' + t[1] + ')">' + esc(t[0]) + '</span> ' + ((x.nf || (x.f || []).length) > 1 ? 'più fonti' : 'una fonte') + ': ' + pianoFonti(x.f) + '</div></div>'; }
 function intelRel(r, conStato) { return '<li>' + (conStato ? '<b>' + stLink(r[0], 'intelligence') + '</b> · ' : '') + '<a href="' + safeU(r[3]) + '" target="_blank" rel="noopener">' + esc(r[2]) + '</a> <span class="s">' + esc(r[1]) + '</span></li>'; }
 function intelStatoHtml(nome) {
   const l = intelDi(nome), rel = INTEL_REL.filter(r => r[0] === nome), sc = intelScambiDi(nome), f = pianoDi(nome, 'intel'), P = pianoDati();
@@ -10162,7 +10164,7 @@ function tappeHtml(x) {
 // puzzle: i fatti dei temi nuovi
 function puzzleDi(nome, tema) { const l = pianoDi(nome, 'puzzle'); return (tema ? l.filter(x => x.tema === tema) : l).slice().sort((a, b) => ((b.r || 0) - (a.r || 0)) || String(b.d || '').localeCompare(String(a.d || ''))); }
 function puzzleFatto(x, stato) {
-  return '<div class="item"><div class="t"><span class="dot" style="background:var(--infra)"></span> ' + collega(x.cosa) + '</div><div class="m">' + [stato ? stLink(stato) : '', esc(pianoData(x.d)), stato ? esc(PUZZLE_NOME[x.tema] || '') : ''].filter(Boolean).join(' · ') + '</div><div class="s">' + rilBadge(x.r) + ((x.f || []).length > 1 ? 'più fonti' : 'una fonte') + ': ' + pianoFonti(x.f) + '</div>' + tappeHtml(x) + '</div>';
+  return '<div class="item"><div class="t"><span class="dot" style="background:var(--infra)"></span> ' + collega(x.cosa) + '</div><div class="m">' + [stato ? stLink(stato) : '', esc(pianoData(x.d)), stato ? esc(PUZZLE_NOME[x.tema] || '') : ''].filter(Boolean).join(' · ') + '</div><div class="s">' + rilBadge(x.r) + ((x.nf || (x.f || []).length) > 1 ? 'più fonti' : 'una fonte') + ': ' + pianoFonti(x.f) + '</div>' + tappeHtml(x) + '</div>';
 }
 const PUZZLE_NOTA = 'Il programma cerca questi fatti a pezzi piccoli: a ogni Stato un solo tema in più, a rotazione (energia, IA militare, trasporti, cibo), poi ogni 3 ore il cervello collega i pezzi. Sono titoli di giornale, non atti ufficiali: prima di usarli vanno confermati alla fonte.';
 function puzzleStatoHtml(nome, tema) {
@@ -10238,7 +10240,7 @@ function render() {
   const h = decodeURIComponent(location.hash.replace(/^#/, ''));
   const parts = h.split('/').filter(Boolean);
   let html;
-  if (q) html = viewSearch(q);
+  if (q) html = viewSearch(q) + cercaFattiHtml(q) + cercaTelHtml(q);
   else if (parts[0] === 'stati' && parts[1]) html = viewStato(parts[1], parts[2]);
   else if (parts[0] === 'stati') html = viewStati();
   else if (parts[0] === 'aziende' && parts[1]) html = viewAzienda(parts[1]);
@@ -10575,7 +10577,7 @@ function copertura() {
   const P = (window.PIANO || {}).stati || {}, B = (window.BASI_WD || {}).letti || {}, M = window.MEMORIA || {}, SA = window.SAPERE || {};
   return Object.keys(SCHEDE).sort((a, b) => a.localeCompare(b, 'it')).map(n => {
     const p = P[n] || {}, temi = new Set((p.puzzle || []).map(x => x.tema));
-    const c = { 'notizie confermate': (M[n] || []).length, 'lavoro a piano': p.quando ? 1 : 0, 'accordi': (p.accordi || []).length, 'appalti': (p.appalti || []).length,
+    const c = { 'notizie confermate': memoriaTot(n), 'lavoro a piano': p.quando ? 1 : 0, 'accordi': (p.accordi || []).length, 'appalti': (p.appalti || []).length,
       'servizi di intelligence': ((INTEL.stati || {})[n] || {}).s ? 1 : ((INTEL.stati || {})[n] ? 1 : 0), 'fatti sui servizi': (p.intel || []).length,
       'energia': temi.has('energia') ? 1 : 0, 'IA militare': temi.has('ia') ? 1 : 0, 'trasporti': temi.has('trasporti') ? 1 : 0, 'cibo': temi.has('cibo') ? 1 : 0,
       'siti militari': B[n] ? 1 : 0, 'uomini e mezzi': FORZE[n] ? 1 : 0, 'Wikipedia': SA[n] ? 1 : 0, 'sintesi': ((p.sintesi || {}).righe || []).length ? 1 : 0 };
@@ -10621,6 +10623,61 @@ basiWdRiga = function (e, dove) {
   document.head.appendChild(st);
 })();
 document.addEventListener('click', e => { const b = e.target && e.target.closest && e.target.closest('#apri-mappa'); if (b) { e.preventDefault(); apriPlanisfero(); } });
+
+// Trentasettesima estensione (20 novembre 2026, programma 2.26): i file per Stato (memoria e lavoro a piano pieni, scaricati
+// solo quando si apre uno Stato), la ricerca nei fatti raccolti dal programma e, sul telefono, in tutto il magazzino.
+
+// 1. file per Stato: piano.js e memoria.js sono leggeri; la scheda piena arriva quando apri lo Stato
+const FILE_STATO = {};
+function caricaFileStato(nome) {
+  if (!nome || typeof fetch !== 'function' || !(APP_OK || location.protocol === 'file:')) return;
+  // i nomi dei file arrivano con piano.js e memoria.js: finché non ci sono si riprova al ridisegno dopo
+  const fp = ((window.PIANO || {}).file || {})[nome], fm = (window.MEMORIA_FILE || {})[nome];
+  if (fp && !FILE_STATO[nome + '|p']) { FILE_STATO[nome + '|p'] = 1; fetch('piano/' + fp + '.json?v=' + verDati()).then(r => r.ok ? r.json() : null).then(d => {
+    if (d && d.stato && window.PIANO && window.PIANO.stati) { const c = Object.assign({}, d); delete c.stato; window.PIANO.stati[d.stato] = c; SIS_IDX = null; ridisegna(); }
+  }).catch(() => {}); }
+  if (fm && !FILE_STATO[nome + '|m']) { FILE_STATO[nome + '|m'] = 1; fetch('memoria/' + fm + '.json?v=' + verDati()).then(r => r.ok ? r.json() : null).then(d => {
+    if (d && d.stato && Array.isArray(d.fatti) && window.MEMORIA) { window.MEMORIA[d.stato] = d.fatti; ridisegna(); }
+  }).catch(() => {}); }
+}
+function memoriaTot(nome) { return ((window.MEMORIA_N || {})[nome]) || ((window.MEMORIA || {})[nome] || []).length; }
+
+// 2. ricerca nei fatti del programma (lavoro a piano e fatti confermati): funziona anche sul sito pubblico
+function cercaFattiHtml(q) {
+  const k = norm(q).split(/\s+/).filter(w => w.length > 1); if (!k.length) return '';
+  const va = t => { const n = norm(t || ''); return k.every(w => n.includes(w)); };
+  const fuori = [];
+  Object.entries((window.PIANO || {}).stati || {}).forEach(([st, s]) => {
+    (s.accordi || []).forEach(x => { if (va([x.cosa, x.con].join(' '))) fuori.push([x.d, st, 'accordo', x.cosa, x.f]); });
+    (s.appalti || []).forEach(x => { if (va([x.ogg, x.acq, x.forn].join(' '))) fuori.push([x.d, st, 'appalto', x.ogg, x.f]); });
+    (s.intel || []).forEach(x => { if (va([x.cosa, x.ente].join(' '))) fuori.push([x.d, st, 'intelligence', x.cosa, x.f]); });
+    (s.puzzle || []).forEach(x => { if (va(x.cosa)) fuori.push([x.d, st, PUZZLE_NOME[x.tema] || 'risorse', x.cosa, x.f]); });
+  });
+  Object.entries(window.MEMORIA || {}).forEach(([st, l]) => (l || []).forEach(x => { if (va(x[1])) fuori.push([x[0], st, 'confermato', x[1], [[x[2], x[4]]]]); }));
+  if (!fuori.length) return '';
+  fuori.sort((a, b) => String(b[0] || '').localeCompare(String(a[0] || '')));
+  return '<h3>Nei fatti raccolti dal programma (' + fuori.length + ')</h3>' + fuori.slice(0, 40).map(r => '<div class="item"><div class="t">' + collega(r[3]) + '</div><div class="m">' + [esc(pianoData(r[0])), stLink(r[1]), esc(r[2])].join(' · ') + '</div><div class="s">' + (r[4] || []).slice(0, 2).map(f => f && f[1] ? '<a href="' + safeU(f[1]) + '" target="_blank" rel="noopener">' + esc(f[0] || 'fonte') + '</a>' : '').filter(Boolean).join(' · ') + '</div></div>').join('') + (fuori.length > 40 ? '<p class="note">Qui i 40 più recenti.</p>' : '');
+}
+
+// 3. sul telefono: la ricerca in tutto il magazzino (anche i mesi passati), fatta dal programma con la potenza del telefono
+const SUL_TELEFONO = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const CERCA_TEL = {}; let cercaTelT = null;
+function cercaTelHtml(q) {
+  if (!SUL_TELEFONO || typeof fetch !== 'function') return '';
+  q = String(q || '').trim(); if (q.length < 3) return '';
+  const R = CERCA_TEL[q];
+  if (!R) {
+    clearTimeout(cercaTelT);
+    cercaTelT = setTimeout(() => {
+      CERCA_TEL[q] = { attesa: true };
+      fetch('/api/cerca?q=' + encodeURIComponent(q) + '&giorni=120&max=60').then(r => r.json()).then(d => { CERCA_TEL[q] = { l: Array.isArray(d) ? d : [] }; if ($('#q').value.trim() === q) ridisegna(); }).catch(() => { CERCA_TEL[q] = { l: [] }; });
+    }, 700);
+    return '<h3>Nell’archivio del telefono</h3><p class="note">Cerco in tutto ciò che il telefono conserva, anche i mesi passati…</p>';
+  }
+  if (R.attesa) return '<h3>Nell’archivio del telefono</h3><p class="note">Sto cercando…</p>';
+  if (!R.l.length) return '<h3>Nell’archivio del telefono</h3><p class="note">Nessun risultato negli ultimi 120 giorni.</p>';
+  return '<h3>Nell’archivio del telefono (' + R.l.length + ')</h3>' + R.l.map(r => '<div class="item"><div class="t">' + (r.u ? '<a href="' + safeU(r.u) + '" target="_blank" rel="noopener">' + esc(r.t) + '</a>' : esc(r.t)) + '</div><div class="m">' + [esc(pianoData(r.d)), (r.p || []).slice(0, 3).map(n => stLink(n)).join(', '), esc(r.dove || ''), r.c ? 'confermata' : '', esc(r.f || '')].filter(Boolean).join(' · ') + '</div></div>').join('') + '<p class="note">Dal magazzino del telefono: notizie, fatti confermati e lavoro a piano. Sul telefono il comando  python castello.py cerca parole  cerca in tutti gli anni.</p>';
+}
 
 render();
 </script>
