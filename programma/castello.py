@@ -2326,11 +2326,18 @@ def _attivita(G, prima_di=None, fine=None):
     tipi = {}
     for x in G:
         tipi[x.get("tipo") or "completo"] = tipi.get(x.get("tipo") or "completo", 0) + 1
-    t = [datetime.fromisoformat(x["iso"]) for x in G if x.get("iso")]
-    # un tratto senza rete non è un fermo: il telefono lavora lo stesso (e scrive nel diario una riga all'ora)
-    buchi = [((t[i + 1] - t[i]).total_seconds() / 60, G[i]) for i in range(len(t) - 1) if G[i + 1].get("tipo") != "senza rete"]
+    Gt = [x for x in G if x.get("iso")]
+    t = [datetime.fromisoformat(x["iso"]) for x in Gt]
+    # un tratto senza rete non è un fermo: il telefono lavora lo stesso (fino alla 2.27 scriveva una riga all'ora,
+    # dalla 2.27.2 una a giro); dopo una riga «senza rete» un buco fino a 75 minuti è ancora rete assente, non un fermo
+    buchi = []
+    for i in range(len(t) - 1):
+        m = (t[i + 1] - t[i]).total_seconds() / 60
+        if Gt[i + 1].get("tipo") == "senza rete" or (Gt[i].get("tipo") == "senza rete" and m <= 75):
+            continue
+        buchi.append((m, Gt[i]))
     if fine and t:
-        buchi.append(((fine - t[-1]).total_seconds() / 60, G[-1]))
+        buchi.append(((fine - t[-1]).total_seconds() / 60, Gt[-1]))
     lungo = max(buchi, key=lambda b: b[0]) if buchi else (0, {})
     da = {}
     for x in G:
