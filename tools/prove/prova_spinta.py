@@ -59,7 +59,7 @@ for par in (1, 8):
     open("/home/claude/q16/esito.txt", "a").write(f"paralleli {par}: {risultati[par]}\n")
     print("paralleli", par, "→ durata", risultati[par][0], "s · spinta", d.get("spinta"), "· nuove", d.get("nuove"),
           "· richieste", len(conta), "· contemporanee max", massimo[0], "· invariate (304)", d.get("invariate"))
-    assert d.get("v") == "2.32"
+    assert d.get("v", "").startswith("2.32")
 assert risultati[1][2] == risultati[8][2], "le voci nuove devono essere le stesse"
 assert risultati[8][1][3] < risultati[1][1][3], "in parallelo i feed devono durare meno"
 assert risultati[8][4] > 1 and risultati[1][4] == 1

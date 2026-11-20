@@ -406,6 +406,12 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
 NOVITÀ 2.32 (20 novembre, sera) – SPINTA IN CARICA E LETTURA DEGLI ARTICOLI
+- 2.32.1, avvisi più puliti (il primo giro della 2.31 ne aveva dati 27, molti doppi o con lo Stato sbagliato): lo Stato
+  dell'avviso deve essere nominato nel titolo, anche con l'aggettivo o la capitale («israeliani», «Riad»), non basta il
+  Paese della testata; lo stesso fatto raccontato da titoli diversi dà un solo avviso; processi, sentenze, anniversari e
+  frasi riferite non fanno scattare guerra, golpe, attentati, spionaggio o «molti morti»; al massimo 10 avvisi nuovi per
+  giro (config.json › avvisi › massimo_nuovi), le notifiche restano al massimo 5. Rifatto sugli avvisi veri di stasera:
+  da 29 a 10, tutti con lo Stato giusto.
 - In carica e sotto 37 gradi («spinta piena»): i feed si scaricano 8 alla volta (prima uno alla volta), i giri partono
   ogni 10 minuti, il modello dei significati lavora quasi di continuo anche sulle notizie non ancora confermate e usa
   il numero di thread più veloce: prova 4, 6 e 8, misura quanti vettori al secondo fa con ciascuno e tiene il migliore

@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.32"
+VERSIONE = "2.32.1"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -4779,38 +4779,100 @@ AVVISI_REGOLE = (
     ("emergenza", "Stato di emergenza e coprifuoco", 3, 1, r"stato di emergenza|coprifuoco"),
 )
 _RX_AVVISI = None
+_RIC_AVVISI = None
+# dalla 2.32.1: niente avviso per processi, sentenze, anniversari o frasi riferite (un «colpo di Stato» detto da qualcuno)
+AVVISI_FUORI = {
+    "guerra": r"process|sentenz|condann|colpevol|impeachment|tribunal|giudic|corte suprema|anniversario|ex premier|ex president",
+    "golpe": r"process|sentenz|condann|colpevol|tribunal|anniversario|propaganda|smentisc|afferma|accus\w* di|teoria|tentato golpe del \d",
+    "terrorismo": r"process|sentenz|condann|colpevol|tribunal|anniversario|ergastolo",
+    "missili": r"anniversario|museo",
+    "intelligence": r"in giudizio|azionisti|process[oi]\b|sentenz|condann|anniversario",
+    "morti": r"condann|sentenz|process[oi]\b|anniversario|commemora",
+}
+_RX_FUORI = {t: re.compile(rx) for t, rx in AVVISI_FUORI.items()}
+# per gli avvisi lo Stato si riconosce anche da aggettivi e capitali («carri armati israeliani», «attacco a Riad»)
+AVVISI_ALIAS = {
+    "Israele": r"israelian\w*|gerusalemme|tel aviv", "Palestina": r"gaza|cisgiordania|palestines\w*|hamas",
+    "Russia": r"\brus(?:so|sa|si|se)\b|mosca|cremlino", "Ucraina": r"ucrain\w*|kiev|kyiv|kharkiv|odessa",
+    "Germania": r"tedesc\w*|berlino", "Francia": r"frances[ei]\b|parigi|eliseo", "Regno Unito": r"britannic\w*|londra",
+    "USA": r"statunitens\w*|american[oaie]\b|washington|casa bianca|pentagono", "Cina": r"cines[ei]\b|pechino",
+    "Iran": r"iranian\w*|teheran", "Turchia": r"turc[oaih]\b|ankara", "Arabia Saudita": r"saudit\w*|riad\b|riyadh",
+    "Emirati Arabi": r"emiratin\w*|emirati arabi|abu dhabi|dubai", "Siria": r"sirian\w*|damasco", "Libano": r"libanes\w*|beirut|hezbollah",
+    "Iraq": r"irachen\w*|baghdad", "Yemen": r"yemenit\w*|houthi|sanaa", "Egitto": r"egizian\w*|il cairo",
+    "Libia": r"libic[oaih]\b|tripoli", "Sudan": r"sudanes\w*|khartoum", "Somalia": r"somal[oaie]\b|mogadiscio",
+    "Haiti": r"haitian\w*|port-au-prince", "Venezuela": r"venezuelan\w*|caracas", "Afghanistan": r"afghan\w*|kabul|talebani",
+    "Pakistan": r"pakistan\w*|islamabad", "India": r"\bindian[oaie]\b|nuova delhi", "Corea del Nord": r"nordcorean\w*|pyongyang",
+    "Corea del Sud": r"sudcorean\w*|seul", "Giappone": r"giappones\w*|tokyo", "Taiwan": r"taiwanes\w*|taipei",
+    "Polonia": r"polacc\w*|varsavia", "Bielorussia": r"bielorus\w*|minsk", "Mali": r"malian\w*|bamako",
+}
+_RX_AVVISI_ALIAS = [(st, re.compile(r"(?<![\w])(?:" + rx + r")", re.I)) for st, rx in AVVISI_ALIAS.items()]
+
+
+def _stati_nominati(testo):
+    trovati = _RIC_AVVISI.trova(testo) if _RIC_AVVISI else []
+    for st, rx in _RX_AVVISI_ALIAS:
+        if st not in trovati and rx.search(testo):
+            trovati.append(st)
+    return trovati
+
+
+_PAROLE_VUOTE = set("dopo contro mentre sono della delle dello degli dell nella nelle negli sulla sulle sugli alla alle agli "
+                    "anche come perché ancora oltre circa secondo verso senza fonti fonte dice dicono".split())
+
+
+def _parole_avviso(testo):
+    return {w for w in re.findall(r"[a-zà-ù0-9]{4,}", testo.lower()) if w not in _PAROLE_VUOTE}
+
+
+def _stesso_fatto(a, b):
+    """Due titoli raccontano lo stesso fatto se almeno il 60% delle parole del più corto sta anche nell'altro."""
+    return bool(a and b) and len(a & b) / min(len(a), len(b)) >= 0.6
 
 
 def _avvisi_fatti(S_schede, oggi, ieri, imp):
-    """Avvisi dai fatti in schede: morti (dal numero nel titolo) e le regole di AVVISI_REGOLE."""
-    global _RX_AVVISI
+    """Avvisi dai fatti in schede: morti (dal numero nel titolo) e le regole di AVVISI_REGOLE. Dalla 2.32.1: lo Stato
+    dell'avviso deve essere nominato nel titolo (non basta il Paese della testata), un fatto dà un solo avviso anche se lo
+    raccontano titoli diversi, e processi, sentenze e frasi riferite non fanno scattare guerra, golpe o attentati."""
+    global _RX_AVVISI, _RIC_AVVISI
     if _RX_AVVISI is None:
         _RX_AVVISI = [(t, nome, fonti, liv, re.compile(rx)) for t, nome, fonti, liv, rx in AVVISI_REGOLE]
-    fuori, visti, testi = [], set(), set()
+    if _RIC_AVVISI is None:
+        try:
+            _RIC_AVVISI = Riconoscitore(leggi_json(os.path.join(QUI, "paesi.json"), {}) or {})
+        except Exception:
+            _RIC_AVVISI = False
+    fuori, visti, testi, fatti_ = [], set(), set(), []
     for k, s in sorted(S_schede.items(), key=lambda kv: -(kv[1].get("nf") or 1)):
         if s.get("d") not in (oggi, ieri):
             continue
-        p = (s.get("p") or [None])[0]
+        testo = s.get("t", "")
+        nominati = _stati_nominati(testo)
+        # lo Stato dell'avviso: il primo della notizia che il titolo nomina davvero; se nessuno, il primo nominato nel titolo;
+        # se il titolo non nomina nessuno Stato, niente avviso (il Paese della testata non basta)
+        p = next((x for x in (s.get("p") or []) if x in nominati), None) or (nominati[0] if nominati else None)
         if not p:
             continue
-        testo = s.get("t", "")
         firma = re.sub(r"[^a-zà-ù0-9]+", " ", testo.lower())[:60]
         if firma in testi:
             continue  # lo stesso titolo ripetuto da più testate
+        parole_ = _parole_avviso(testo)
+        if any(_stesso_fatto(parole_, x) for x in fatti_):
+            continue  # lo stesso fatto raccontato con altre parole
         m_ = (s.get("num") or {}).get("morti") or 0
         scelta = None
-        if m_ >= imp.get("morti_minimi", 10):
+        if m_ >= imp.get("morti_minimi", 10) and not _RX_FUORI["morti"].search(testo.lower()):
             scelta = ("morti", "Fatti con molti morti", 2 if m_ >= 50 else 1, f"{p}:{m_}")
         else:
             basso = testo.lower()
             for t, nome, fonti, liv, rx in _RX_AVVISI:
-                if (s.get("nf") or 1) >= fonti and rx.search(basso):
+                if (s.get("nf") or 1) >= fonti and rx.search(basso) and not (t in _RX_FUORI and _RX_FUORI[t].search(basso)):
                     scelta = (t, nome, liv, p)
                     break
         if not scelta or (scelta[0], scelta[3], s.get("d")) in visti:
             continue
         visti.add((scelta[0], scelta[3], s.get("d")))
         testi.add(firma)
+        fatti_.append(parole_)
         fuori.append({"id": f"fatto:{scelta[0]}:{scelta[3]}:{s.get('d')}", "tipo": "fatto", "sotto": scelta[0], "nome": scelta[1],
                       "stato": p, "livello": scelta[2], "testo": f"{p}: {testo}" + (f" ({s.get('nf')} fonti)" if (s.get("nf") or 1) > 1 else ""),
                       "u": s.get("u", ""), "f": s.get("f", "")})
@@ -4861,6 +4923,10 @@ def avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg, chiavi):
     except Exception:
         pass
     nuovi = [dict(a, quando=adesso.isoformat()) for a in calcolati_ if a["id"] not in visti]
+    # dalla 2.32.1: al massimo «massimo_nuovi» avvisi nuovi per giro (prima i più gravi); gli altri tornano al giro dopo
+    # se sono ancora del giorno
+    nuovi.sort(key=lambda a: -(a.get("livello") or 1))
+    nuovi = nuovi[:int(cfg.get("avvisi", {}).get("massimo_nuovi", 10))]
     elenco = (elenco + nuovi)[-300:]
     V.update(elenco=elenco, agg=adesso.isoformat())
     scrivi_json(perc, V)
