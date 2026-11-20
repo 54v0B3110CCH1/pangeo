@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.27.2"
+VERSIONE = "2.28"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -1033,12 +1033,43 @@ def parole(testo):
     return {w for w in re.findall(r"[a-zà-öø-ÿ0-9]{4,}", testo.lower()) if w not in STOP}
 
 
+MARCHI_FONTI = ("bbc", "dw", "rfi", "france 24", "al jazeera", "tass", "yle", "err", "lsm", "lrt", "nhk", "antara", "yonhap",
+                "vnexpress", "el país", "n1", "meduza", "ukrainska pravda", "the local", "euronews", "reuters",
+                "associated press", "ansa", "agi", "efe", "xinhua", "trt", "iran international", "rtp", "rtve", "rts", "srf",
+                "orf", "nos", "nrk", "svt", "dr", "vrt", "rtbf")
+
+
+def famiglia_fonte(nome):
+    """La stessa testata in più lingue o sezioni (BBC in arabo e BBC World, Ukrainska Pravda in inglese e in ucraino,
+    il canale Telegram di Meduza e il suo sito) è UNA fonte: non può confermare sé stessa (dalla 2.28)."""
+    n = (nome or "").lower().strip()
+    n = re.sub(r"^telegram\s*·\s*", "", n)
+    n = re.sub(r"\s*\(.*?\)", "", n).split(",")[0].strip()
+    n = re.sub(r"\s+in\s+[a-zà-ù]+$", "", n).strip()
+    for m_ in MARCHI_FONTI:
+        if n == m_ or (m_ != "dr" and n.startswith(m_ + " ")):
+            return m_
+    return n
+
+
+_LV_ORDINE = {"A": 0, "B": 1, "C": 2, "D": 3}
+
+
+def confermata(fonti, fonte):
+    """Vero se nel gruppo c'è almeno una fonte affidabile (A o B) di un'altra testata."""
+    proprio = famiglia_fonte(fonte)
+    return any(l in ("A", "B") for f, l in fonti.items() if f != proprio)
+
+
 def raggruppa(voci):
     """Unisce le notizie che parlano dello stesso fatto (titoli molto simili, entro 48 ore).
+    Dalla 2.28 confronta il testo italiano quando c'è: così un titolo in russo, uno in arabo e uno in inglese sullo
+    stesso fatto si confermano a vicenda (prima i titoli in altri alfabeti non si confrontavano con nessuno).
+    Le fonti di un gruppo sono contate per testata (famiglia_fonte), con il livello migliore.
     Restituisce per ogni voce l'indice del suo gruppo."""
     gruppi, indice, esito = [], {}, {}
     for k, v in sorted(voci.items(), key=lambda x: x[1].get("data_iso") or ""):
-        p = parole(v["t"])
+        p = parole(v.get("it") or v["t"])
         quando = v.get("data_iso") or ""
         scelto = None
         if len(p) >= 3:
@@ -1058,7 +1089,10 @@ def raggruppa(voci):
             gruppi.append({"p": p, "d": quando, "fonti": {}})
             for w in p:
                 indice.setdefault(w, []).append(scelto)
-        gruppi[scelto]["fonti"][v.get("fonte", "")] = v.get("lv", "D")
+        fam_, lv_ = famiglia_fonte(v.get("fonte", "")), v.get("lv", "D")
+        prima_ = gruppi[scelto]["fonti"].get(fam_)
+        if prima_ is None or _LV_ORDINE.get(lv_, 3) < _LV_ORDINE.get(prima_, 3):
+            gruppi[scelto]["fonti"][fam_] = lv_
         esito[k] = scelto
     return gruppi, esito
 
@@ -1087,10 +1121,9 @@ def analizza(archivio, recente, auto, cfg, chiavi, dati_cielo, paesi, errori_fon
     punti = {}
     for k, v in voci.items():
         fonti = gruppi[esito[k]]["fonti"]
-        altre = {f: l for f, l in fonti.items() if f != v.get("fonte")}
         v["nf"] = len(fonti)
         v["gr"] = esito[k]  # gruppo dello stesso fatto in questo giro (serve alla memoria)
-        v["conf"] = any(l in ("A", "B") for l in altre.values())
+        v["conf"] = confermata(fonti, v.get("fonte"))
         s = punti.setdefault(v.get("fonte", ""), [0, 0, v["lv"]])
         s[0] += 1
         s[1] += 1 if v["conf"] else 0
@@ -1538,6 +1571,12 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
     # PanGeo e scarta gli altri (sport, spettacolo, cronaca minuta) con un trattino: così costa poco.
     attesa = archivio.setdefault("attesa", {})
     in_coda = sorted(((k, v) for k, v in attesa.items() if not v.get("no")), key=lambda kv: kv[1].get("data_iso") or "", reverse=True)
+    filtrati_ = 0
+    try:  # dalla 2.28: il filtro che impara dalle scelte del cervello ordina la coda e toglie i titoli sicuramente inutili
+        filtro_primi_esempi(archivio)
+        in_coda, filtrati_ = filtro_attesa(in_coda, cfg, errori)
+    except Exception as e:
+        errori.append(f"Filtro della sala d'attesa: {str(e)[:100]}")
     lotto_a, lotti_a, entrate_, scartate_ = impost.get("attesa_lotto", 40), 0, 0, 0
     while in_coda and lotti_ok and conto["chiamate"] < tetto and lotti_a < impost.get("attesa_per_giro", 10):
         gruppo, in_coda = in_coda[:lotto_a], in_coda[lotto_a:]
@@ -1581,7 +1620,10 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
                 if len(testo_) < 8 or testo_.strip(" -–—.") == "":
                     v["no"] = True  # non riguarda PanGeo: resta in attesa solo per non rileggerlo
                     scartate_ += 1
+                    filtro_esempio(v.get("t"), False, v.get("fonte"), v.pop("ctrl", False))
                     continue
+                filtro_esempio(v.get("t"), True, v.get("fonte"), v.pop("ctrl", False))
+                v.pop("fp", None)
                 if testo_.strip().lower() == v["t"].strip().lower():
                     v["gia_it"] = True  # titolo già in italiano
                 else:
@@ -1598,7 +1640,7 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
         except Exception as e:
             errori.append(f"Claude (titoli in attesa): {re.sub(r'sk-ant-[A-Za-z0-9_-]+', '***', str(e))}")
             break
-    conto["attesa"] = [entrate_, scartate_, sum(1 for v in attesa.values() if not v.get("no"))]
+    conto["attesa"] = [entrate_, scartate_, sum(1 for v in attesa.values() if not v.get("no")), filtrati_]
     # 1b. il «sapere» letto in inglese (Wikipedia in inglese, World Factbook) diventa italiano
     S_ = leggi_json(os.path.join(DATI, "sapere.json"), {})
     da_s = [(st_, k) for st_, v in S_.items() for k in ("forze", "storia", "factbook")
@@ -2574,6 +2616,14 @@ def rapporto_dati(diario, live=None, basi=None, prec=None, fine=None, ore=12, cf
                  + (f" · prova: {pr_.get('titoli')} titoli, {_it(pr_.get('secondi_a_titolo'), 1)} secondi a titolo, lingue buone: "
                     + (", ".join(NOMI_LINGUE.get(x, x) for x in pr_.get("buone") or []) or "nessuna") if pr_ else "")
                  + (f" · tradotti gratis oggi: {off_.get('tradotti_oggi') or 0}" if off_.get("tradotti_tutti") else "") + ".")
+    fi_ = off_.get("filtro") or {}
+    if fi_.get("esempi"):
+        T.append(f"- Filtro della sala d'attesa (impara dal cervello): {_it(fi_['esempi'])} esempi"
+                 + (f" · scarta da solo il {_it((fi_.get('copre') or 0) * 100, 0)}% dei titoli inutili, errore misurato "
+                    f"{_it((fi_.get('errore') or 0) * 100, 1)}% · oggi {_it(fi_.get('scartati_oggi') or 0)} titoli risparmiati al cervello"
+                    if fi_.get("attivo") else f" · non scarta ancora da solo: {fi_.get('perche') or 'sta imparando'}")
+                 + (f" · controlli {fi_['controlli'][0]} giusti e {fi_['controlli'][1]} sbagliati" if sum(fi_.get("controlli") or [0, 0]) else "")
+                 + ".")
     T.append("  Il credito vero si vede solo nella console: https://platform.claude.com/settings/billing")
     if avvisi:
         T.append("")
@@ -3961,19 +4011,37 @@ def officina(cfg, tel, archivio, errori, adesso):
     # 2. il modello, scaricato in sottofondo con curl (riprende da dove era rimasto), solo in Wi-Fi
     mod = OFF("modello.gguf")
     if not os.path.exists(mod) or os.path.getsize(mod) != OFFICINA_MODELLO["byte"]:
-        if S.get("pid_curl") and _vivo_pid(S["pid_curl"]):
-            S["fase"] = f"scarico il modello ({round(os.path.getsize(mod + '.part') / 1e6) if os.path.exists(mod + '.part') else 0} MB)"
+        mb_ = round(os.path.getsize(mod + ".part") / 1e6) if os.path.exists(mod + ".part") else 0
+        tot_ = round(OFFICINA_MODELLO["byte"] / 1e6)
+        sc_ = _scarico_fresco()
+        if sc_ and sc_.get("cuore"):  # dalla 2.28 scarica il cuore di PanGeo, che resta acceso tra un giro e l'altro
+            S["fase"] = (f"scarico il modello ({sc_.get('mb', mb_)} MB su {tot_}"
+                         + (f", {sc_['vel']} MB/s)" if sc_.get("vel") and sc_.get("stato") == "scarico" else ")")
+                         + ("" if sc_.get("stato") in ("scarico", None) else f" · {sc_['stato']}"))
+            if sc_.get("errore"):
+                S["errore"] = "scarico: " + sc_["errore"]
+        elif S.get("pid_curl") and _vivo_pid(S["pid_curl"]):
+            S["fase"] = f"scarico il modello ({mb_} MB su {tot_}, con curl)"
         elif os.path.exists(mod + ".part") and os.path.getsize(mod + ".part") == OFFICINA_MODELLO["byte"]:
             os.replace(mod + ".part", mod)
         elif _wifi() or imp.get("scarica_senza_wifi", False):
-            if not shutil.which("curl"):
-                subprocess.run(["pkg", "install", "-y", "curl"], capture_output=True, timeout=600, stdin=subprocess.DEVNULL)
-            os.makedirs(OFF(), exist_ok=True)
-            p = subprocess.Popen(["curl", "-sL", "-C", "-", "--retry", "3", "-o", mod + ".part", OFFICINA_MODELLO["url"]],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-            S["pid_curl"], S["fase"] = p.pid, "scarico il modello"
+            blocco_ = _blocco_scarico()  # riserva: se il cuore non scarica (versione vecchia), lo fa curl
+            if blocco_:
+                try:
+                    if not shutil.which("curl"):
+                        subprocess.run(["pkg", "install", "-y", "curl"], capture_output=True, timeout=600, stdin=subprocess.DEVNULL)
+                    os.makedirs(OFF(), exist_ok=True)
+                    p = subprocess.Popen(["curl", "-sSfL", "-C", "-", "--retry", "5", "--retry-delay", "10", "-o", mod + ".part",
+                                          OFFICINA_MODELLO["url"]], stdout=subprocess.DEVNULL,
+                                         stderr=open(OFF("curl.log"), "ab"), start_new_session=True)
+                    S["pid_curl"], S["fase"] = p.pid, f"scarico il modello ({mb_} MB su {tot_}, con curl)"
+                    _off_salva(S)
+                finally:
+                    blocco_.close()
+            else:
+                S["fase"] = f"scarico il modello ({mb_} MB su {tot_})"
         else:
-            S["fase"] = "aspetto il Wi-Fi per scaricare il modello (2,5 GB)"
+            S["fase"] = f"aspetto il Wi-Fi per scaricare il modello ({mb_} MB su {tot_} già scaricati)"
         _off_salva(S)
         return S
     # 3. il server locale: acceso solo in carica e al fresco
@@ -4061,6 +4129,353 @@ def officina_traduci(da_tradurre, cfg, ric, errori):
 
 
 # ----------------------------------------------------------------------------- quadro: scaletta e collegamenti (dalla 2.23)
+
+# ----------------------------------------------------------------------------- scaricatore (dalla 2.28)
+# Fino alla 2.27.1 il modello lo scaricava curl, lanciato a ogni giro: sul telefono Android lo chiudeva prima della fine
+# e il download ripartiva a ogni giro. Dalla 2.28 lo scarica il cuore di PanGeo (la pagina «serve», sempre accesa), un
+# pezzo alla volta, riprendendo da dove era rimasto; se il cuore è di una versione vecchia, resta curl come riserva.
+
+def _scarico_scrivi(**campi):
+    os.makedirs(OFF(), exist_ok=True)
+    sc = leggi_json(OFF("scarico.json"), {}) or {}
+    sc.update(campi, quando=datetime.now(timezone.utc).isoformat(), cuore=VERSIONE)
+    scrivi_json(OFF("scarico.json"), sc)
+
+
+def _scarico_fresco(minuti=10):
+    """Lo stato del download scritto dal cuore, se è recente (altrimenti None)."""
+    sc = leggi_json(OFF("scarico.json"), {}) or {}
+    try:
+        eta = (datetime.now(timezone.utc) - datetime.fromisoformat(sc.get("quando", ""))).total_seconds() / 60
+    except ValueError:
+        return None
+    return sc if eta <= minuti else None
+
+
+def _tel_ultimo():
+    """Temperatura, batteria e carica scritte nel diario dall'ultimo giro (se è di meno di 40 minuti fa)."""
+    d = (leggi_json(os.path.join(DATI, "diario.json"), []) or [{}])[-1]
+    try:
+        eta = (datetime.now(timezone.utc) - datetime.fromisoformat(d.get("iso", ""))).total_seconds() / 60
+    except ValueError:
+        return None
+    t = d.get("tel") or []
+    if eta > 40 or len(t) < 3:
+        return None
+    return {"temp": t[0], "batteria": t[1], "in_carica": t[2]}
+
+
+def _scarico_ok(imp):
+    tel = _tel_ultimo()
+    if not tel:
+        return False, "aspetto il prossimo giro per sapere carica e temperatura"
+    if not tel.get("in_carica"):
+        return False, "il telefono non è in carica"
+    if (tel.get("temp") or 99) >= imp.get("temp_max", 38):
+        return False, f"il telefono è caldo ({tel.get('temp')} °C)"
+    if not (_wifi() or imp.get("scarica_senza_wifi", False)):
+        return False, "aspetto il Wi-Fi"
+    return True, ""
+
+
+def _blocco_scarico():
+    """Un solo scaricatore alla volta (cuore o curl). Restituisce il file aperto e bloccato, oppure None."""
+    import fcntl
+    os.makedirs(OFF(), exist_ok=True)
+    f = open(OFF("scarico.lock"), "w")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return f
+    except OSError:
+        f.close()
+        return None
+
+
+def scarica_modello(imp=None, max_secondi=None):
+    """Un tratto di download del modello dell'officina. Restituisce i secondi da aspettare prima del prossimo tratto."""
+    imp = imp if imp is not None else leggi_json(os.path.join(QUI, "config.json"), {}).get("officina", {})
+    if not imp.get("attivo", True):
+        return 900
+    mod, tot = OFF("modello.gguf"), OFFICINA_MODELLO["byte"]
+    parte = mod + ".part"
+    if os.path.exists(mod) and os.path.getsize(mod) == tot:
+        return 1800
+    blocco = _blocco_scarico()
+    if not blocco:
+        return 120  # sta scaricando qualcun altro
+    try:
+        S = _off_stato()
+        if S.get("pid_curl") and _vivo_pid(S["pid_curl"]):
+            return 120  # c'è ancora il curl della versione di prima: si aspetta che finisca o che si chiuda
+        ok, perche = _scarico_ok(imp)
+        fatto = os.path.getsize(parte) if os.path.exists(parte) else 0
+        if not ok:
+            _scarico_scrivi(stato="in pausa: " + perche, mb=round(fatto / 1e6))
+            return 300
+        if fatto > tot:
+            os.remove(parte)
+            fatto = 0
+        if fatto == tot:
+            os.replace(parte, mod)
+            _scarico_scrivi(stato="finito", mb=round(tot / 1e6), errore=None)
+            return 60
+        req = urllib.request.Request(OFFICINA_MODELLO["url"], headers={
+            "User-Agent": "PanGeo/" + VERSIONE + " (archivio personale)", "Range": f"bytes={fatto}-"})
+        inizio = time.time()
+        controllo, letto = inizio + 300, 0
+        _scarico_scrivi(stato="scarico", mb=round(fatto / 1e6), errore=None)
+        with urllib.request.urlopen(req, timeout=60) as r:
+            modo = "ab"
+            if fatto and getattr(r, "status", 200) != 206:  # il server non riprende da metà: si ricomincia
+                fatto, modo = 0, "wb"
+            with open(parte, modo) as f:
+                ultimo = inizio
+                while True:
+                    pezzo = r.read(1 << 20)
+                    if not pezzo:
+                        break
+                    f.write(pezzo)
+                    letto += len(pezzo)
+                    adesso_ = time.time()
+                    if adesso_ - ultimo >= 30:
+                        f.flush()
+                        ultimo = adesso_
+                        _scarico_scrivi(stato="scarico", mb=round((fatto + letto) / 1e6),
+                                        vel=round(letto / 1e6 / max(adesso_ - inizio, 1), 2))
+                    if adesso_ >= controllo:  # ogni 5 minuti: ancora in carica, al fresco e in Wi-Fi?
+                        controllo = adesso_ + 300
+                        ok, perche = _scarico_ok(imp)
+                        if not ok:
+                            _scarico_scrivi(stato="in pausa: " + perche, mb=round((fatto + letto) / 1e6))
+                            return 300
+                    if max_secondi and adesso_ - inizio > max_secondi:
+                        return 1
+        fatto_ = os.path.getsize(parte)
+        if fatto_ == tot:
+            os.replace(parte, mod)
+            _scarico_scrivi(stato="finito", mb=round(tot / 1e6), errore=None)
+            return 60
+        _scarico_scrivi(stato="interrotto, riprendo", mb=round(fatto_ / 1e6))
+        return 30
+    except Exception as e:
+        _scarico_scrivi(stato="errore, riprovo tra 5 minuti", errore=str(e)[:200])
+        return 300
+    finally:
+        blocco.close()
+
+
+def _scaricatore():
+    """Thread del cuore: quando l'officina aspetta il modello, lo scarica (vedi scarica_modello)."""
+    time.sleep(120)
+    while True:
+        pausa_ = 600
+        try:
+            if _su_termux() and shutil.which("llama-server"):
+                pausa_ = scarica_modello()
+        except Exception as e:
+            print("Scaricatore:", e)
+        time.sleep(max(pausa_, 1))
+
+
+# ----------------------------------------------------------------------------- filtro che impara (dalla 2.28)
+# La sala d'attesa manda al cervello i titoli delle testate locali: il cervello ne tiene circa 3 su 10 e scarta il resto
+# (sport, spettacolo, cronaca). Ogni sua scelta diventa un esempio. Con gli esempi il telefono si costruisce da solo un
+# classificatore gratuito (pezzi di tre lettere e parole, in tutte le lingue e gli alfabeti, più il nome della testata) e:
+#  - mette in testa alla coda i titoli che con più probabilità interessano;
+#  - scarta da solo SOLO i titoli che il classificatore sa inutili con un errore misurato sotto la soglia (1%);
+#  - ne manda comunque 1 su 20 al cervello come controllo: se il controllo dà più del 3% di errori, si spegne.
+
+FILTRO_FILE, ESEMPI_FILE = (lambda: OFF("filtro.json")), (lambda: OFF("esempi.jsonl"))
+
+
+def _filtro_tratti(testo, fonte=""):
+    import unicodedata
+    t = " " + " ".join(unicodedata.normalize("NFKC", str(testo or "")).lower().replace("’", "'").split()) + " "
+    g = {t[i:i + 3] for i in range(len(t) - 2)}
+    g.update("w:" + w for w in re.findall(r"\w+", t) if len(w) > 2)
+    if fonte:
+        g.add("f:" + famiglia_fonte(fonte))
+    return g
+
+
+def _chiave_esempio(testo):
+    return int(hashlib.md5((testo or "").encode("utf-8")).hexdigest()[:8], 16)
+
+
+def filtro_esempio(testo, tenuto, fonte="", controllo=False):
+    """Scrive una scelta del cervello (tenuto o scartato) tra gli esempi del filtro."""
+    if not testo:
+        return
+    os.makedirs(OFF(), exist_ok=True)
+    with open(ESEMPI_FILE(), "a", encoding="utf-8") as f:
+        f.write(json.dumps([testo[:300], 1 if tenuto else 0, fonte or ""], ensure_ascii=False) + "\n")
+    if controllo:
+        F = leggi_json(FILTRO_FILE(), {}) or {}
+        c = F.setdefault("controlli", [0, 0])
+        c[0 if not tenuto else 1] += 1  # [giusti, sbagliati]: un titolo da scartare che il cervello ha tenuto è un errore
+        scrivi_json(FILTRO_FILE(), F)
+
+
+def _filtro_esempi(massimo=25000):
+    righe = []
+    try:
+        with open(ESEMPI_FILE(), encoding="utf-8") as f:
+            for r in f:
+                try:
+                    x = json.loads(r)
+                    if isinstance(x, list) and len(x) >= 2:
+                        righe.append(x)
+                except ValueError:
+                    pass
+    except OSError:
+        return []
+    if len(righe) > massimo * 1.2:  # il file non cresce senza fine: restano gli esempi più recenti
+        righe = righe[-massimo:]
+        with open(ESEMPI_FILE(), "w", encoding="utf-8") as f:
+            f.writelines(json.dumps(x, ensure_ascii=False) + "\n" for x in righe)
+    visti, unici = set(), []
+    for x in reversed(righe[-massimo:]):  # lo stesso titolo una volta sola (vale la scelta più recente)
+        if x[0] not in visti:
+            visti.add(x[0])
+            unici.append(x)
+    return unici
+
+
+def _filtro_impara(esempi):
+    conti, docs = {}, [0, 0]
+    for testo, lab, *resto in esempi:
+        docs[lab] += 1
+        for g in _filtro_tratti(testo, resto[0] if resto else ""):
+            c = conti.get(g)
+            if c is None:
+                conti[g] = c = [0, 0]
+            c[lab] += 1
+    return {"conti": conti, "docs": docs}
+
+
+def _filtro_punteggio(M, testo, fonte=""):
+    """Logaritmo di quanto è più probabile «interessa» che «da scartare» (Bayes ingenuo, con lisciatura)."""
+    d0, d1 = M["docs"]
+    if not d0 or not d1:
+        return 0.0
+    s = math.log(d1 / d0)
+    conti = M["conti"]
+    for g in _filtro_tratti(testo, fonte):
+        c = conti.get(g)
+        if c:
+            s += math.log((c[1] + 0.5) / (d1 + 1)) - math.log((c[0] + 0.5) / (d0 + 1))
+    return s
+
+
+def filtro_addestra(imp=None, forza=False):
+    """Impara dagli esempi e misura sugli esempi messi da parte (1 su 5) la soglia per scartare da solo."""
+    imp = imp if imp is not None else leggi_json(os.path.join(QUI, "config.json"), {}).get("cervello", {}).get("filtro", {})
+    F = leggi_json(FILTRO_FILE(), {}) or {}
+    esempi = _filtro_esempi(imp.get("esempi_max", 25000))
+    oggi_ = datetime.now().date().isoformat()
+    if not forza and F.get("addestrato") == oggi_ and len(esempi) < F.get("esempi", 0) * 1.2:
+        return F
+    prova = [x for x in esempi if _chiave_esempio(x[0]) % 5 == 0]
+    scuola = [x for x in esempi if _chiave_esempio(x[0]) % 5 != 0]
+    pos = sum(1 for x in esempi if x[1])
+    F.update(addestrato=oggi_, esempi=len(esempi), tenuti=pos, scartati=len(esempi) - pos, soglia=None, copre=0,
+             errore=None, prova=len(prova), controlli=[0, 0], attivo=False)
+    if pos < imp.get("min_per_tipo", 200) or len(esempi) - pos < imp.get("min_per_tipo", 200):
+        F["perche"] = f"pochi esempi ({pos} tenuti, {len(esempi) - pos} scartati): imparo ancora"
+        scrivi_json(FILTRO_FILE(), F)
+        return F
+    M = _filtro_impara(scuola)
+    punti = sorted((_filtro_punteggio(M, x[0], x[2] if len(x) > 2 else ""), x[1]) for x in prova)
+    errore_max, min_scarti = imp.get("errore_max", 0.01), imp.get("min_prova", 100)
+    neg_tot = sum(1 for _, l in punti if not l) or 1
+    soglia, presi, sbagliati, finestra = None, 0, 0, []
+    largo = max(int(imp.get("finestra", 50)), 10)
+    for i, (sc, lab) in enumerate(punti):  # dal più «inutile» in su, finché l'errore resta sotto la soglia
+        presi += 1
+        sbagliati += lab
+        finestra = (finestra + [lab])[-largo:]
+        # si taglia solo dopo un titolo davvero da scartare, con l'errore sotto la soglia sia in tutto sia negli ultimi
+        # titoli presi (così il confine non entra tra i titoli che interessano)
+        if (not lab and presi >= min_scarti and sbagliati / presi <= errore_max
+                and sum(finestra) <= max(1, int(largo * errore_max * 2))):
+            soglia = sc
+            F.update(copre=round((presi - sbagliati) / neg_tot, 3), errore=round(sbagliati / presi, 4))
+        elif presi >= min_scarti and (sbagliati / presi > errore_max * 2 or sum(finestra) > largo * errore_max * 4):
+            break
+    F["soglia"] = soglia
+    F["attivo"] = soglia is not None
+    F["perche"] = "" if soglia is not None else f"sugli esempi messi da parte non scarta abbastanza titoli con meno dell'{round(errore_max * 100)}% di errori"
+    os.makedirs(OFF(), exist_ok=True)
+    M_tutto = _filtro_impara(esempi)  # per lavorare usa tutti gli esempi; la soglia viene dalla prova
+    scrivi_json(OFF("filtro_modello.json"), {"docs": M_tutto["docs"],
+                                             "conti": {g: c for g, c in M_tutto["conti"].items() if c[0] + c[1] >= 2}})
+    scrivi_json(FILTRO_FILE(), F)
+    return F
+
+
+def filtro_attesa(in_coda, cfg, errori):
+    """Ordina la coda della sala d'attesa (prima i titoli che interessano) e toglie quelli sicuramente inutili.
+    in_coda: lista di (chiave, voce). Restituisce (coda, scartati_dal_filtro)."""
+    imp = cfg.get("cervello", {}).get("filtro", {})
+    if not imp.get("attivo", True) or not in_coda:
+        return in_coda, 0
+    try:
+        F = filtro_addestra(imp)
+        M = leggi_json(OFF("filtro_modello.json"), None)
+    except Exception as e:
+        errori.append(f"Filtro della sala d'attesa: {str(e)[:100]}")
+        return in_coda, 0
+    if not M or not M.get("docs") or not all(M["docs"]):
+        return in_coda, 0
+    c_ = F.get("controlli") or [0, 0]
+    spento = c_[0] + c_[1] >= 30 and c_[1] / (c_[0] + c_[1]) > imp.get("errore_controlli", 0.03)
+    if spento and F.get("attivo"):
+        F["attivo"], F["perche"] = False, f"i controlli hanno dato {c_[1]} errori su {c_[0] + c_[1]}: spento fino a domani"
+        scrivi_json(FILTRO_FILE(), F)
+    soglia = F.get("soglia") if F.get("attivo") and imp.get("scarta", True) else None
+    ogni_ = max(int(imp.get("controllo_ogni", 20)), 2)
+    tenuti, scartati = [], 0
+    for k, v in in_coda:
+        sc = _filtro_punteggio(M, v.get("t", ""), v.get("fonte", ""))
+        v["fp"] = round(sc, 2)
+        if soglia is not None and sc <= soglia:
+            if _chiave_esempio(k) % ogni_ == 0:
+                v["ctrl"] = True  # controllo: lo giudica comunque il cervello
+            else:
+                v["no"], v["filtro"] = True, True
+                scartati += 1
+                continue
+        tenuti.append((k, v))
+    tenuti.sort(key=lambda kv: (-kv[1].get("fp", 0), kv[1].get("data_iso") or ""))  # prima quelli che interessano
+    F = leggi_json(FILTRO_FILE(), {}) or {}
+    oggi_ = datetime.now().date().isoformat()
+    if F.get("giorno") != oggi_:
+        F["giorno"], F["scartati_oggi"] = oggi_, 0
+    F["scartati_oggi"] = F.get("scartati_oggi", 0) + scartati
+    F["scartati_tutti"] = F.get("scartati_tutti", 0) + scartati
+    scrivi_json(FILTRO_FILE(), F)
+    return tenuti, scartati
+
+
+def filtro_primi_esempi(archivio):
+    """La prima volta: gli esempi vengono dalle scelte già fatte dal cervello e ancora nella sala d'attesa."""
+    if os.path.exists(ESEMPI_FILE()):
+        return 0
+    n_ = 0
+    att_, notizie_ = archivio.get("attesa", {}), archivio.get("notizie", {})
+    os.makedirs(OFF(), exist_ok=True)
+    with open(ESEMPI_FILE(), "a", encoding="utf-8") as f:
+        for k, v in att_.items():
+            if not v.get("no") or v.get("filtro"):
+                continue
+            if v.get("t"):
+                f.write(json.dumps([v["t"][:300], 0, v.get("fonte", "")], ensure_ascii=False) + "\n")
+                n_ += 1
+            elif k in notizie_ and notizie_[k].get("t"):
+                f.write(json.dumps([notizie_[k]["t"][:300], 1, notizie_[k].get("fonte", "")], ensure_ascii=False) + "\n")
+                n_ += 1
+    return n_
+
 
 def _cerca_e_rispondi(chiavi, cfg, conto, errori, chi, perche, q, lingua, giorni=30, pausa=1.0):
     """Cerca una domanda su Google News e fa rispondere il cervello con i soli titoli trovati.
@@ -5021,7 +5436,7 @@ def _senza_rete():
         for k, v in voci.items():
             fonti = gruppi[esito[k]]["fonti"]
             v["nf"], v["gr"] = len(fonti), esito[k]
-            v["conf"] = any(l in ("A", "B") for f, l in fonti.items() if f != v.get("fonte"))
+            v["conf"] = confermata(fonti, v.get("fonte"))
     confermate_dopo = sum(1 for v in voci.values() if v.get("conf"))
     nuovi_m, tot_m = memoria_stati(archivio, adesso, cfg, ore=7 * 24)
     try:
@@ -5857,7 +6272,10 @@ def _aggiorna(leggero=False):
         "servizi": sum(1 for v_ in leggi_json(os.path.join(DATI, "servizi.json"), {}).values() if v_.get("sintesi")),
         "motori": {k_: {c_: v_.get(c_) for c_ in ("prove", "titoli", "errori", "pausa", "ultimo_errore")} for k_, v_ in _motori().items()},
         "spesa_lavori": {k_: leggi_json(os.path.join(DATI, "cervello.json"), {}).get(k_) or {} for k_ in ("lavori_oggi", "lavori_mese")},
-        "officina": {k_: _off_stato().get(k_) for k_ in ("fase", "prova", "tradotti_oggi", "tradotti_tutti", "errore")},
+        "officina": dict({k_: _off_stato().get(k_) for k_ in ("fase", "prova", "tradotti_oggi", "tradotti_tutti", "errore")},
+                         filtro={k_: (leggi_json(FILTRO_FILE(), {}) or {}).get(k_) for k_ in
+                                 ("attivo", "esempi", "tenuti", "scartati", "copre", "errore", "scartati_oggi", "scartati_tutti",
+                                  "controlli", "perche", "addestrato")}),
         "errori": errori,
     }
     # diario del giro: che cosa è entrato, da dove, quanto è costato ai siti (lo legge `rapporto`, va anche su GitHub)
@@ -6750,6 +7168,7 @@ def serve(porta=8080):
 
     threading.Thread(target=_avvio, daemon=True).start()
     threading.Thread(target=_riserva_cron, daemon=True).start()
+    threading.Thread(target=_scaricatore, daemon=True).start()  # dalla 2.28: il modello dell'officina
     with srv:
         print(f"PanGeo aperto su http://127.0.0.1:{porta}/  · tabelle aperte: http://127.0.0.1:{porta}/tabelle.html  (Ctrl+C per chiudere)")
         srv.serve_forever()
@@ -6982,6 +7401,18 @@ if __name__ == "__main__":
             print(f"  tradotti gratis dal telefono: {S_.get('tradotti_oggi', 0)} oggi, {S_['tradotti_tutti']} in tutto")
         if S_.get("errore"):
             print("  ultimo errore:", S_["errore"])
+        sc_ = leggi_json(OFF("scarico.json"), {}) or {}
+        if sc_ and not os.path.exists(OFF("modello.gguf")):
+            print(f"  scarico del modello (lo fa il cuore di PanGeo): {sc_.get('stato')} · {sc_.get('mb', 0)} MB su "
+                  f"{round(OFFICINA_MODELLO['byte'] / 1e6)}" + (f" · {sc_['vel']} MB/s" if sc_.get("vel") else "")
+                  + f" · aggiornato alle {datetime.fromisoformat(sc_['quando']).astimezone().strftime('%H:%M')}"
+                  + (f" · errore: {sc_['errore']}" if sc_.get("errore") else ""))
+        fi_ = leggi_json(FILTRO_FILE(), {}) or {}
+        if fi_:
+            print(f"Filtro della sala d'attesa: {fi_.get('esempi', 0)} esempi ({fi_.get('tenuti', 0)} tenuti dal cervello, "
+                  f"{fi_.get('scartati', 0)} scartati) · " + (f"scarta da solo il {round((fi_.get('copre') or 0) * 100)}% dei titoli "
+                  f"inutili, errore misurato {round((fi_.get('errore') or 0) * 100, 1)}% · oggi {fi_.get('scartati_oggi', 0)} titoli "
+                  f"risparmiati" if fi_.get("attivo") else "non scarta ancora: " + (fi_.get("perche") or "sta imparando")))
         c_ = leggi_json(os.path.join(DATI, "cervello.json"), {})
         if c_.get("lavori_mese"):
             print("Spesa del cervello questo mese, per lavoro: " + " · ".join(f"{k} {v:.2f} $" for k, v in sorted(c_["lavori_mese"].items(), key=lambda x: -x[1])))

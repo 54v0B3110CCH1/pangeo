@@ -4132,7 +4132,8 @@
   "triage_tutte": true,
   "traduci_tutto": true,
   "attesa_ore": 36,
-  "spesa_a_passo": true
+  "spesa_a_passo": true,
+  "filtro": {"attivo": true, "scarta": true, "errore_max": 0.01, "min_per_tipo": 200, "min_prova": 100, "controllo_ogni": 20, "errore_controlli": 0.03, "esempi_max": 25000}
  },
  "ricerca": {
   "attiva": true,

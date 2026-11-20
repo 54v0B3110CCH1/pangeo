@@ -405,6 +405,22 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.28 (20 novembre, sera) – STRUMENTI GRATUITI CHE IL TELEFONO SI COSTRUISCE DA SOLO
+- Scarico del modello dell'officina: lo fa il cuore di PanGeo (la pagina sempre accesa), non più curl a ogni giro
+  (Android lo chiudeva e il download ripartiva). Riprende da dove era rimasto, solo in carica, al fresco e in Wi-Fi,
+  e scrive i MB: python castello.py officina
+- Conferme tra lingue: lo stesso fatto in russo, arabo, inglese e italiano ora si conferma a vicenda (il confronto si
+  fa sul testo tradotto in italiano). Sui dati di oggi le notizie confermate passano da 169 a 290 su 1500.
+  La stessa testata in più lingue (BBC in arabo e BBC World, Ukrainska Pravda in inglese e in ucraino) conta come UNA
+  fonte: non si conferma da sola.
+- Filtro che impara: ogni scelta del cervello nella sala d'attesa (tenuto o scartato) diventa un esempio. Con gli
+  esempi il telefono si costruisce un classificatore gratuito (tutte le lingue e gli alfabeti) che:
+  · mette in testa alla coda i titoli che più probabilmente interessano;
+  · scarta da solo solo i titoli sicuramente inutili, se sugli esempi messi da parte (1 su 5) sbaglia meno dell'1%;
+  · ne manda comunque 1 su 20 al cervello come controllo: con più del 3% di errori si spegne fino al giorno dopo.
+  Si regola in config.json › cervello › filtro (attivo, scarta, errore_max). Lo vedi in: python castello.py officina
+  e nel rapporto delle 12 e delle 24.
+
 NOVITÀ 2.27.2 (20 novembre, sera) – RAPPORTI ALLE 12 E ALLE 24 GMT, PIÙ LAVORO SENZA RETE
 - Rapporto alle 12:00 e alle 00:00 di Greenwich (GMT), cioè le 13 e l'1 di notte in Italia d'inverno (le 14 e le 2
   d'estate): config.json › rapporto › ore_utc. La mail arriva alle 12:41 e alle 00:41 GMT. In cima c'è l'ora italiana e GMT.
