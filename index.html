@@ -9888,7 +9888,7 @@ const INTEL_ARCH = [
 ];
 const INTEL_TIPO = { nomina: ['nomina', '--accent'], legge: ['legge o riforma', '--st1'], relazione: ['relazione pubblica', '--st1'], espulsione: ['espulsione', '--st3'], processo: ['processo o arresto', '--st3'], accordo: ['accordo di scambio', '--b-nato'], allarme: ['allarme pubblico', '--st2'], altro: ['altro', '--muted'] };
 const INTEL_REGOLE = 'Qui entrano solo informazioni pubbliche, ognuna con la sua fonte. Restano fuori i nomi di agenti e di persone private, gli indirizzi delle sedi, i metodi e i dettagli operativi.';
-const INTEL_NOTA_ELENCO = 'Elenco fatto in automatico da Wikipedia e Wikidata il ' + pianoData(INTEL.agg) + ' e poi ripulito a mano: può contenere errori o lasciare fuori qualcosa. Fa fede il sito ufficiale.';
+const INTEL_NOTA_ELENCO = 'Elenco fatto in automatico il ' + pianoData(INTEL.agg) + ' (Wikidata) e ripulito a mano: può contenere errori o lasciare fuori qualcosa. Il nome porta al sito ufficiale del servizio; fa fede quello.';
 const INTEL_NOTA_FATTI = 'Sono titoli di giornale letti dal programma, non atti ufficiali. Un’accusa resta un’accusa finché non c’è una sentenza: prima di usarli vanno confermati alla fonte.';
 PIANO_TIPO.intelligence = 'servizi di intelligence';
 function intelDi(nome) { return INTEL.stati[nome] || []; }
@@ -11017,7 +11017,7 @@ function avvisiBanner() {
 function viewAvvisi() {
   crumbs([['#avvisi', 'Avvisi']]);
   caricaAvvisi();
-  let h = '<h2>Avvisi</h2><p class="note">Il programma avvisa quando uno Stato si accende: molte più notizie confermate del solito, fatti con 10 morti o più, un cielo che si svuota, calore in forte aumento. Sono segnali da guardare, non previsioni.</p>';
+  let h = '<h2>Avvisi</h2><p class="note">Il programma avvisa quando uno Stato si accende: molte più notizie confermate del solito, fatti con 10 morti o più, movimenti di truppe, spie e sabotaggi, esplosioni e incendi gravi, spazio aereo chiuso, colpi di Stato, legge marziale, attentati, test missilistici, un cielo che si svuota, calore in forte aumento, monete che crollano, titoli di Stato che salgono. Un avviso per tipo, Stato e giorno, solo da fatti confermati da più testate. Sono segnali da guardare, non previsioni.</p>';
   if (!window.AVVISI) return h + attesaHtml(CAR_AVV, 'Gli avvisi');
   const l = (window.AVVISI.elenco || []).slice().reverse();
   return h + (l.length ? l.slice(0, 80).map(avvisoHtml).join('') : '<p class="note">Nessun avviso per ora.</p>');
@@ -11157,6 +11157,27 @@ function canaliHtml() {
   if ((C.yt_trovati || []).length) h += '<details class="crit"><summary>YouTube trovati da soli (' + C.yt_trovati.length + ')</summary><ul class="plain">' + C.yt_trovati.slice().reverse().map(x => '<li><a href="https://www.youtube.com/channel/' + encodeURIComponent(x[2]) + '" target="_blank" rel="noopener">' + esc(x[0]) + '</a>' + (x[1] ? ' · dal ' + esc(pianoData(x[1])) : '') + '</li>').join('') + '</ul></details>';
   if ((C.spenti || []).length) h += '<div class="s">Spenti perché non rispondono (si riprovano una volta al giorno): ' + esc(C.spenti.map(x => x.split(':').slice(1).join(':')).join(', ')) + '.</div>';
   return h + '<div class="s">I canali trovati da soli entrano «da valutare»: li citano almeno due canali già seguiti. Sono voci, non conferme.</div></div>';
+}
+
+// Quarantesima estensione (programma 2.31, 20 novembre 2026): avvisi con il loro tipo (truppe, spie, esplosioni, spazio
+// aereo, colpi di Stato…) e fonti dirette: i servizi di intelligence portano al loro sito ufficiale, non a Wikipedia
+// (che chiunque può modificare); dove il sito ufficiale non c'è, si dice.
+function avvisoHtml(a) {
+  const t = Date.parse(a.quando || ''), q = t ? new Date(t).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const tipo = a.nome || { picco: 'molte più notizie confermate del solito', fatto: 'fatto grave', cielo: 'cielo', calore: 'calore dal satellite', valuta: 'moneta', tasso: 'titoli di Stato' }[a.tipo] || a.tipo;
+  return '<div class="item avv' + (a.livello >= 2 ? ' l2' : '') + '"><div class="t">' + collega(a.testo) + '</div><div class="m">' + esc(q) + ' · ' + esc(tipo) +
+    (a.u ? ' · <a href="' + safeU(a.u) + '" target="_blank" rel="noopener">' + esc(a.f || 'fonte') + '</a>' : '') + (STATI[a.stato] ? ' · ' + stLink(a.stato) : '') + '</div></div>';
+}
+function intelServizio(x) {
+  const v = servizioSintesi(x[4]);
+  return '<li>' + (x[3] ? '<a href="' + safeU(x[3]) + '" target="_blank" rel="noopener">' + esc(x[0]) + '</a> <span class="s">sito ufficiale</span>' : esc(x[0]) + ' <span class="s">(sito ufficiale non trovato)</span>') +
+    (x[1] ? ' <span class="s">· dal ' + esc(x[1]) + '</span>' : '') + (v ? '<div class="x" style="margin:2px 0 8px">' + esc(v.s) + ' <span class="s">(riassunto dal programma da un’enciclopedia: da verificare sul sito ufficiale)</span></div>' : '') + '</li>';
+}
+function sapereHtml(nome, chiave) {
+  const v = window.SAPERE && window.SAPERE[nome] && window.SAPERE[nome][chiave]; if (!v) return '';
+  return '<div class="item"><div class="t">Scheda enciclopedica: ' + esc(v.titolo) + '</div><div class="x">' + esc(v.testo_it || v.testo) + '</div><div class="s">Da Wikipedia' +
+    (v.lingua === 'en' ? ' in inglese' : '') + (v.testo_it ? ', tradotta in automatico' : '') + ', raccolta il ' + esc(String(window.SAPERE[nome].data || '').split('-').reverse().join('/')) +
+    '. Wikipedia la può modificare chiunque: è un riassunto da verificare, non una fonte. Per i fatti valgono i siti ufficiali e le notizie con fonte.</div></div>';
 }
 
 render();

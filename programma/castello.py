@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.30.2"
+VERSIONE = "2.31"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -4729,6 +4729,66 @@ def scrivi_andamento_web(A, adesso, giorni=120):
 # 3. Avvisi: quando uno Stato si accende (molte più notizie confermate del solito, fatti con molti morti, cielo che si
 # svuota, calore in forte aumento). Vanno in cima alla pagina, come notifica sul telefono e, se Savo lo vuole, sul suo
 # telefono personale con l'app gratuita ntfy (python castello.py chiave ntfy_canale) o con il suo bot Telegram.
+# Dalla 2.31 avvisano anche altri fatti gravi, non solo i morti: ogni regola vale per i fatti confermati di oggi e di ieri,
+# con almeno «fonti» testate diverse; un avviso solo per tipo, Stato e giorno (il racconto con più fonti).
+AVVISI_REGOLE = (
+    ("guerra", "Guerra, legge marziale o mobilitazione", 2, 2,
+     r"dichiara\w* (?:lo stato di )?guerra|legge marziale|mobilitazione generale|stato di guerra"),
+    ("golpe", "Colpo di Stato", 2, 2, r"colpo di stato|golpe|giunta militare"),
+    ("truppe", "Movimenti di truppe", 3, 1,
+     r"(?:truppe|soldati|carri armati|mezzi corazzati|blindati|navi da guerra|portaerei|sottomarin\w*|caccia|bombardieri)\b.{0,60}"
+     r"(?:schierat|ammassat|al confine|dispiegat|inviat|rinforz|mobilitat|in movimento|si avvicin|entrat|attravers)|"
+     r"(?:schieramento|ammassamento|dispiegamento|movimenti|concentramento) di (?:truppe|forze|mezzi)|truppe al confine"),
+    ("intelligence", "Spionaggio e servizi segreti", 3, 1,
+     r"\bspi[ae]\b|spionaggio|servizi segreti|agenti segreti|sabotaggi|diplomatici espulsi|(?:espuls|espell)\w* .{0,30}(?:diplomatic|ambasciator)"),
+    ("esplosioni", "Esplosioni e incendi gravi", 3, 1,
+     r"(?:esplosion\w*|incendi\w*|in fiamme).{0,50}(?:deposito|arsenale|munizioni|raffineria|base|porto|centrale|fabbrica|impianto)|"
+     r"deposito di munizioni"),
+    ("spazio aereo", "Spazio aereo chiuso", 3, 1, r"spazio aereo .{0,25}chius|chiude\w* lo spazio aereo|no-fly|voli sospesi"),
+    ("terrorismo", "Attentati", 3, 2, r"attentat|kamikaze|attacco terroristico"),
+    ("missili", "Test nucleari e missili strategici", 3, 2,
+     r"test nucleare|esperimento nucleare|lanci\w* .{0,30}missil\w* balistic|missile balistico intercontinentale|\bicbm\b"),
+    ("emergenza", "Stato di emergenza e coprifuoco", 3, 1, r"stato di emergenza|coprifuoco"),
+)
+_RX_AVVISI = None
+
+
+def _avvisi_fatti(S_schede, oggi, ieri, imp):
+    """Avvisi dai fatti in schede: morti (dal numero nel titolo) e le regole di AVVISI_REGOLE."""
+    global _RX_AVVISI
+    if _RX_AVVISI is None:
+        _RX_AVVISI = [(t, nome, fonti, liv, re.compile(rx)) for t, nome, fonti, liv, rx in AVVISI_REGOLE]
+    fuori, visti, testi = [], set(), set()
+    for k, s in sorted(S_schede.items(), key=lambda kv: -(kv[1].get("nf") or 1)):
+        if s.get("d") not in (oggi, ieri):
+            continue
+        p = (s.get("p") or [None])[0]
+        if not p:
+            continue
+        testo = s.get("t", "")
+        firma = re.sub(r"[^a-zà-ù0-9]+", " ", testo.lower())[:60]
+        if firma in testi:
+            continue  # lo stesso titolo ripetuto da più testate
+        m_ = (s.get("num") or {}).get("morti") or 0
+        scelta = None
+        if m_ >= imp.get("morti_minimi", 10):
+            scelta = ("morti", "Fatti con molti morti", 2 if m_ >= 50 else 1, f"{p}:{m_}")
+        else:
+            basso = testo.lower()
+            for t, nome, fonti, liv, rx in _RX_AVVISI:
+                if (s.get("nf") or 1) >= fonti and rx.search(basso):
+                    scelta = (t, nome, liv, p)
+                    break
+        if not scelta or (scelta[0], scelta[3], s.get("d")) in visti:
+            continue
+        visti.add((scelta[0], scelta[3], s.get("d")))
+        testi.add(firma)
+        fuori.append({"id": f"fatto:{scelta[0]}:{scelta[3]}:{s.get('d')}", "tipo": "fatto", "sotto": scelta[0], "nome": scelta[1],
+                      "stato": p, "livello": scelta[2], "testo": f"{p}: {testo}" + (f" ({s.get('nf')} fonti)" if (s.get("nf") or 1) > 1 else ""),
+                      "u": s.get("u", ""), "f": s.get("f", "")})
+    return fuori
+
+
 def calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg):
     imp = cfg.get("avvisi", {})
     oggi = adesso.date().isoformat()
@@ -4744,17 +4804,7 @@ def calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg):
         if giorni_noti >= imp.get("giorni_minimi", 5) and c_oggi >= max(imp.get("picco_minimo", 6), 3 * max(mediana, 1)):
             nuovi.append({"id": f"picco:{p}:{oggi}", "tipo": "picco", "stato": p, "livello": 2 if c_oggi >= 6 * max(mediana, 1) else 1,
                           "testo": f"{p}: {c_oggi} notizie confermate oggi, di solito {mediana} al giorno."})
-    visti_f = set()  # lo stesso fatto (stesso Stato, stessi morti) raccontato da più fonti: un avviso solo
-    for k, s in sorted(S_schede.items(), key=lambda kv: -(kv[1].get("nf") or 1)):
-        if s.get("d") not in (oggi, ieri):
-            continue
-        m_ = (s.get("num") or {}).get("morti") or 0
-        p = (s.get("p") or [None])[0]
-        if not p or m_ < imp.get("morti_minimi", 10) or (p, m_) in visti_f:
-            continue
-        visti_f.add((p, m_))
-        nuovi.append({"id": f"fatto:{p}:{m_}:{s.get('d')}", "tipo": "fatto", "stato": p, "livello": 2 if m_ >= 50 else 1,
-                      "testo": f"{p}: {s.get('t', '')}", "u": s.get("u", ""), "f": s.get("f", "")})
+    nuovi += _avvisi_fatti(S_schede, oggi, ieri, imp)
     for p, v in ((dati_cielo or {}).get("paesi") or {}).items():
         if isinstance(v, list) and len(v) > 2 and v[2]:
             nuovi.append({"id": f"cielo:{p}:{oggi}", "tipo": "cielo", "stato": p, "livello": 1,
@@ -4969,21 +5019,16 @@ def _sig_vettori(testi, porta):
     return fuori
 
 
-def significato_aggiorna(archivio, cfg, tel, errori, secondi=None):
-    """Mette nei vettori i fatti confermati che mancano (prima i più recenti), finché c'è tempo nel giro."""
-    imp = cfg.get("officina", {})
-    if not imp.get("significato", True) or not _su_termux():
-        return None
-    ok_ = (bool(tel.get("in_carica")) or (tel.get("batteria") or 0) >= imp.get("batteria_min_fuori_carica", 35)) \
-        and (tel.get("temp") or 99) < imp.get("temp_max", 38)
-    if not ok_:
-        _sig_ferma()
-        return {"fase": "in pausa (batteria o temperatura)"}
-    cart = MAG("significato")
-    os.makedirs(cart, exist_ok=True)
+def _sig_file(dove, quale):
+    """Due magazzini di vettori: «fatti» (confermati e memoria, per sempre) e «recenti» (tutte le notizie, 7 giorni)."""
+    pre = {"fatti": ("vettori.bin", "testi.jsonl"), "recenti": ("recenti.bin", "recenti.jsonl")}[dove]
+    return MAG("significato", pre[0] if quale == "bin" else pre[1])
+
+
+def _sig_chiavi(dove):
     visti = set()
     try:
-        with open(os.path.join(cart, "testi.jsonl"), encoding="utf-8") as f:
+        with open(_sig_file(dove, "testi"), encoding="utf-8") as f:
             for r in f:
                 try:
                     visti.add(json.loads(r)[0])
@@ -4991,14 +5036,75 @@ def significato_aggiorna(archivio, cfg, tel, errori, secondi=None):
                     pass
     except OSError:
         pass
-    da_fare = sorted(((k, v) for k, v in archivio.get("notizie", {}).items() if v.get("conf") and "n:" + k not in visti),
-                     key=lambda kv: kv[1].get("data_iso") or "", reverse=True)
-    M_ = leggi_json(os.path.join(DATI, "memoria.json"), {}) or {}
-    for st_, l in M_.items():
-        for x in l:
-            k_ = "m:" + hashlib.md5((st_ + x[1]).encode()).hexdigest()[:16]
-            if k_ not in visti:
-                da_fare.append((k_, {"it": x[1], "data_iso": x[0], "paesi": [st_], "fonte": x[2], "u": x[4] if len(x) > 4 else ""}))
+    return visti
+
+
+def _sig_blocco():
+    """Un solo lavoratore alla volta sui vettori (il giro o il cuore)."""
+    import fcntl
+    os.makedirs(MAG("significato"), exist_ok=True)
+    f = open(MAG("significato", "lock"), "w")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return f
+    except OSError:
+        f.close()
+        return None
+
+
+def _sig_pota_recenti(giorni=7):
+    """Le notizie non confermate restano nei vettori 7 giorni: una volta al giorno si riscrive il magazzino «recenti»."""
+    limite = (datetime.now(timezone.utc) - timedelta(days=giorni)).date().isoformat()
+    try:
+        dati = open(_sig_file("recenti", "bin"), "rb").read()
+        righe = open(_sig_file("recenti", "testi"), encoding="utf-8").read().splitlines()
+    except OSError:
+        return 0
+    n = min(len(dati) // SIG_DIM, len(righe))
+    tieni_b, tieni_t = [], []
+    for i in range(n):
+        try:
+            d = json.loads(righe[i])[1]
+        except (ValueError, IndexError):
+            continue
+        if d >= limite:
+            tieni_b.append(dati[i * SIG_DIM:(i + 1) * SIG_DIM])
+            tieni_t.append(righe[i])
+    with open(_sig_file("recenti", "bin") + ".tmp", "wb") as f:
+        f.write(b"".join(tieni_b))
+    with open(_sig_file("recenti", "testi") + ".tmp", "w", encoding="utf-8") as f:
+        f.write("\n".join(tieni_t) + ("\n" if tieni_t else ""))
+    os.replace(_sig_file("recenti", "bin") + ".tmp", _sig_file("recenti", "bin"))
+    os.replace(_sig_file("recenti", "testi") + ".tmp", _sig_file("recenti", "testi"))
+    return n - len(tieni_t)
+
+
+def _tel_ok_sig(imp, tel):
+    return (bool(tel.get("in_carica")) or (tel.get("batteria") or 0) >= imp.get("batteria_min_fuori_carica", 35)) \
+        and (tel.get("temp") or 99) < imp.get("temp_max", 38)
+
+
+def significato_aggiorna(archivio, cfg, tel, errori, secondi=None, tutte=False):
+    """Mette nei vettori i fatti confermati che mancano (prima i più recenti), finché c'è tempo. Con tutte=True (lo fa il
+    cuore, dalla 2.31, nel tempo libero tra un giro e l'altro) anche tutte le notizie degli ultimi 7 giorni."""
+    imp = cfg.get("officina", {})
+    if not imp.get("significato", True) or not _su_termux():
+        return None
+    if not _tel_ok_sig(imp, tel):
+        _sig_ferma()
+        return {"fase": "in pausa (batteria o temperatura)"}
+    blocco = _sig_blocco()
+    if not blocco:
+        return {"fase": "lavora il cuore"}
+    try:
+        return _sig_aggiorna(archivio, cfg, imp, errori, secondi, tutte)
+    finally:
+        blocco.close()
+
+
+def _sig_aggiorna(archivio, cfg, imp, errori, secondi, tutte):
+    os.makedirs(MAG("significato"), exist_ok=True)
+    visti = _sig_chiavi("fatti")
     if len(visti) > 3000:  # con tanti vettori serve numpy (pacchetto di Termux): si prova a installarlo una volta al giorno
         try:
             import numpy  # noqa: F401
@@ -5012,7 +5118,23 @@ def significato_aggiorna(archivio, cfg, tel, errori, secondi=None):
                                    env=dict(os.environ, DEBIAN_FRONTEND="noninteractive"))
                 except (OSError, subprocess.SubprocessError):
                     pass
-    if not da_fare:
+    da_fare = sorted(((k, v) for k, v in archivio.get("notizie", {}).items() if v.get("conf") and "n:" + k not in visti),
+                     key=lambda kv: kv[1].get("data_iso") or "", reverse=True)
+    M_ = leggi_json(os.path.join(DATI, "memoria.json"), {}) or {}
+    for st_, l in M_.items():
+        for x in l:
+            k_ = "m:" + hashlib.md5((st_ + x[1]).encode()).hexdigest()[:16]
+            if k_ not in visti:
+                da_fare.append((k_, {"it": x[1], "data_iso": x[0], "paesi": [st_], "fonte": x[2], "u": x[4] if len(x) > 4 else ""}))
+    lavori = [("fatti", da_fare)]
+    if tutte:
+        visti_r = _sig_chiavi("recenti")
+        sette = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        recenti = sorted(((k, v) for k, v in archivio.get("notizie", {}).items()
+                          if not v.get("conf") and (v.get("data_iso") or "") >= sette and "n:" + k not in visti_r and "n:" + k not in visti),
+                         key=lambda kv: kv[1].get("data_iso") or "", reverse=True)
+        lavori.append(("recenti", recenti))
+    if not any(l for _, l in lavori):
         return {"fase": "pronto", "fatti": len(visti), "nuovi": 0}
     porta = _sig_server(imp)
     if not porta:
@@ -5020,64 +5142,122 @@ def significato_aggiorna(archivio, cfg, tel, errori, secondi=None):
                 "fatti": len(visti)}
     t0, fatti = time.time(), 0
     limite = secondi if secondi is not None else imp.get("secondi_significato", 120)
-    with open(os.path.join(cart, "vettori.bin"), "ab") as fv, open(os.path.join(cart, "testi.jsonl"), "a", encoding="utf-8") as ft:
-        for i in range(0, len(da_fare), 32):
-            if time.time() - t0 > limite:
-                break
-            gruppo = da_fare[i:i + 32]
-            try:
-                vett = _sig_vettori([(v.get("it") or v.get("t") or "")[:400] for _, v in gruppo], porta)
-            except Exception as e:
-                errori.append(f"Ricerca per significato: {str(e)[:100]}")
-                break
-            for (k, v), b in zip(gruppo, vett):
-                k_ = k if k.startswith("m:") else "n:" + k
-                fv.write(b)
-                ft.write(json.dumps([k_, (v.get("data_iso") or "")[:10], (v.get("it") or v.get("t") or "")[:300], v.get("paesi") or [],
-                                     v.get("fonte", ""), v.get("u", "")], ensure_ascii=False) + "\n")
-                fatti += 1
-    return {"fase": "pronto", "fatti": len(visti) + fatti, "nuovi": fatti, "secondi": round(time.time() - t0, 1)}
+    for dove, lista in lavori:
+        with open(_sig_file(dove, "bin"), "ab") as fv, open(_sig_file(dove, "testi"), "a", encoding="utf-8") as ft:
+            for i in range(0, len(lista), 32):
+                if time.time() - t0 > limite:
+                    break
+                gruppo = lista[i:i + 32]
+                try:
+                    vett = _sig_vettori([(v.get("it") or v.get("t") or "")[:400] for _, v in gruppo], porta)
+                except Exception as e:
+                    errori.append(f"Ricerca per significato: {str(e)[:100]}")
+                    break
+                for (k, v), b in zip(gruppo, vett):
+                    k_ = k if k.startswith("m:") else "n:" + k
+                    fv.write(b)
+                    ft.write(json.dumps([k_, (v.get("data_iso") or "")[:10], (v.get("it") or v.get("t") or "")[:300], v.get("paesi") or [],
+                                         v.get("fonte", ""), v.get("u", "")], ensure_ascii=False) + "\n")
+                    fatti += 1
+                fv.flush()
+                ft.flush()
+    return {"fase": "pronto", "fatti": len(_sig_chiavi("fatti")), "recenti": len(_sig_chiavi("recenti")) if tutte else None,
+            "nuovi": fatti, "secondi": round(time.time() - t0, 1)}
+
+
+def _sig_carica(dove):
+    try:
+        dati = open(_sig_file(dove, "bin"), "rb").read()
+    except OSError:
+        return b"", []
+    testi = []
+    try:
+        with open(_sig_file(dove, "testi"), encoding="utf-8") as f:
+            for r in f:
+                try:
+                    testi.append(json.loads(r))
+                except ValueError:
+                    testi.append(None)
+    except OSError:
+        pass
+    return dati, testi
 
 
 def significato_cerca(q, stato=None, massimo=30):
-    cart = MAG("significato")
-    if not os.path.exists(os.path.join(cart, "vettori.bin")):
+    if not os.path.exists(_sig_file("fatti", "bin")) and not os.path.exists(_sig_file("recenti", "bin")):
         return None
     imp = leggi_json(os.path.join(QUI, "config.json"), {}).get("officina", {})
     porta = _sig_server(imp)
     if not porta:
         return {"errore": "il modello dei significati non è acceso (batteria, temperatura o modello non ancora scaricato)"}
     qv = _sig_vettori([SIG_ISTRUZIONE + q[:300]], porta)[0]
-    dati = open(os.path.join(cart, "vettori.bin"), "rb").read()
-    testi = []
-    with open(os.path.join(cart, "testi.jsonl"), encoding="utf-8") as f:
-        for r in f:
-            try:
-                testi.append(json.loads(r))
-            except ValueError:
-                testi.append(None)
-    n = min(len(dati) // SIG_DIM, len(testi))
     qi = [b - 256 if b > 127 else b for b in qv]
-    try:
-        import numpy as np
-        V = np.frombuffer(dati[:n * SIG_DIM], dtype=np.int8).reshape(n, SIG_DIM).astype(np.int32)
-        punti = (V @ np.array(qi, dtype=np.int32)).tolist()
-    except ImportError:  # senza numpy: più lento, ma funziona
-        import array
-        A_ = array.array("b", dati[:n * SIG_DIM])
-        punti = [sum(a * b for a, b in zip(A_[i * SIG_DIM:(i + 1) * SIG_DIM], qi)) for i in range(n)]
-    ordine = sorted(range(n), key=lambda i: -punti[i])
+    tutti = []
+    for dove in ("fatti", "recenti"):
+        dati, testi = _sig_carica(dove)
+        n = min(len(dati) // SIG_DIM, len(testi))
+        if not n:
+            continue
+        try:
+            import numpy as np
+            V = np.frombuffer(dati[:n * SIG_DIM], dtype=np.int8).reshape(n, SIG_DIM).astype(np.int32)
+            punti = (V @ np.array(qi, dtype=np.int32)).tolist()
+        except ImportError:  # senza numpy: più lento, ma funziona
+            import array
+            A_ = array.array("b", dati[:n * SIG_DIM])
+            punti = [sum(a * b for a, b in zip(A_[i * SIG_DIM:(i + 1) * SIG_DIM], qi)) for i in range(n)]
+        tutti += [(punti[i], testi[i], dove) for i in range(n) if testi[i]]
+    tutti.sort(key=lambda x: -x[0])
     fuori, visti = [], set()
-    for i in ordine:
-        r = testi[i]
-        if not r or (stato and stato not in (r[3] or [])) or (r[5] or r[2]) in visti:
+    for pt, r, dove in tutti:
+        if (stato and stato not in (r[3] or [])) or (r[5] or r[2]) in visti:
             continue
         visti.add(r[5] or r[2])
-        fuori.append({"d": r[1], "t": r[2], "p": r[3], "f": r[4], "u": r[5], "dove": "per significato",
-                      "s": round(punti[i] / (127 * 127), 3), "c": 1})
+        fuori.append({"d": r[1], "t": r[2], "p": r[3], "f": r[4], "u": r[5], "dove": "per significato" + (" (notizia non ancora confermata)" if dove == "recenti" else ""),
+                      "s": round(pt / (127 * 127), 3), "c": 1 if dove == "fatti" else 0})
         if len(fuori) >= massimo:
             break
     return fuori
+
+
+def _lavoratore_significati():
+    """Thread del cuore (dalla 2.31): il processore che non serve al traduttore lavora ai vettori tra un giro e l'altro,
+    finché c'è arretrato: prima i fatti confermati, poi tutte le notizie degli ultimi 7 giorni."""
+    time.sleep(240)
+    archivio, mtime, potato = {}, 0, ""
+    while True:
+        pausa_ = 600
+        try:
+            cfg = leggi_json(os.path.join(QUI, "config.json"), {})
+            imp = cfg.get("officina", {})
+            tel = _tel_ultimo() or {}
+            if (_su_termux() and imp.get("significato", True) and imp.get("significato_continuo", True) and tel
+                    and _tel_ok_sig(imp, tel) and os.path.exists(OFF(SIGNIFICATO_MODELLO["file"]))):
+                perc = os.path.join(DATI, "archivio.json")
+                m_ = os.path.getmtime(perc) if os.path.exists(perc) else 0
+                if m_ != mtime:
+                    try:
+                        archivio, mtime = leggi_json(perc, {}) or {}, m_
+                    except Exception:
+                        pass
+                oggi_ = datetime.now().date().isoformat()
+                if potato != oggi_:
+                    b_ = _sig_blocco()
+                    if b_:
+                        try:
+                            _sig_pota_recenti()
+                            potato = oggi_
+                        finally:
+                            b_.close()
+                r_ = significato_aggiorna(archivio, cfg, tel, [], secondi=imp.get("secondi_significato_cuore", 240), tutte=True) or {}
+                pausa_ = 20 if r_.get("nuovi") else 300
+                S_ = _off_stato()
+                S_["cuore_significati"] = dict(r_, quando=datetime.now(timezone.utc).isoformat())
+                _off_salva(S_)
+        except Exception as e:
+            print("Lavoratore dei significati:", e)
+        time.sleep(pausa_)
+
 
 
 # ----------------------------------------------------------------------------- 2.30: economia e canali che si trovano da soli
@@ -8200,6 +8380,7 @@ def serve(porta=8080):
     threading.Thread(target=_avvio, daemon=True).start()
     threading.Thread(target=_riserva_cron, daemon=True).start()
     threading.Thread(target=_scaricatore, daemon=True).start()  # dalla 2.28: il modello dell'officina
+    threading.Thread(target=_lavoratore_significati, daemon=True).start()  # dalla 2.31: vettori nel tempo libero
     with srv:
         print(f"PanGeo aperto su http://127.0.0.1:{porta}/  · tabelle aperte: http://127.0.0.1:{porta}/tabelle.html  (Ctrl+C per chiudere)")
         srv.serve_forever()

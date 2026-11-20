@@ -71,6 +71,13 @@ ok(len(chiamate) == 1 and "PanGeo" in " ".join(chiamate[0]), "una notifica sul t
 ok(os.path.exists(os.path.join(C.WEB, "avvisi.json")), "avvisi.json per la pagina")
 r2 = C.avvisi(A, S, {"paesi": {"Iran": [3, 40, "vuoto"]}}, {"paesi": {}}, adesso, cfg, {})
 ok(r2[0] == 0 and len(chiamate) == 1, "lo stesso avviso non si ripete")
+S_tr = {"t1": {"d": oggi_, "p": ["Russia"], "t": "La Russia ammassa truppe al confine con la Finlandia", "nf": 3, "num": {}, "tipo": "altro"},
+        "t2": {"d": oggi_, "p": ["Russia"], "t": "La Russia ammassa truppe al confine con la Finlandia", "nf": 2, "num": {}, "tipo": "altro"},
+        "t3": {"d": oggi_, "p": ["Germania"], "t": "Spia cinese arrestata in Germania", "nf": 3, "num": {}, "tipo": "altro"},
+        "t4": {"d": oggi_, "p": ["Cina"], "t": "Vertice sulle armi nucleari tra Cina, USA e Russia", "nf": 9, "num": {}, "tipo": "nucleare"},
+        "t5": {"d": oggi_, "p": ["Iran"], "t": "Truppe iraniane schierate al confine", "nf": 1, "num": {}, "tipo": "altro"}}
+fa = C._avvisi_fatti(S_tr, oggi_, (adesso - timedelta(days=1)).date().isoformat(), cfg.get("avvisi", {}))
+ok(sorted(x["sotto"] for x in fa) == ["intelligence", "truppe"], "2.31: truppe e spie avvisano, una volta sola; il vertice e la notizia con una fonte no: " + str([x["sotto"] for x in fa]))
 # ---------------------------------------------------------------- 4. indice istantaneo
 C._mag_scrivi(C.MAG("notizie", "2026-01-05.jsonl.xz"), [{"k": "vecchia1", "t": "Old news about Leopard tanks", "it": "Vecchia notizia sui carri Leopard",
                                                            "u": "https://x/old", "f": "DW", "d": "2026-01-05T10:00:00+00:00", "p": ["Germania"], "c": 1}])
@@ -123,6 +130,24 @@ r = C.significato_cerca("carri armati alla Polonia", stato="Corea del Sud")
 ok(r and all("Corea del Sud" in x["p"] for x in r), "per significato con filtro sullo Stato")
 z2 = C.significato_aggiorna(arch, cfg, {"in_carica": True, "batteria": 80, "temp": 30}, err)
 ok(z2["nuovi"] == 0, "al giro dopo niente doppioni nei vettori")
+# 2.31: il cuore mette nei vettori anche le notizie non confermate (magazzino «recenti», 7 giorni)
+arch["notizie"]["nc1"] = {"t": "Nuovi carri armati Abrams arrivano a Varsavia", "it": "Nuovi carri armati Abrams arrivano a Varsavia",
+                          "paesi": ["Polonia"], "conf": False, "data_iso": iso(0), "fonte": "Notes from Poland", "u": "https://x/nc1"}
+arch["notizie"]["nc_vecchia"] = {"t": "Vecchia notizia", "it": "Vecchia notizia sui carri armati", "paesi": ["Polonia"], "conf": False,
+                                 "data_iso": iso(10), "fonte": "X", "u": "https://x/vecchia"}
+z4 = C.significato_aggiorna(arch, cfg, {"in_carica": True, "batteria": 80, "temp": 30}, err, tutte=True)
+ok(z4 and z4.get("recenti") == 2, f"il cuore aggiunge le notizie recenti non confermate (non quelle di 10 giorni fa): {z4}")
+r5 = C.significato_cerca("carri armati Abrams in Polonia")
+ok(any(x["u"] == "https://x/nc1" and x["c"] == 0 for x in (r5 or [])[:5]), "la ricerca per significato trova anche le notizie non confermate, segnate come tali")
+b_ = C._sig_blocco()
+ok(C.significato_aggiorna(arch, cfg, {"in_carica": True, "batteria": 80, "temp": 30}, err)["fase"] == "lavora il cuore", "un solo lavoratore alla volta")
+b_.close()
+# potatura: una riga vecchia nel magazzino recenti se ne va
+with open(C._sig_file("recenti", "bin"), "ab") as f_:
+    f_.write(bytes(C.SIG_DIM))
+with open(C._sig_file("recenti", "testi"), "a", encoding="utf-8") as f_:
+    f_.write(json.dumps(["n:vecchissima", "2026-01-01", "vecchia", ["Italia"], "", ""]) + "\n")
+ok(C._sig_pota_recenti() == 1 and len(C._sig_chiavi("recenti")) == 2, "la potatura toglie le notizie più vecchie di 7 giorni")
 # senza numpy (puro Python) dà lo stesso primo risultato
 import builtins
 vero_import = builtins.__import__
