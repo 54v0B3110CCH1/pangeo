@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.28"
+VERSIONE = "2.28.1"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -4170,7 +4170,10 @@ def _scarico_ok(imp):
     if not tel:
         return False, "aspetto il prossimo giro per sapere carica e temperatura"
     if not tel.get("in_carica"):
-        return False, "il telefono non è in carica"
+        if not imp.get("scarica_senza_carica", True):
+            return False, "il telefono non è in carica"
+        if (tel.get("batteria") or 0) < imp.get("batteria_min_scarico", 30):
+            return False, f"batteria al {tel.get('batteria')}% e fuori carica"
     if (tel.get("temp") or 99) >= imp.get("temp_max", 38):
         return False, f"il telefono è caldo ({tel.get('temp')} °C)"
     if not (_wifi() or imp.get("scarica_senza_wifi", False)):

@@ -405,6 +405,9 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.28.1 – Il modello si scarica anche fuori carica (sempre in Wi-Fi), se la batteria è almeno al 30%:
+  config.json › officina › scarica_senza_carica, batteria_min_scarico. Il traduttore invece lavora solo in carica.
+
 NOVITÀ 2.28 (20 novembre, sera) – STRUMENTI GRATUITI CHE IL TELEFONO SI COSTRUISCE DA SOLO
 - Scarico del modello dell'officina: lo fa il cuore di PanGeo (la pagina sempre accesa), non più curl a ogni giro
   (Android lo chiudeva e il download ripartiva). Riprende da dove era rimasto, solo in carica, al fresco e in Wi-Fi,

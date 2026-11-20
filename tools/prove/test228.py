@@ -88,10 +88,10 @@ def diario_tel(temp, batt, carica, minuti_fa=1):
 
 
 imp = {"attivo": True, "temp_max": 38}
-diario_tel(30, 80, False)
+diario_tel(30, 20, False)
 p_ = C.scarica_modello(imp)
 sc = C.leggi_json(C.OFF("scarico.json"), {})
-ok(p_ == 300 and "non è in carica" in sc.get("stato", "") and not os.path.exists(C.OFF("modello.gguf.part")),
+ok(p_ == 300 and "fuori carica" in sc.get("stato", "") and not os.path.exists(C.OFF("modello.gguf.part")),
    "fuori carica non scarica e lo scrive: " + sc.get("stato", ""))
 diario_tel(30, 80, True, minuti_fa=90)
 C.scarica_modello(imp)
