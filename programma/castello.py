@@ -3944,6 +3944,26 @@ def _vivo_pid(pid):
         return False
 
 
+def _e_llama(pid):
+    """Vero se il processo è davvero llama-server: su Android i numeri dei processi tornano presto a un altro
+    programma, e un numero vecchio faceva credere che il traduttore fosse già acceso (dalla 2.29)."""
+    try:
+        with open(f"/proc/{int(pid)}/cmdline", "rb") as f:
+            return b"llama-server" in f.read()
+    except (OSError, ValueError, TypeError):
+        return bool(pid) and _vivo_pid(pid) and not os.path.isdir("/proc/self")
+
+
+def _coda_log(nome, righe=3):
+    try:
+        with open(OFF(nome), "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 4000))
+            return " | ".join(r.strip() for r in f.read().decode("utf-8", "replace").splitlines()[-righe:] if r.strip())[:300]
+    except OSError:
+        return ""
+
+
 def _off_server_su(S, porta):
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{porta}/health", timeout=3) as r:
@@ -3954,13 +3974,13 @@ def _off_server_su(S, porta):
 
 def _off_ferma(S):
     for k_ in ("pid_sig",):  # dalla 2.29 anche il server dei significati
-        if S.get(k_) and _vivo_pid(S[k_]):
+        if S.get(k_) and _vivo_pid(S[k_]) and _e_llama(S[k_]):  # mai un altro programma con lo stesso numero
             try:
                 os.kill(int(S[k_]), signal.SIGTERM)
             except OSError:
                 pass
         S[k_] = None
-    if S.get("pid_server") and _vivo_pid(S["pid_server"]):
+    if S.get("pid_server") and _vivo_pid(S["pid_server"]) and _e_llama(S["pid_server"]):
         try:
             os.kill(int(S["pid_server"]), signal.SIGTERM)
         except OSError:
@@ -4063,15 +4083,27 @@ def officina(cfg, tel, archivio, errori, adesso):
         return S
     # 3. il server locale: acceso solo in carica e al fresco
     if not _off_server_su(S, porta):
-        if not (S.get("pid_server") and _vivo_pid(S["pid_server"])):
+        vivo_ = S.get("pid_server") and _vivo_pid(S["pid_server"]) and _e_llama(S["pid_server"])
+        try:
+            da_ = (adesso - datetime.fromisoformat(S.get("acceso_da") or adesso.isoformat())).total_seconds() / 60
+        except ValueError:
+            da_ = 0
+        if vivo_ and da_ > 12:  # acceso da più di 12 minuti ma non risponde: si spegne, si legge il registro e si riprova
+            S["errore"] = "il traduttore non risponde: " + _coda_log("server.log")
+            _off_ferma(S)
+            vivo_ = False
+        if not vivo_:
+            if S.get("acceso_da") and da_ > 1:
+                S["errore"] = "il traduttore si è chiuso: " + _coda_log("server.log")
             log = open(OFF("server.log"), "ab")
             p = subprocess.Popen(["llama-server", "-m", mod, "--host", "127.0.0.1", "--port", str(porta), "-c", "1024",
                                   "-t", str(imp.get("thread", 4))], stdout=log, stderr=log,
                                  stdin=subprocess.DEVNULL, start_new_session=True)
-            S["pid_server"] = p.pid
+            S["pid_server"], S["acceso_da"] = p.pid, adesso.isoformat()
         S["fase"] = "accendo il traduttore"
         _off_salva(S)
         return S  # il modello si carica in qualche secondo: si usa dal giro dopo
+    S.pop("acceso_da", None)
     # 4. la prova (la prima volta e poi ogni settimana): titoli già tradotti dal cervello, lingua per lingua
     prova = S.get("prova") or {}
     if not prova.get("quando") or prova["quando"] < (adesso - timedelta(days=7)).isoformat():
@@ -4860,7 +4892,7 @@ def _sig_server(imp, accendi=True):
     mod = OFF(SIGNIFICATO_MODELLO["file"])
     if not accendi or not shutil.which("llama-server") or not os.path.exists(mod) or os.path.getsize(mod) != SIGNIFICATO_MODELLO["byte"]:
         return None
-    if not (S.get("pid_sig") and _vivo_pid(S["pid_sig"])):
+    if not (S.get("pid_sig") and _vivo_pid(S["pid_sig"]) and _e_llama(S["pid_sig"])):
         log = open(OFF("significato.log"), "ab")
         p = subprocess.Popen(["llama-server", "-m", mod, "--embedding", "--pooling", "last", "--host", "127.0.0.1", "--port", str(porta),
                               "-c", "2048", "-ub", "2048", "-t", str(imp.get("thread", 4))], stdout=log, stderr=log,
@@ -4880,7 +4912,7 @@ def _sig_server(imp, accendi=True):
 
 def _sig_ferma():
     S = _off_stato()
-    if S.get("pid_sig") and _vivo_pid(S["pid_sig"]):
+    if S.get("pid_sig") and _vivo_pid(S["pid_sig"]) and _e_llama(S["pid_sig"]):
         try:
             os.kill(int(S["pid_sig"]), signal.SIGTERM)
         except OSError:

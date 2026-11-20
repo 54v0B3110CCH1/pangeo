@@ -420,6 +420,10 @@ NOVITÀ 2.29 (20 novembre, sera) – ANALISI, ORDINE DEI DATI, AVVISI E RICERCHE
 - Ricerca per significato: un secondo modello piccolo (Qwen3 Embedding 0.6B, 639 MB, Apache 2.0) lo scarica il cuore
   dopo il traduttore. Cerca per senso, in tutte le lingue:  python castello.py significato carri armati alla Polonia
   Lavora come il traduttore: in carica, o fuori carica con la batteria almeno al 35%, sotto i 38 gradi.
+- Traduttore che restava su «accendo il traduttore»: su Android il numero di un processo chiuso passa presto a un altro
+  programma e PanGeo credeva il traduttore già acceso. Ora controlla che sia davvero llama-server, lo riavvia se non
+  risponde da 12 minuti e scrive il motivo (dal suo registro) in: python castello.py officina
+  E non chiude mai un altro programma con lo stesso numero.
 
 NOVITÀ 2.28.2 – Il telefono è dedicato a PanGeo: anche il traduttore lavora fuori carica, finché la batteria è almeno
   al 35% e il telefono sta sotto i 38 gradi (config.json › officina › lavora_senza_carica, batteria_min_fuori_carica).
