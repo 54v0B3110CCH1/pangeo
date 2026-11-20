@@ -417,6 +417,9 @@ NOVITÀ 2.27 (20 novembre, pomeriggio) – L'OFFICINA: IL TELEFONO SI FA DA SOLO
   Un modello più piccolo (Qwen2.5 1.5B) traduceva male: la prova lo aveva scartato da sola.
       python castello.py officina          a che punto è, prova, lingue promosse, quanto ha tradotto, spesa per lavoro
       python castello.py officina prova    rifà la prova adesso (in carica)
+      python castello.py officina prova senza-carica
+                                           la prova anche staccato dal caricatore, con batteria e gradi prima e dopo
+                                           (2.27.1); finita la prova il traduttore si spegne
 - Gli attrezzi che il programma sa installare e provare sono scritti nel programma: codice nuovo arriva sempre con «approva».
 - Si spegne da config.json: officina › attivo. Tetti: temp_max, per_giro, secondi_per_giro, somiglianza_minima.
 

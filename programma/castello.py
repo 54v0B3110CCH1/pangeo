@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.27"
+VERSIONE = "2.27.1"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -6886,17 +6886,30 @@ if __name__ == "__main__":
             print(f"    {r_.get('f') or ''} {r_.get('u') or ''}")
     elif comando == "officina":
         cfg_o = leggi_json(os.path.join(QUI, "config.json"), {})
-        if len(a) > 1 and a[1] == "prova":  # prova subito (in carica e al fresco, come nei giri)
+        if len(a) > 1 and a[1] == "prova":  # prova subito; con «senza-carica» anche staccato dal caricatore (sempre al fresco)
+            senza_c = "senza-carica" in a
             S_ = _off_stato()
             S_.pop("prova", None)
             _off_salva(S_)
-            for _ in range(4):
+            t0_, tel0_ = time.time(), telefono()
+            print(f"Prima: batteria {tel0_.get('batteria')}%, {tel0_.get('temp')} gradi, in carica: {'sì' if tel0_.get('in_carica') else 'no'}")
+            for _ in range(12):
                 er_ = []
-                S_ = officina(cfg_o, telefono(), leggi_json(os.path.join(DATI, "archivio.json"), {}), er_, datetime.now(timezone.utc)) or {}
-                print("Officina:", S_.get("fase", "spenta"), *(er_ or []))
+                tel_o = telefono()
+                if senza_c:
+                    tel_o = dict(tel_o, in_carica=True)  # solo per questa prova, chiesta a mano
+                S_ = officina(cfg_o, tel_o, leggi_json(os.path.join(DATI, "archivio.json"), {}), er_, datetime.now(timezone.utc)) or {}
+                parte_ = OFF("modello.gguf.part")
+                mb_ = f" ({round(os.path.getsize(parte_) / 1e6)} MB su {round(OFFICINA_MODELLO['byte'] / 1e6)})" if os.path.exists(parte_) else ""
+                print("Officina:", S_.get("fase", "spenta") + mb_, *(er_ or []))
                 if S_.get("prova") or not S_.get("ok_tel") or "scarico" in S_.get("fase", "") or "aspetto" in S_.get("fase", ""):
                     break
-                time.sleep(20)
+                time.sleep(15)  # il traduttore si sta accendendo
+            tel1_ = telefono()
+            print(f"Dopo {round((time.time() - t0_) / 60, 1)} minuti: batteria {tel1_.get('batteria')}%, {tel1_.get('temp')} gradi")
+            if senza_c:
+                _off_ferma(S_)  # staccato dal caricatore il traduttore non resta acceso
+                _off_salva(S_)
         S_ = _off_stato()
         print("Officina del telefono:", S_.get("fase", "non ancora partita"), "· in carica e al fresco:", "sì" if S_.get("ok_tel") else "no")
         if S_.get("prova"):
