@@ -55,7 +55,8 @@ function avvisoHtml(a) {
   const t = Date.parse(a.quando || ''), q = t ? new Date(t).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
   const tipo = a.nome || { picco: 'molte più notizie confermate del solito', fatto: 'fatto grave', cielo: 'cielo', calore: 'calore dal satellite', valuta: 'moneta', tasso: 'titoli di Stato' }[a.tipo] || a.tipo;
   return '<div class="item avv' + (a.livello >= 2 ? ' l2' : '') + '"><div class="t">' + collega(a.testo) + '</div><div class="m">' + esc(q) + ' · ' + esc(tipo) +
-    (a.u ? ' · <a href="' + safeU(a.u) + '" target="_blank" rel="noopener">' + esc(a.f || 'fonte') + '</a>' : '') + (STATI[a.stato] ? ' · ' + stLink(a.stato) : '') + '</div>' +
+    (a.u ? ' · <a href="' + safeU(a.u) + '" target="_blank" rel="noopener">' + esc(a.f || 'fonte') + '</a>' : '') + (STATI[a.stato] ? ' · ' + stLink(a.stato) : '') +
+    (a.simili ? ' · lo raccontano anche altri ' + a.simili + (a.simili === 1 ? ' titolo' : ' titoli') : '') + '</div>' +
     (a.prec ? '<div class="s">' + esc(a.prec) + (STATI[a.stato] ? ' <a href="#stati/' + STATI[a.stato].slug + '/storia">Storia →</a>' : '') + '</div>' : '') + '</div>';
 }
 function attesaHtml(stato, cosa) {  // dalla 41: messaggio senza numero di versione (ogni file arriva con il suo giro completo)

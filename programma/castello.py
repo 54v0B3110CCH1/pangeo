@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.33"
+VERSIONE = "2.33.1"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -4808,6 +4808,56 @@ AVVISI_ALIAS = {
 _RX_AVVISI_ALIAS = [(st, re.compile(r"(?<![\w])(?:" + rx + r")", re.I)) for st, rx in AVVISI_ALIAS.items()]
 
 
+def _avvisi_prepara():
+    global _RX_AVVISI, _RIC_AVVISI
+    if _RX_AVVISI is None:
+        _RX_AVVISI = [(t, nome, fonti, liv, re.compile(rx)) for t, nome, fonti, liv, rx in AVVISI_REGOLE]
+    if _RIC_AVVISI is None:
+        try:
+            _RIC_AVVISI = Riconoscitore(leggi_json(os.path.join(QUI, "paesi.json"), {}) or {})
+        except Exception:
+            _RIC_AVVISI = False
+
+
+def _titolo_avviso(a):
+    m_ = re.match(r"^(.*?): (.*?)(?: \(\d+ fonti\))?$", a.get("testo", ""))
+    return m_.group(2) if m_ else a.get("testo", "")
+
+
+def avvisi_ripulisci(elenco):
+    """Dalla 2.33: rilegge con le regole nuove gli avvisi già scritti. Lo stesso fatto raccontato da più titoli resta un
+    solo avviso (con «simili»: quanti titoli in più lo raccontano), lo Stato diventa quello nominato nel titolo, e gli
+    avvisi nati da processi, sentenze o frasi riferite (o senza nessuno Stato nominato) si tolgono."""
+    _avvisi_prepara()
+    tenuti, per_giorno = [], {}
+    for a in elenco:
+        if a.get("tipo") != "fatto":
+            tenuti.append(a)
+            continue
+        m_ = re.match(r"^(.*?): (.*?)(?: \((\d+) fonti\))?$", a.get("testo", ""))
+        titolo = m_.group(2) if m_ else a.get("testo", "")
+        sotto = a.get("sotto") or ""
+        if sotto in _RX_FUORI and _RX_FUORI[sotto].search(titolo.lower()):
+            continue
+        nominati = _stati_nominati(titolo)
+        if a.get("stato") not in nominati:
+            if not nominati:
+                continue
+            a = dict(a, stato=nominati[0], testo=nominati[0] + ": " + titolo + (f" ({m_.group(3)} fonti)" if m_ and m_.group(3) else ""),
+                     id=f"fatto:{sotto}:{nominati[0]}:" + (a.get("id", "").rsplit(":", 1)[-1] or (a.get("quando") or "")[:10]))
+        parole_ = _parole_avviso(titolo)
+        giorno_ = (a.get("quando") or "")[:10]
+        # lo stesso fatto: parole quasi uguali, oppure stesso tipo di avviso per lo stesso Stato nello stesso giorno
+        doppio = next((x for x in per_giorno.get(giorno_, []) if _stesso_fatto(parole_, x[0])
+                       or (x[1].get("sotto") == sotto and x[1].get("stato") == a.get("stato"))), None)
+        if doppio:
+            doppio[1]["simili"] = doppio[1].get("simili", 0) + 1
+            continue
+        per_giorno.setdefault(giorno_, []).append((parole_, a))
+        tenuti.append(a)
+    return tenuti
+
+
 def _stati_nominati(testo):
     trovati = _RIC_AVVISI.trova(testo) if _RIC_AVVISI else []
     for st, rx in _RX_AVVISI_ALIAS:
@@ -4833,14 +4883,7 @@ def _avvisi_fatti(S_schede, oggi, ieri, imp):
     """Avvisi dai fatti in schede: morti (dal numero nel titolo) e le regole di AVVISI_REGOLE. Dalla 2.32.1: lo Stato
     dell'avviso deve essere nominato nel titolo (non basta il Paese della testata), un fatto dà un solo avviso anche se lo
     raccontano titoli diversi, e processi, sentenze e frasi riferite non fanno scattare guerra, golpe o attentati."""
-    global _RX_AVVISI, _RIC_AVVISI
-    if _RX_AVVISI is None:
-        _RX_AVVISI = [(t, nome, fonti, liv, re.compile(rx)) for t, nome, fonti, liv, rx in AVVISI_REGOLE]
-    if _RIC_AVVISI is None:
-        try:
-            _RIC_AVVISI = Riconoscitore(leggi_json(os.path.join(QUI, "paesi.json"), {}) or {})
-        except Exception:
-            _RIC_AVVISI = False
+    _avvisi_prepara()
     fuori, visti, testi, fatti_ = [], set(), set(), []
     for k, s in sorted(S_schede.items(), key=lambda kv: -(kv[1].get("nf") or 1)):
         if s.get("d") not in (oggi, ieri):
@@ -4920,13 +4963,25 @@ def avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg, chiavi):
     perc = os.path.join(DATI, "avvisi.json")
     V = leggi_json(perc, {}) or {}
     elenco = V.setdefault("elenco", [])
-    visti = {a["id"] for a in elenco}
+    visti = {a["id"] for a in elenco}  # anche gli avvisi tolti dalla pulizia restano «visti»: non tornano
+    if V.get("ripulito") != "2.33":  # una volta: gli avvisi scritti prima della 2.32.1 passano dalle regole nuove
+        elenco = avvisi_ripulisci(elenco)
+        V["ripulito"] = "2.33"
+        visti |= {a["id"] for a in elenco}
     calcolati_ = calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg)
     try:
         calcolati_ += avvisi_economia(cfg, adesso)  # dalla 2.30: monete e titoli di Stato
     except Exception:
         pass
     nuovi = [dict(a, quando=adesso.isoformat()) for a in calcolati_ if a["id"] not in visti]
+    # dalla 2.33: un fatto già avvisato nei 2 giorni prima non torna come avviso nuovo, anche se arriva con altre parole
+    # (e lo stesso tipo di avviso per lo stesso Stato non torna prima di 24 ore: «uno per tipo, Stato e giorno»)
+    due_ = (adesso - timedelta(days=2)).isoformat()
+    un_g = (adesso - timedelta(hours=24)).isoformat()
+    gia_ = [_parole_avviso(_titolo_avviso(a)) for a in elenco if a.get("tipo") == "fatto" and a.get("quando", "") >= due_]
+    gia_ts = {(a.get("sotto"), a.get("stato")) for a in elenco if a.get("tipo") == "fatto" and a.get("quando", "") >= un_g}
+    nuovi = [a for a in nuovi if a.get("tipo") != "fatto" or not (
+        (a.get("sotto"), a.get("stato")) in gia_ts or any(_stesso_fatto(_parole_avviso(_titolo_avviso(a)), x) for x in gia_))]
     # dalla 2.32.1: al massimo «massimo_nuovi» avvisi nuovi per giro (prima i più gravi); gli altri tornano al giro dopo
     # se sono ancora del giorno
     nuovi.sort(key=lambda a: -(a.get("livello") or 1))

@@ -421,6 +421,10 @@ NOVITÀ 2.33 (20 novembre, sera) – LA STORIA DI OGNI STATO, COLLEGATA AL PRESE
 - Nella pagina: «Storia» in prima pagina (colpi di Stato degli ultimi anni, Stati con più anni di guerra e più colpi di
   Stato) e in ogni Stato, alla voce Storia, cronologia, conflitti, colpi di Stato, civili e gruppi armati, con le fonti.
 - python castello.py storia            riassunto      python castello.py storia Mali     la storia di uno Stato
+- 2.33.1, avvisi raggruppati: lo stesso fatto raccontato da più titoli (anche in lingue e con parole diverse) è un solo
+  avviso, con «lo raccontano anche altri N titoli»; lo stesso tipo di avviso per lo stesso Stato non torna prima di 24 ore;
+  al primo giro gli avvisi già scritti prima vengono ripuliti una volta con le regole nuove (sugli avvisi veri di stasera:
+  da 56 avvisi di fatti a 21, per esempio i 5 sulla Somalia e gli Emirati diventano 1, i 3 sul diciottenne tedesco 1).
 - Si regola in config.json › storia (attiva, giorni_archivi, cronologia, giorni_cronologia, stati_per_giro_carica,
   stati_per_giro). Nel diario: «storia» [cronologie scritte nel giro, Stati con cronologia, in coda, Stati negli
   archivi, conflitti, colpi di Stato].
