@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.26.1"
+VERSIONE = "2.27"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -1432,6 +1432,10 @@ def chiedi_claude(chiavi, cfg, testo, massimo=900, conto=None):
         conto["usd_oggi"] = round(conto.get("usd_oggi", 0.0) + d, 5)
         conto["usd_mese"] = round(conto.get("usd_mese", 0.0) + d, 5)
         conto["token_oggi"] = conto.get("token_oggi", 0) + en + us
+        l_ = lavoro_di(testo)  # dalla 2.27: quanto costa ogni lavoro (per sapere che cosa conviene far fare al telefono)
+        for campo_ in ("lavori_oggi", "lavori_mese"):
+            conto.setdefault(campo_, {})
+            conto[campo_][l_] = round(conto[campo_].get(l_, 0.0) + d, 5)
     uscita_ = "".join(b.get("text", "") for b in r.get("content", []) if b.get("type") == "text").strip()
     if r.get("stop_reason") == "max_tokens" and "\n" in uscita_:
         uscita_ = uscita_.rsplit("\n", 1)[0].rstrip()  # l'ultima riga è rimasta a metà: meglio toglierla
@@ -1444,7 +1448,8 @@ def _conto_cervello():
     oggi = datetime.now().date().isoformat()
     if conto.get("giorno") != oggi:
         conto = {"giorno": oggi, "chiamate": 0, "brief": conto.get("brief"), "usd_oggi": 0.0, "token_oggi": 0,
-                 "mese": conto.get("mese"), "usd_mese": conto.get("usd_mese", 0.0)}
+                 "mese": conto.get("mese"), "usd_mese": conto.get("usd_mese", 0.0),
+                 "lavori_mese": conto.get("lavori_mese", {}) if conto.get("mese") == datetime.now().strftime("%Y-%m") else {}}
     return conto
 
 
@@ -1488,6 +1493,10 @@ def cervello(chiavi, cfg, archivio, recente, ric, errori):
     da_tradurre = sorted((v for _, v in voci if not v.get("it") and not v.get("gia_it")
                           and (NON_LATINO.search(v["t"]) or v.get("lg") or (tutto_it and lingua_titolo(v["t"]) != "it"))),
                          key=lambda v: v.get("data_iso") or "", reverse=True)
+    try:  # dalla 2.27: le lingue che il traduttore del telefono sa fare le traduce lui, gratis
+        da_tradurre = officina_traduci(da_tradurre, cfg, ric, errori)
+    except Exception as e:
+        errori.append(f"Officina (traduzioni): {str(e)[:100]}")
     lotto_, lotti_ = impost.get("traduzioni_lotto", 30), 0
     numerata = re.compile(r"\s*\**(\d+)\**\s*[.):\-]\s*\**\s*(.+)")
     if lotti_ok and tetto and (da_tradurre or any(not v_.get("no") for v_ in archivio.get("attesa", {}).values())):
@@ -2536,6 +2545,16 @@ def rapporto_dati(diario, live=None, basi=None, prec=None, fine=None, ore=12, cf
     T.append(f"- Dati scaricati: {_it(att['mb'])} MB in {ore} ore (circa {_it(att['mb'] * 24 / ore / 1000, 1)} GB al giorno).")
     T.append(f"- Cervello (conto del programma, listino Haiku 5.5): {_it(att['spesa'], 2)} $ in {ore} ore · oggi {_it(numeri.get('usd_oggi', 0), 2)} $"
              f" su {_it(tetto_g, 2)} · mese {_it(numeri.get('usd_mese', 0), 2)} $ su {_it(tetto_m, 0)} · a questo ritmo {_it(proiezione, 2)} $ in 30 giorni.")
+    lav_ = ((live or {}).get("spesa_lavori") or {}).get("lavori_mese") or {}
+    if lav_:
+        T.append("- Spesa del mese per lavoro: " + " · ".join(f"{k} {_it(v, 2)} $" for k, v in sorted(lav_.items(), key=lambda x: -x[1])[:7]) + ".")
+    off_ = (live or {}).get("officina") or {}
+    if off_.get("fase"):
+        pr_ = off_.get("prova") or {}
+        T.append(f"- Officina del telefono: {off_['fase']}"
+                 + (f" · prova: {pr_.get('titoli')} titoli, {_it(pr_.get('secondi_a_titolo'), 1)} secondi a titolo, lingue buone: "
+                    + (", ".join(NOMI_LINGUE.get(x, x) for x in pr_.get("buone") or []) or "nessuna") if pr_ else "")
+                 + (f" · tradotti gratis oggi: {off_.get('tradotti_oggi') or 0}" if off_.get("tradotti_tutti") else "") + ".")
     T.append("  Il credito vero si vede solo nella console: https://platform.claude.com/settings/billing")
     if avvisi:
         T.append("")
@@ -3771,6 +3790,251 @@ def scrivi_piano_web(P, cfg, totale):
     for k, v in P["stati"].items():
         _scrivi_se_cambia(os.path.join(WEB, "piano", file_[k] + ".json"),
                           json.dumps(dict(v, stato=k, pieno=True), ensure_ascii=False, separators=(",", ":")))
+
+
+# ----------------------------------------------------------------------------- officina: attrezzi gratuiti sul telefono (dalla 2.27)
+
+# Il programma spende il credito di Claude soprattutto per tradurre e scegliere i titoli. Il telefono di Savo è dedicato
+# a PanGeo: dove può, il lavoro lo fa il telefono, gratis, con attrezzi che il programma si installa e si prova da solo.
+#   1. conta quanto costa ogni lavoro del cervello (cervello.json › lavori_oggi, lavori_mese)
+#   2. si installa llama.cpp (pkg install llama-cpp) e scarica un modello piccolo e aperto (Qwen3 4B, licenza
+#      Apache 2.0, circa 2,5 GB), solo in carica e in Wi-Fi
+#   3. lo prova: traduce titoli che il cervello ha già tradotto e confronta, lingua per lingua, e misura la velocità
+#   4. se va bene, traduce lui i titoli di quelle lingue, solo in carica e sotto i 38 gradi; il resto lo fa il cervello
+#   Ogni settimana si riprova. Gli attrezzi sono scritti qui: codice nuovo arriva sempre con «approva».
+
+LAVORI_CERVELLO = (("Traduci in italiano questi titoli", "traduzioni"), ("Traduci in italiano questi testi", "traduzioni del sapere"),
+                   ("Sono titoli di giornali", "sala d'attesa"), ("Sei il redattore", "da sapere adesso"),
+                   ("Lavori a un archivio", "lavoro a piano"), ("Ecco i fatti", "sintesi"), ("Domanda", "domande e risposte"),
+                   ("Sei il revisore", "revisore"))
+
+
+def lavoro_di(testo):
+    t = (testo or "")[:80]
+    for inizio, nome in LAVORI_CERVELLO:
+        if t.startswith(inizio):
+            return nome
+    if "QUADRO" in (testo or "")[:3000] or "scaletta" in (testo or "")[:1500]:
+        return "quadro"
+    if "servizi di intelligence" in (testo or "")[:400] or "servizio di" in (testo or "")[:300]:
+        return "servizi"
+    return "altro"
+
+
+OFFICINA_MODELLO = {"nome": "Qwen3 4B Instruct 2507 (Q4_K_M)", "licenza": "Apache 2.0", "byte": 2497281120,
+                    "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"}
+# provato il 20 novembre 2026 su 12 titoli in 9 lingue: traduzioni buone (Qwen2.5 1.5B invece no: lasciava il francese
+# in francese e l'arabo in arabo). Sul telefono servono circa 3 GB di memoria mentre lavora.
+OFF = lambda *p: os.path.join(DATI, "officina", *p)
+NOMI_LINGUE = {"ru": "russo", "uk": "ucraino", "ar": "arabo", "fa": "persiano", "he": "ebraico", "tr": "turco", "zh": "cinese",
+               "ja": "giapponese", "ko": "coreano", "hi": "hindi", "id": "indonesiano", "es": "spagnolo", "pt": "portoghese",
+               "fr": "francese", "de": "tedesco", "en": "inglese", "pl": "polacco", "sr": "serbo", "hr": "croato", "bg": "bulgaro",
+               "ro": "rumeno", "hu": "ungherese", "cs": "ceco", "nl": "olandese", "el": "greco", "vi": "vietnamita", "th": "thai"}
+
+
+def _lingua_di(v):
+    return v.get("lg") or lingua_titolo(v.get("t") or "")
+
+
+def _off_stato():
+    return leggi_json(OFF("stato.json"), {}) or {}
+
+
+def _off_salva(S):
+    os.makedirs(OFF(), exist_ok=True)
+    scrivi_json(OFF("stato.json"), S)
+
+
+def _wifi():
+    """Vero se il telefono è in Wi-Fi (app Termux:API); se non si sa, falso: il modello pesa 2,5 GB."""
+    if not shutil.which("termux-wifi-connectioninfo"):
+        return False
+    try:
+        r = subprocess.run(["termux-wifi-connectioninfo"], capture_output=True, text=True, timeout=20)
+        w = json.loads(r.stdout or "{}")
+        return w.get("supplicant_state") == "COMPLETED" and w.get("ip") not in (None, "", "0.0.0.0")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False
+
+
+def _vivo_pid(pid):
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def _off_server_su(S, porta):
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{porta}/health", timeout=3) as r:
+            return r.status == 200
+    except OSError:
+        return False
+
+
+def _off_ferma(S):
+    if S.get("pid_server") and _vivo_pid(S["pid_server"]):
+        try:
+            os.kill(int(S["pid_server"]), signal.SIGTERM)
+        except OSError:
+            pass
+    S["pid_server"] = None
+
+
+def _off_traduci_uno(testo, porta, attesa=60):
+    corpo = json.dumps({"messages": [
+        {"role": "system", "content": "Sei un traduttore. Traduci in italiano il titolo di giornale che ti viene dato. Traduzione "
+                                      "fedele e completa; nomi di persone, luoghi, sigle e numeri restano come sono. Rispondi "
+                                      "solo con la traduzione, su una riga, senza virgolette e senza commenti."},
+        {"role": "user", "content": testo}], "temperature": 0.1, "max_tokens": 90, "stream": False}).encode("utf-8")
+    req = urllib.request.Request(f"http://127.0.0.1:{porta}/v1/chat/completions", data=corpo,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=attesa) as r:
+        d = json.loads(r.read())
+    t = ((d.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+    t = t.strip().splitlines()[0].strip().strip('"«»“”') if t.strip() else ""
+    return pulisci(t, 300)
+
+
+def _somiglia(a, b):
+    pa = {w for w in re.findall(r"\w+", _norm(a)) if len(w) > 2}
+    pb = {w for w in re.findall(r"\w+", _norm(b)) if len(w) > 2}
+    return len(pa & pb) / max(len(pa | pb), 1)
+
+
+def officina(cfg, tel, archivio, errori, adesso):
+    """A ogni giro, un passo: installa, scarica, accende o spegne, prova. Mai fuori carica o con il telefono caldo."""
+    imp = cfg.get("officina", {})
+    if not imp.get("attivo", True) or not _su_termux():
+        return None
+    S = _off_stato()
+    S.setdefault("fase", "da installare")
+    porta = imp.get("porta", 8091)
+    ok_tel = bool(tel.get("in_carica")) and (tel.get("temp") or 99) < imp.get("temp_max", 38) and (tel.get("batteria") or 0) >= 40
+    S["ok_tel"] = ok_tel
+    if not ok_tel:
+        _off_ferma(S)  # fuori carica o caldo: il traduttore si spegne e lavora il cervello
+        _off_salva(S)
+        return S
+    # 1. llama.cpp dal repository di Termux (una volta; se non riesce, si riprova il giorno dopo)
+    if not shutil.which("llama-server"):
+        if S.get("pkg_provato") == adesso.date().isoformat():
+            _off_salva(S)
+            return S
+        S["pkg_provato"], S["fase"] = adesso.date().isoformat(), "installo llama.cpp"
+        _off_salva(S)
+        try:
+            r = subprocess.run(["pkg", "install", "-y", "llama-cpp"], capture_output=True, text=True, timeout=1200,
+                               stdin=subprocess.DEVNULL, env=dict(os.environ, DEBIAN_FRONTEND="noninteractive"))
+            if r.returncode or not shutil.which("llama-server"):
+                S["errore"] = "pkg install llama-cpp: " + (r.stderr or r.stdout or "")[-200:]
+                errori.append("Officina: llama.cpp non si è installato (riprovo domani)")
+        except (OSError, subprocess.SubprocessError) as e:
+            S["errore"] = str(e)[:200]
+        S["fase"] = "da scaricare" if shutil.which("llama-server") else "da installare"
+        _off_salva(S)
+        return S
+    # 2. il modello, scaricato in sottofondo con curl (riprende da dove era rimasto), solo in Wi-Fi
+    mod = OFF("modello.gguf")
+    if not os.path.exists(mod) or os.path.getsize(mod) != OFFICINA_MODELLO["byte"]:
+        if S.get("pid_curl") and _vivo_pid(S["pid_curl"]):
+            S["fase"] = f"scarico il modello ({round(os.path.getsize(mod + '.part') / 1e6) if os.path.exists(mod + '.part') else 0} MB)"
+        elif os.path.exists(mod + ".part") and os.path.getsize(mod + ".part") == OFFICINA_MODELLO["byte"]:
+            os.replace(mod + ".part", mod)
+        elif _wifi() or imp.get("scarica_senza_wifi", False):
+            if not shutil.which("curl"):
+                subprocess.run(["pkg", "install", "-y", "curl"], capture_output=True, timeout=600, stdin=subprocess.DEVNULL)
+            os.makedirs(OFF(), exist_ok=True)
+            p = subprocess.Popen(["curl", "-sL", "-C", "-", "--retry", "3", "-o", mod + ".part", OFFICINA_MODELLO["url"]],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            S["pid_curl"], S["fase"] = p.pid, "scarico il modello"
+        else:
+            S["fase"] = "aspetto il Wi-Fi per scaricare il modello (2,5 GB)"
+        _off_salva(S)
+        return S
+    # 3. il server locale: acceso solo in carica e al fresco
+    if not _off_server_su(S, porta):
+        if not (S.get("pid_server") and _vivo_pid(S["pid_server"])):
+            log = open(OFF("server.log"), "ab")
+            p = subprocess.Popen(["llama-server", "-m", mod, "--host", "127.0.0.1", "--port", str(porta), "-c", "1024",
+                                  "-t", str(imp.get("thread", 4))], stdout=log, stderr=log,
+                                 stdin=subprocess.DEVNULL, start_new_session=True)
+            S["pid_server"] = p.pid
+        S["fase"] = "accendo il traduttore"
+        _off_salva(S)
+        return S  # il modello si carica in qualche secondo: si usa dal giro dopo
+    # 4. la prova (la prima volta e poi ogni settimana): titoli già tradotti dal cervello, lingua per lingua
+    prova = S.get("prova") or {}
+    if not prova.get("quando") or prova["quando"] < (adesso - timedelta(days=7)).isoformat():
+        campione = [v for v in archivio.get("notizie", {}).values() if v.get("it") and v.get("tr") != "telefono"
+                    and _lingua_di(v) not in ("it", "", None)]
+        per_lingua = {}
+        for v in sorted(campione, key=lambda x: x.get("data_iso") or "", reverse=True):
+            if len(per_lingua.setdefault(_lingua_di(v), [])) < 4:
+                per_lingua[_lingua_di(v)].append(v)
+        scelti = [v for l in per_lingua.values() for v in l][:imp.get("prova_titoli", 24)]
+        esiti, t0 = {}, time.time()
+        for v in scelti:
+            if time.time() - t0 > imp.get("secondi_per_giro", 150):
+                break
+            try:
+                tr = _off_traduci_uno(v["t"], porta)
+            except (OSError, ValueError) as e:
+                errori.append(f"Officina (prova): {str(e)[:100]}")
+                break
+            esiti.setdefault(_lingua_di(v), []).append(round(_somiglia(tr, v["it"]), 2))
+        fatti = sum(len(l) for l in esiti.values())
+        if fatti:
+            sec = (time.time() - t0) / fatti
+            soglia = imp.get("somiglianza_minima", 0.45)
+            S["prova"] = {"quando": adesso.isoformat(), "titoli": fatti, "secondi_a_titolo": round(sec, 1),
+                          "lingue": {lg: round(sum(l) / len(l), 2) for lg, l in esiti.items()},
+                          "buone": sorted(lg for lg, l in esiti.items() if len(l) >= 2 and sum(l) / len(l) >= soglia)}
+            S["fase"] = "attivo" if S["prova"]["buone"] and sec <= imp.get("secondi_max_a_titolo", 20) else "provato: non abbastanza buono"
+        _off_salva(S)
+        return S
+    S["fase"] = "attivo" if prova.get("buone") and prova.get("secondi_a_titolo", 99) <= imp.get("secondi_max_a_titolo", 20) \
+        else "provato: non abbastanza buono"
+    _off_salva(S)
+    return S
+
+
+def officina_traduci(da_tradurre, cfg, ric, errori):
+    """Prima del cervello: il telefono traduce gratis i titoli delle lingue che ha superato la prova. Restituisce quelli
+    rimasti da tradurre, che vanno al cervello come prima."""
+    imp = cfg.get("officina", {})
+    S = _off_stato()
+    if S.get("fase") != "attivo" or not S.get("ok_tel") or not _off_server_su(S, imp.get("porta", 8091)):
+        return da_tradurre
+    buone, porta = set((S.get("prova") or {}).get("buone") or []), imp.get("porta", 8091)
+    resto, fatti, t0 = [], 0, time.time()
+    for i, v in enumerate(da_tradurre):
+        if time.time() - t0 > imp.get("secondi_per_giro", 150) or fatti >= imp.get("per_giro", 40):
+            resto.extend(da_tradurre[i:])
+            break
+        if _lingua_di(v) not in buone:
+            resto.append(v)
+            continue
+        try:
+            tr = _off_traduci_uno(v["t"], porta)
+        except (OSError, ValueError) as e:
+            errori.append(f"Officina (traduzioni): {str(e)[:100]}")
+            resto.extend(da_tradurre[i:])
+            break
+        if len(tr) < 8 or tr.strip().lower() == v["t"].strip().lower():
+            resto.append(v)
+            continue
+        v["it"], v["tr"] = tr, "telefono"
+        fatti += 1
+        for p in ric.trova(tr):
+            if p not in v["paesi"]:
+                v["paesi"].append(p)
+    S["tradotti_oggi"] = (S.get("tradotti_oggi", 0) if S.get("giorno") == datetime.now().date().isoformat() else 0) + fatti
+    S["giorno"], S["tradotti_tutti"] = datetime.now().date().isoformat(), S.get("tradotti_tutti", 0) + fatti
+    _off_salva(S)
+    officina_traduci.fatti = fatti
+    return resto
 
 
 # ----------------------------------------------------------------------------- quadro: scaletta e collegamenti (dalla 2.23)
@@ -5442,6 +5706,12 @@ def _aggiorna(leggero=False):
             v_["paesi"] = [v_["rip"]]
     analisi = analizza(archivio, recente, auto, cfg, chiavi, dati_cielo, paesi, rotte_)
     scrivi_json(os.path.join(DATI, "fonti_auto.json"), auto)
+    try:  # dalla 2.27: l'officina fa un passo (installa, scarica, accende, prova) solo in carica e al fresco
+        stato_off = officina(cfg, telefono(), archivio, errori, adesso)
+    except Exception as e:
+        stato_off = None
+        errori.append(f"Officina: {str(e)[:120]}")
+    officina_traduci.fatti = 0
     brief = cervello(chiavi, cfg, archivio, recente, ric, errori)
     # esito delle verifiche attive: «confermata» se adesso un'altra fonte affidabile riporta lo stesso fatto
     ver_giro = [len(in_verifica), 0]
@@ -5525,6 +5795,8 @@ def _aggiorna(leggero=False):
         "quadro": quadro_pagina(),
         "servizi": sum(1 for v_ in leggi_json(os.path.join(DATI, "servizi.json"), {}).values() if v_.get("sintesi")),
         "motori": {k_: {c_: v_.get(c_) for c_ in ("prove", "titoli", "errori", "pausa", "ultimo_errore")} for k_, v_ in _motori().items()},
+        "spesa_lavori": {k_: leggi_json(os.path.join(DATI, "cervello.json"), {}).get(k_) or {} for k_ in ("lavori_oggi", "lavori_mese")},
+        "officina": {k_: _off_stato().get(k_) for k_ in ("fase", "prova", "tradotti_oggi", "tradotti_tutti", "errore")},
         "errori": errori,
     }
     # diario del giro: che cosa è entrato, da dove, quanto è costato ai siti (lo legge `rapporto`, va anche su GitHub)
@@ -5565,6 +5837,7 @@ def _aggiorna(leggero=False):
         "rifiuti": dict(RIFIUTI), "errori": len(errori), "usd_oggi": conto_c.get("usd_oggi", 0),
         "usd_mese": conto_c.get("usd_mese", 0), "tradotti": sum(1 for v in archivio["notizie"].values() if v.get("it")),
         "mag": stato_mag, "bing": getattr(_piano_titoli, "bing", 0),
+        "off": [(stato_off or {}).get("fase", ""), getattr(officina_traduci, "fatti", 0)] if stato_off else None,
     })
     scrivi_json(os.path.join(DATI, "diario.json"), diario[-120:])
     live["diario"] = [{k: v for k, v in x.items() if k not in ("ricerche", "siti")} for x in diario[-60:]]  # per la pagina
@@ -6611,6 +6884,33 @@ if __name__ == "__main__":
             print(f"  {r_.get('d', '')} · {', '.join((r_.get('p') or [])[:3])} · {r_.get('dove', '')}" + (" · confermata" if r_.get("c") else ""))
             print(f"    {r_.get('t', '')}")
             print(f"    {r_.get('f') or ''} {r_.get('u') or ''}")
+    elif comando == "officina":
+        cfg_o = leggi_json(os.path.join(QUI, "config.json"), {})
+        if len(a) > 1 and a[1] == "prova":  # prova subito (in carica e al fresco, come nei giri)
+            S_ = _off_stato()
+            S_.pop("prova", None)
+            _off_salva(S_)
+            for _ in range(4):
+                er_ = []
+                S_ = officina(cfg_o, telefono(), leggi_json(os.path.join(DATI, "archivio.json"), {}), er_, datetime.now(timezone.utc)) or {}
+                print("Officina:", S_.get("fase", "spenta"), *(er_ or []))
+                if S_.get("prova") or not S_.get("ok_tel") or "scarico" in S_.get("fase", "") or "aspetto" in S_.get("fase", ""):
+                    break
+                time.sleep(20)
+        S_ = _off_stato()
+        print("Officina del telefono:", S_.get("fase", "non ancora partita"), "· in carica e al fresco:", "sì" if S_.get("ok_tel") else "no")
+        if S_.get("prova"):
+            pr_ = S_["prova"]
+            print(f"  prova del {pr_['quando'][:16]}: {pr_['titoli']} titoli, {pr_['secondi_a_titolo']} secondi a titolo")
+            for lg_, v_ in sorted(pr_.get("lingue", {}).items(), key=lambda x: -x[1]):
+                print(f"    {NOMI_LINGUE.get(lg_, lg_)}: somiglianza con il cervello {v_}" + ("  ← la fa il telefono" if lg_ in pr_.get("buone", []) else ""))
+        if S_.get("tradotti_tutti"):
+            print(f"  tradotti gratis dal telefono: {S_.get('tradotti_oggi', 0)} oggi, {S_['tradotti_tutti']} in tutto")
+        if S_.get("errore"):
+            print("  ultimo errore:", S_["errore"])
+        c_ = leggi_json(os.path.join(DATI, "cervello.json"), {})
+        if c_.get("lavori_mese"):
+            print("Spesa del cervello questo mese, per lavoro: " + " · ".join(f"{k} {v:.2f} $" for k, v in sorted(c_["lavori_mese"].items(), key=lambda x: -x[1])))
     elif comando == "magazzino":
         I_ = leggi_json(MAG("indice.json"), {}) or {}
         g_ = I_.get("giorni", {})

@@ -405,6 +405,21 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.27 (20 novembre, pomeriggio) – L'OFFICINA: IL TELEFONO SI FA DA SOLO GLI ATTREZZI GRATUITI
+- Conta quanto costa ogni lavoro del cervello (traduzioni, sala d'attesa, lavoro a piano, sintesi, quadro…): nel
+  rapporto delle 12 ore e con  python castello.py officina
+- Traduttore sul telefono, gratis: in carica, sotto i 38 gradi e in Wi-Fi il programma si installa llama.cpp
+  (pkg install llama-cpp) e scarica un modello aperto (Qwen3 4B Instruct, licenza Apache 2.0, 2,5 GB, dentro dati/officina).
+  Poi lo prova da solo: traduce titoli che il cervello ha già tradotto e confronta, lingua per lingua, e misura la
+  velocità. Le lingue che passano la prova le traduce il telefono; le altre restano al cervello. Ogni settimana riprova.
+  Staccato il caricatore o con il telefono caldo il traduttore si spegne e lavora il cervello come prima.
+  Provato qui il 20 novembre su 12 titoli in 9 lingue: russo, francese, spagnolo, arabo e indonesiano promossi, turco no.
+  Un modello più piccolo (Qwen2.5 1.5B) traduceva male: la prova lo aveva scartato da sola.
+      python castello.py officina          a che punto è, prova, lingue promosse, quanto ha tradotto, spesa per lavoro
+      python castello.py officina prova    rifà la prova adesso (in carica)
+- Gli attrezzi che il programma sa installare e provare sono scritti nel programma: codice nuovo arriva sempre con «approva».
+- Si spegne da config.json: officina › attivo. Tetti: temp_max, per_giro, secondi_per_giro, somiglianza_minima.
+
 NOVITÀ 2.26.1 (20 novembre, pomeriggio) – BING DAL TELEFONO, MOTORI CHE IMPARANO
 - Dal telefono Bing mandava la sua pagina web invece del feed: riconosceva l'intestazione di un browser Android. Ora il
   programma si presenta come lettore RSS e Bing risponde con il feed. Se manda di nuovo una pagina web, l'errore lo dice.
