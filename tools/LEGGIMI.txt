@@ -46,3 +46,6 @@ poi tabelle.js; solo dopo si pubblica.
                                                  d'archivio del CIA World Factbook: scrive tabelle/infra.json (lo legge la pagina)
   node tools/build34.js base.html out.html      cartelle Energia, Trasporti e logistica, Cibo e risorse, Dipendenze e commercio,
                                                  spesa per settori in «Numeri», vista #risorse (testo in dati/ext34.js)
+  node tools/build35.js base.html out.html      (programma 2.24) pezzi del puzzle nelle cartelle Energia, Trasporti, Cibo e nella
+                                                 cartella «IA in campo militare» (vista #ia), siti militari da Wikidata nelle
+                                                 cartelle delle basi (basi.js), tappe dei fatti fusi (testo in dati/ext35.js)
