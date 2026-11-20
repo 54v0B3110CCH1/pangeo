@@ -40,3 +40,5 @@ poi tabelle.js; solo dopo si pubblica.
 - build32.js (programma 2.23): servizi riassunti (servizi.js), rilevanza dei fatti del piano, vista #quadro con la scaletta
   e i collegamenti; le prime 5 della scaletta in prima pagina e in Live. Il testo dell'estensione sta in dati/ext32.js.
     node tools/build32.js index.html index.html
+- build33.js: avviso rosso dopo 45 minuti sul telefono e 75 sul sito, con le tre cause (rete, programma fermo, GitHub).
+    node tools/build33.js index.html index.html

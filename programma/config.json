@@ -4369,7 +4369,7 @@
   "altri_min_minuti": 30,
   "senza_sosta": {
    "attivo": true,
-   "ogni_minuti": 10
+   "ogni_minuti": 15
   }
  },
  "guardia": {

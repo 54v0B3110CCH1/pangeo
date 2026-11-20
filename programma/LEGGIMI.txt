@@ -416,6 +416,11 @@ NOVITÀ 2.23 (20 novembre, notte) – SERVIZI RIASSUNTI, SCALETTA DI RILEVANZA, 
   Google News e scrive la risposta con le fonti. Nella pagina: «Le più rilevanti adesso» in prima pagina e in Live, tutto
   in #quadro.   python castello.py domande   (punti 6 e 7)
 - Costo stimato: pochi centesimi al giorno in più, dentro gli stessi tetti di spesa.
+- Ritmo: un giro ogni 15 minuti (prima 10), il completo sempre ogni 3 ore circa. Consuma meno batteria e meno dati
+  e resta continuo. Arriva da solo con config.json, senza «approva». Per cambiarlo: giro_leggero › senza_sosta › ogni_minuti
+  (10, 15, 20, 30 o 60). Di notte conviene tenere il telefono in carica: sotto il 15% di batteria il programma va in pausa.
+- Nella pagina l'avviso rosso arriva prima: sul telefono dopo 45 minuti senza giri, sul sito dopo 75 minuti senza dati,
+  con le tre cause possibili (rete assente, programma fermo, collegamento a GitHub).
 
 NOVITÀ 2.22 (19 novembre, notte) – INTELLIGENCE E QUATTRO CORREZIONI
 - Lavoro a piano, terzo tema dopo accordi e appalti: per ogni Stato cerca sulla stampa i fatti PUBBLICI sui servizi di
