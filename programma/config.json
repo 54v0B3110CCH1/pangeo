@@ -4462,7 +4462,7 @@
  "guardia": {
   "attiva": true,
   "temp_max": 42,
-  "temp_ok": 38,
+  "temp_ok": 39.5,
   "batteria_min": 15
  },
  "storia": {
