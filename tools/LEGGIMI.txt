@@ -49,3 +49,15 @@ poi tabelle.js; solo dopo si pubblica.
   node tools/build35.js base.html out.html      (programma 2.24) pezzi del puzzle nelle cartelle Energia, Trasporti, Cibo e nella
                                                  cartella «IA in campo militare» (vista #ia), siti militari da Wikidata nelle
                                                  cartelle delle basi (basi.js), tappe dei fatti fusi (testo in dati/ext35.js)
+  python3 tools/riunisci.py index.html pagina_claude_ai.html index.html
+                                                 riunisce la pagina di claude.ai (blocchi notturni, governi aggiornati, AGG:
+                                                 tutto ciò che sta prima della riga-àncora) con quella del repository (codice e
+                                                 estensioni, dall'àncora in poi). Si ferma se dalla pagina di claude.ai manca
+                                                 un blocco che il repository ha. Va lanciato prima di ogni estensione nuova.
+  node tools/build36.js base.html out.html      (programma 2.25) un solo ridisegno, file in cache 10 minuti, planisfero a
+                                                 richiesta, collegamenti nei testi (Stati, aziende, sistemi d'arma), vista
+                                                 #sistemi, schede degli altri Stati, sintesi, cartelle in cinque gruppi, prima
+                                                 pagina in sei aree, Documenti con rapporti e copertura (testo in dati/ext36.js)
+  python3 tools/manda_rapporto.py .             il rapporto da mandare per mail: quello del telefono se è delle ultime 3 ore,
+                                                 altrimenti lo calcola dai file su GitHub e dice perché (lo usa l'attività
+                                                 programmata «PanGeo: rapporto ogni 12 ore»)
