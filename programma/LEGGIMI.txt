@@ -405,6 +405,9 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.28.2 – Il telefono è dedicato a PanGeo: anche il traduttore lavora fuori carica, finché la batteria è almeno
+  al 35% e il telefono sta sotto i 38 gradi (config.json › officina › lavora_senza_carica, batteria_min_fuori_carica).
+  I giri continuano comunque fino al 15% di batteria, come prima.
 NOVITÀ 2.28.1 – Il modello si scarica anche fuori carica (sempre in Wi-Fi), se la batteria è almeno al 30%:
   config.json › officina › scarica_senza_carica, batteria_min_scarico. Il traduttore invece lavora solo in carica.
 

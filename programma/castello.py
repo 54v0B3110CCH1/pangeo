@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.28.1"
+VERSIONE = "2.28.2"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -3977,14 +3977,18 @@ def _somiglia(a, b):
 
 
 def officina(cfg, tel, archivio, errori, adesso):
-    """A ogni giro, un passo: installa, scarica, accende o spegne, prova. Mai fuori carica o con il telefono caldo."""
+    """A ogni giro, un passo: installa, scarica, accende o spegne, prova. Mai con il telefono caldo o la batteria bassa."""
     imp = cfg.get("officina", {})
     if not imp.get("attivo", True) or not _su_termux():
         return None
     S = _off_stato()
     S.setdefault("fase", "da installare")
     porta = imp.get("porta", 8091)
-    ok_tel = bool(tel.get("in_carica")) and (tel.get("temp") or 99) < imp.get("temp_max", 38) and (tel.get("batteria") or 0) >= 40
+    # dalla 2.28.2 il telefono è dedicato a PanGeo: il traduttore lavora anche fuori carica, finché la batteria non scende
+    # sotto la soglia (config.json › officina › batteria_min_fuori_carica) e il telefono resta al fresco
+    fuori_ok_ = imp.get("lavora_senza_carica", True) and (tel.get("batteria") or 0) >= imp.get("batteria_min_fuori_carica", 35)
+    ok_tel = (bool(tel.get("in_carica")) and (tel.get("batteria") or 0) >= 20 or fuori_ok_) \
+        and (tel.get("temp") or 99) < imp.get("temp_max", 38)
     S["ok_tel"] = ok_tel
     if not ok_tel:
         _off_ferma(S)  # fuori carica o caldo: il traduttore si spegne e lavora il cervello
@@ -7394,7 +7398,8 @@ if __name__ == "__main__":
                 _off_ferma(S_)  # staccato dal caricatore il traduttore non resta acceso
                 _off_salva(S_)
         S_ = _off_stato()
-        print("Officina del telefono:", S_.get("fase", "non ancora partita"), "· in carica e al fresco:", "sì" if S_.get("ok_tel") else "no")
+        print("Officina del telefono:", S_.get("fase", "non ancora partita"), "· batteria e temperatura permettono di lavorare:",
+              "sì" if S_.get("ok_tel") else "no")
         if S_.get("prova"):
             pr_ = S_["prova"]
             print(f"  prova del {pr_['quando'][:16]}: {pr_['titoli']} titoli, {pr_['secondi_a_titolo']} secondi a titolo")
