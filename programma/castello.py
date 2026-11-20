@@ -4806,12 +4806,15 @@ def calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg):
                           "testo": f"{p}: {c_oggi} notizie confermate oggi, di solito {mediana} al giorno."})
     nuovi += _avvisi_fatti(S_schede, oggi, ieri, imp)
     for p, v in ((dati_cielo or {}).get("paesi") or {}).items():
-        if isinstance(v, list) and len(v) > 2 and v[2]:
+        # dalla 2.31 solo i cieli che si svuotano davvero (non i cali), dove di solito volano almeno 20 aerei
+        if isinstance(v, list) and len(v) > 2 and v[2] == "vuoto" and (v[1] or 0) >= imp.get("cielo_minimo", 20):
             nuovi.append({"id": f"cielo:{p}:{oggi}", "tipo": "cielo", "stato": p, "livello": 1,
                           "testo": f"{p}: cielo {'vuoto' if v[2] == 'vuoto' else 'in forte calo'} ({v[0]} aerei in volo, di solito {v[1]}). "
                                    "Può essere uno spazio aereo chiuso, ma anche meteo o ricevitori spenti."})
     for p, v in ((dati_calore or {}).get("paesi") or {}).items():
-        if isinstance(v, list) and len(v) > 2 and v[2]:
+        # dalla 2.31 solo un calore almeno 4 volte la media e almeno 100 fonti (gli incendi agricoli di stagione restano fuori)
+        if isinstance(v, list) and len(v) > 2 and v[2] and (v[0] or 0) >= imp.get("calore_minimo", 100) \
+                and (v[0] or 0) >= imp.get("calore_volte", 4) * max(v[1] or 0, 1):
             nuovi.append({"id": f"calore:{p}:{oggi}", "tipo": "calore", "stato": p, "livello": 1,
                           "testo": f"{p}: fonti di calore da satellite in forte aumento ({v[0]} in 24 ore, media {v[1]}). "
                                    "Possono essere incendi, industria o attacchi: da confermare con le notizie."})

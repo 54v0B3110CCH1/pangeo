@@ -410,6 +410,8 @@ NOVITÀ 2.31 (20 novembre, sera) – AVVISI PIÙ RICCHI, IL PROCESSORE LAVORA AI
   basi, raffinerie e porti, spazio aereo chiuso, colpi di Stato, guerra dichiarata, legge marziale e mobilitazione,
   attentati, test nucleari e missili balistici, stato di emergenza. Solo da fatti confermati (di solito 3 testate
   diverse), un avviso per tipo, Stato e giorno, mai lo stesso titolo due volte. Il vertice sul nucleare non avvisa più.
+  Cielo: avvisa solo se si svuota davvero dove di solito volano almeno 20 aerei. Calore: solo se è almeno 4 volte la
+  media e almeno 100 fonti (gli incendi agricoli di stagione restano fuori). Soglie in config.json › avvisi.
 - Il processore lasciato libero dal traduttore lavora ai vettori dei significati tra un giro e l'altro (dal cuore):
   prima tutti i fatti confermati, poi tutte le notizie degli ultimi 7 giorni. La ricerca per significato trova anche le
   notizie non ancora confermate, e lo dice. Si spegne con config.json › officina › significato_continuo: false.
