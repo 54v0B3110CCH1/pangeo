@@ -405,6 +405,15 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.26.1 (20 novembre, pomeriggio) – BING DAL TELEFONO, MOTORI CHE IMPARANO
+- Dal telefono Bing mandava la sua pagina web invece del feed: riconosceva l'intestazione di un browser Android. Ora il
+  programma si presenta come lettore RSS e Bing risponde con il feed. Se manda di nuovo una pagina web, l'errore lo dice.
+- I motori di ricerca imparano (dati/motori.json): per Google News e Bing News il programma conta domande, titoli ed
+  errori, anche per tipo di domanda. Un motore che sbaglia 5 volte di fila riposa 2 ore; un tipo di domanda che con un
+  motore non porta quasi niente si riprova una volta su sei. Il rapporto delle 12 ore dice quanto rende ogni motore.
+- Cercare direttamente su google.com no: Google blocca i programmi con i controlli anti-robot e rischierebbe di bloccare
+  anche Google News sul telefono. Google News (feed RSS) è il modo permesso di cercare su Google, e c'è già.
+
 NOVITÀ 2.26 (20 novembre, pomeriggio) – IL TELEFONO DEDICATO: MAGAZZINO, PIÙ VELOCE, PIÙ FONTI
 - Magazzino sul telefono: ogni notizia resta per sempre, compressa con xz (circa un sesto del peso), un file per giorno in
   dati/magazzino/notizie. Ogni giorno anche una copia di memoria, piano, quadro, calore, servizi e siti militari, per

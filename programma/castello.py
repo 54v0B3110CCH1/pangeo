@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.26"
+VERSIONE = "2.26.1"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -2496,6 +2496,13 @@ def rapporto_dati(diario, live=None, basi=None, prec=None, fine=None, ore=12, cf
     n_bing = sum(x.get("bing") or 0 for x in G)
     if n_bing:
         T.append(f"- Bing News, la seconda fonte di ricerca: {_it(n_bing)} titoli in più.")
+    mot_ = (live or {}).get("motori") or {}
+    if mot_:
+        nomi_m = {"google": "Google News", "bing": "Bing News"}
+        T.append("- Motori di ricerca, da quando contano: " + " · ".join(
+            f"{nomi_m.get(k, k)} {_it(v.get('titoli') or 0)} titoli in {_it(v.get('prove') or 0)} domande"
+            + (f" ({v['errori']} errori)" if v.get("errori") else "")
+            + (" – in pausa" if (v.get("pausa") or "") > fine.isoformat() else "") for k, v in mot_.items()) + ".")
     if numeri.get("collegamenti") is not None:
         T.append(f"- Quadro: {numeri['collegamenti']} collegamenti tra i fatti.")
     T.append("")
@@ -2743,8 +2750,10 @@ def _piano_titoli(domande, giorni, errori, pausa=1.0, bing=()):
     """Fa le domande a Google News e mette insieme i titoli, senza doppioni. Restituisce i titoli, le domande con quanti
     titoli ha portato ognuna, e quante domande sono fallite."""
     titoli, visti, fatte, fallite = [], set(), [], 0
+    M_, ad_ = _motori(), datetime.now(timezone.utc)
     for tipo, lingua, q in domande:
         n0 = len(titoli)
+        err_ = None
         try:
             for t_, u_, d_, f_, _s in google_news(q, lingua if lingua in EDIZIONI else "en", giorni)[:45]:
                 chiave = re.sub(r"\W+", " ", (t_ or "").lower()).strip()[:90]
@@ -2756,12 +2765,18 @@ def _piano_titoli(domande, giorni, errori, pausa=1.0, bing=()):
             raise
         except Exception as e:
             fallite += 1
+            err_ = e
             errori.append(f"Lavoro a piano ({q[:40]}): {e}")
+        motore_esito(M_, "google", tipo, len(titoli) - n0, err_, ad_)
         fatte.append([tipo, lingua, q, len(titoli) - n0])
         time.sleep(pausa)
     # dalla 2.26: domande semplici anche a Bing News (seconda fonte: più titoli, e lavora quando Google rifiuta)
     for tipo, q in bing:
+        if not motore_ok(M_, "bing", tipo, ad_):
+            fatte.append([tipo, "bing", q, -1])  # -1: saltata, il motore riposa o per questo tipo rende poco
+            continue
         n0 = len(titoli)
+        err_ = None
         try:
             for t_, u_, d_, f_, _s in bing_news(q, min(giorni, 30))[:25]:
                 chiave = re.sub(r"\W+", " ", (t_ or "").lower()).strip()[:90]
@@ -2773,10 +2788,13 @@ def _piano_titoli(domande, giorni, errori, pausa=1.0, bing=()):
         except SenzaRete:
             raise
         except Exception as e:
+            err_ = e
             errori.append(f"Bing News ({q[:40]}): {str(e)[:120]}")
+        motore_esito(M_, "bing", tipo, len(titoli) - n0, err_, ad_)
         fatte.append([tipo, "bing", q, len(titoli) - n0])
         _piano_titoli.bing = getattr(_piano_titoli, "bing", 0) + len(titoli) - n0
         time.sleep(pausa)
+    scrivi_json(os.path.join(DATI, "motori.json"), M_)
     return titoli, fatte, fallite
 
 
@@ -3627,11 +3645,52 @@ BING_Q = {"accordi": '"{n}" defence agreement', "appalti": '"{n}" military contr
           "cibo": '"{n}" food security'}
 
 
+def _motori():
+    return leggi_json(os.path.join(DATI, "motori.json"), {}) or {}
+
+
+def motore_ok(M, nome, tipo, adesso):
+    """Il programma impara quali motori rendono: un motore che sbaglia 5 volte di fila riposa 2 ore; per un tipo di
+    domanda che con quel motore non porta quasi niente (dopo 6 prove, meno di un titolo a domanda) si riprova solo una
+    volta su sei."""
+    m = M.get(nome) or {}
+    if m.get("pausa", "") > adesso.isoformat():
+        return False
+    r = (m.get("tipi") or {}).get(tipo)
+    if r and r[0] >= 6 and r[1] < r[0]:
+        r[2] = (r[2] if len(r) > 2 else 0) + 1
+        if r[2] % 6:
+            return False
+    return True
+
+
+def motore_esito(M, nome, tipo, titoli, errore, adesso):
+    m = M.setdefault(nome, {"prove": 0, "titoli": 0, "errori": 0, "di_fila": 0, "tipi": {}})
+    m["prove"] += 1
+    m["titoli"] += titoli
+    r = m["tipi"].setdefault(tipo, [0, 0, 0])
+    r[0] += 1
+    r[1] += titoli
+    if errore:
+        m["errori"] += 1
+        m["ultimo_errore"] = [adesso.isoformat(), str(errore)[:140]]
+    if errore or not titoli:
+        m["di_fila"] = m.get("di_fila", 0) + 1
+        if m["di_fila"] >= 5:
+            m["pausa"], m["di_fila"] = (adesso + timedelta(hours=2)).isoformat(), 0
+    else:
+        m["di_fila"] = 0
+    m["agg"] = adesso.isoformat()
+
+
 def bing_news(q, giorni=30):
     """Notizie da Bing News (RSS gratuito): stesso formato di google_news, con l'indirizzo vero dell'articolo."""
     url = "https://www.bing.com/news/search?" + urllib.parse.urlencode(
         {"q": q, "format": "rss", "setlang": "en", "qft": 'interval="8"' if giorni <= 7 else 'interval="9"'})
-    testo = scarica(url, timeout=30).decode("utf-8", "replace")
+    testo = scarica(url, timeout=30, intestazioni={"User-Agent": "PanGeo/" + VERSIONE + " (archivio personale; lettore RSS)"}
+                    ).decode("utf-8", "replace")
+    if "<rss" not in testo[:800]:  # dal telefono, con l'intestazione di un browser, Bing mandava la sua pagina web
+        raise ValueError("Bing ha mandato una pagina web invece del feed RSS")
     limite = datetime.now(timezone.utc) - timedelta(days=giorni)
     voci = []
     for it in re.findall(r"<item>(.*?)</item>", testo, re.S):
@@ -5465,6 +5524,7 @@ def _aggiorna(leggero=False):
         "piano": piano_riassunto(cfg, paesi),
         "quadro": quadro_pagina(),
         "servizi": sum(1 for v_ in leggi_json(os.path.join(DATI, "servizi.json"), {}).values() if v_.get("sintesi")),
+        "motori": {k_: {c_: v_.get(c_) for c_ in ("prove", "titoli", "errori", "pausa", "ultimo_errore")} for k_, v_ in _motori().items()},
         "errori": errori,
     }
     # diario del giro: che cosa è entrato, da dove, quanto è costato ai siti (lo legge `rapporto`, va anche su GitHub)
