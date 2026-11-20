@@ -16,7 +16,7 @@ if (!h.includes('function viewSistemi(')) {
   const fine = h.indexOf('</script>', h.indexOf('<script>')), ult = h.lastIndexOf('\nrender();\n', fine);
   if (ult < 0 || fine - ult > 200) throw new Error('manca il render() finale');
   h = h.slice(0, ult) + '\n' + ext + h.slice(ult);
-  // planisfero a richiesta: niente librerie da 1,5 MB a ogni apertura
+  // planisfero a richiesta: niente librerie da 1 MB a ogni apertura
   sost('<script src="https://cdn.jsdelivr.net/npm/echarts@4.9.0/dist/echarts.min.js"></script>\n<script src="https://cdn.jsdelivr.net/npm/echarts@4.9.0/map/js/world.js"></script>\n', '');
   // un solo ridisegno e file in cache per 10 minuti
   sost("s.onload = () => { render(); s.remove(); };", "s.onload = () => { ridisegna(); s.remove(); };", 4);

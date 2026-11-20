@@ -10313,7 +10313,7 @@ function ridisegna() { if (ridisegnoT) return; ridisegnoT = setTimeout(() => { r
 function verDati() { return Math.floor(Date.now() / 600000); }
 function caricaDopo(f) { const subito = location.hash && location.hash !== '#'; if (subito) f(); else setTimeout(f, 700); }
 
-// 2. il planisfero si carica solo quando lo apri (sono 1,5 MB e la parte più pesante da disegnare sul telefono)
+// 2. il planisfero si carica solo quando lo apri (circa 1 MB e la parte più pesante da disegnare sul telefono)
 let brainAperto = false, brainCarico = 0;
 function apriPlanisfero() {
   brainAperto = true;
@@ -10561,7 +10561,7 @@ function viewHome2() {
   const dopo = v.slice(v.indexOf('<div class="quick">'));
   let mappa;
   if (brainAperto && brainCarico !== 1 && brainCarico !== 3) mappa = brain;
-  else mappa = '<section class="brain chiusa"><div class="item"><div class="t">Planisfero</div><div class="x">Colora i Paesi per spesa militare, alleanze o stabilità, con conflitti, rotte, basi e aziende. Si carica solo quando lo apri (circa 1,5 MB).</div><div class="quick"><button class="pill" id="apri-mappa">' + (brainCarico === 1 ? 'Sto caricando il planisfero…' : brainCarico === 3 ? 'Non si è caricato: riprova' : 'Apri il planisfero') + '</button></div></div></section>';
+  else mappa = '<section class="brain chiusa"><div class="item"><div class="t">Planisfero</div><div class="x">Colora i Paesi per spesa militare, alleanze o stabilità, con conflitti, rotte, basi e aziende. Si carica solo quando lo apri (circa 1 MB).</div><div class="quick"><button class="pill" id="apri-mappa">' + (brainCarico === 1 ? 'Sto caricando il planisfero…' : brainCarico === 3 ? 'Non si è caricato: riprova' : 'Apri il planisfero') + '</button></div></div></section>';
   return mappa + homeAree(v) + dopo;
 }
 
