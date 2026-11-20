@@ -57,7 +57,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.23"
+VERSIONE = "2.24"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -2027,6 +2027,136 @@ def studia_servizi(cfg, errori, adesso):
     return sum(1 for v in S_.values() if v.get("sintesi"))
 
 
+# ----------------------------------------------------------------------------- siti militari da Wikidata (dalla 2.24)
+
+BASI_CLASSI = {
+    "Q245016": "base militare", "Q695850": "base aerea", "Q1324633": "base navale", "Q6981985": "base aeronavale",
+    "Q331367": "base di sottomarini", "Q2604714": "base operativa avanzata", "Q2886620": "base militare",
+    "Q21193688": "base missilistica", "Q136558797": "base dell’esercito", "Q136644356": "base militare",
+    "Q141816817": "base navale", "Q85881832": "base militare", "Q7373622": "base aerea", "Q1778846": "area di addestramento",
+    "Q133288241": "stazione radar", "Q6646468": "stazione di ascolto", "Q55624858": "base navale",
+    "Q105622437": "base della guardia costiera", "Q1428515": "base aerea", "Q7619063": "base navale",
+    "Q142188473": "base navale", "Q1198413": "campo militare", "Q29918961": "centro di addestramento", "Q1593547": "base aerea"}
+# «optimizer None» e le classi per prime: così Wikidata parte dalle poche migliaia di siti militari e non da tutto ciò che
+# sta in uno Stato. Senza, per gli Stati grandi la risposta non arriva (504); con, arriva in pochi secondi.
+BASI_Q = """SELECT ?s ?sLabel ?d ?cls ?opLabel ?opIso ?luogoLabel ?coord ?fine ?it ?en ?link WHERE {
+  hint:Query hint:optimizer "None" .
+  VALUES ?cls { %s }
+  ?s wdt:P31 ?cls ; wdt:P17 ?c . ?c wdt:P298 "%s" .
+  OPTIONAL { ?s wdt:P137 ?op . OPTIONAL { ?op wdt:P17 ?oc . ?oc wdt:P298 ?opIso } }
+  OPTIONAL { ?s wdt:P131 ?luogo }
+  OPTIONAL { ?s wdt:P625 ?coord }
+  OPTIONAL { ?s wdt:P576|wdt:P3999|wdt:P582|wdt:P2669 ?fine }
+  OPTIONAL { ?s schema:description ?d FILTER(lang(?d)="en") }
+  OPTIONAL { ?it schema:about ?s ; schema:isPartOf <https://it.wikipedia.org/> }
+  OPTIONAL { ?en schema:about ?s ; schema:isPartOf <https://en.wikipedia.org/> }
+  ?s wikibase:sitelinks ?link .
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "it,en". }
+}"""
+# forze armate che non esistono più: un sito gestito solo da loro è storico, anche se Wikidata non ha la data di chiusura
+BASI_GESTORE_STORICO = re.compile(r"Army Air Forces|Army Air Corps|Regia Aeronautica|Regia Marina|Regio Esercito|Wehrmacht|Kriegsmarine|"
+                                  r"Luftstreitkräfte|Imperial Japanese|Soviet|sovietic|Royal Flying Corps|Red Army|Armata Rossa|"
+                                  r"Confederate|Austro-Hungarian|austro-ungaric", re.I)
+BASI_CHIUSO = re.compile(r"\b(former|formerly|ex-|defunct|closed|disused|abandoned|decommissioned|demolished|historic|world war|wwii|ww2)\b", re.I)
+
+
+def _basi_leggi(righe, iso_stato, massimo=300):
+    """Le righe di Wikidata diventano l'elenco dei siti di uno Stato: nome, tipo, luogo, chi lo gestisce, se risulta chiuso.
+    Le coordinate si tengono a un decimo di grado (livello di città), come per le altre basi di PanGeo."""
+    siti = {}
+    for x in righe:
+        g = lambda n: (x.get(n) or {}).get("value", "")
+        q = g("s").rsplit("/", 1)[-1]
+        nome = pulisci(g("sLabel"), 120)
+        if not q or not nome or re.fullmatch(r"Q\d+", nome):
+            continue  # senza un nome leggibile non si mostra
+        e = siti.setdefault(q, {"q": q, "n": nome, "t": BASI_CLASSI.get(g("cls").rsplit("/", 1)[-1], "sito militare"), "l": "",
+                                "g": [], "gs": [], "ch": False, "w": solo_http(g("it") or g("en")), "k": int(g("link") or 0)})
+        if g("luogoLabel") and not e["l"] and not re.fullmatch(r"Q\d+", g("luogoLabel")):
+            e["l"] = pulisci(g("luogoLabel"), 80)
+        if g("opLabel") and not re.fullmatch(r"Q\d+", g("opLabel")) and g("opLabel") not in e["g"]:
+            e["g"].append(pulisci(g("opLabel"), 80))
+        st_op = iso_stato.get(g("opIso"))
+        if st_op and st_op not in e["gs"]:
+            e["gs"].append(st_op)
+        if g("fine") or BASI_CHIUSO.search(g("d")):
+            e["ch"] = True
+        m = re.match(r"Point\(([-\d.]+) ([-\d.]+)\)", g("coord"))
+        if m and "c" not in e:
+            e["c"] = [round(float(m.group(1)), 1), round(float(m.group(2)), 1)]
+    for e in siti.values():
+        if e["g"] and all(BASI_GESTORE_STORICO.search(x) for x in e["g"]):
+            e["ch"] = True
+    scelti = sorted(siti.values(), key=lambda e: (e["ch"], -e["k"], e["n"]))[:massimo]
+    for e in scelti:
+        e["g"], e["gs"] = e["g"][:3], e["gs"][:3]
+        for k in ("l", "w"):
+            if not e[k]:
+                del e[k]
+        for k in ("g", "gs"):
+            if not e[k]:
+                del e[k]
+        if not e["ch"]:
+            del e["ch"]
+        del e["k"]
+    return scelti
+
+
+def scrivi_basi(B):
+    scrivi_json(os.path.join(DATI, "basi_wd.json"), B)
+    with open(os.path.join(WEB, "basi.js.tmp"), "w", encoding="utf-8") as f:
+        f.write("window.BASI_WD = " + json.dumps({"agg": B.get("agg", ""), "stati": B.get("stati", {}), "letti": B.get("letti", {})},
+                                                  ensure_ascii=False, separators=(",", ":")) + ";\n")
+    os.replace(os.path.join(WEB, "basi.js.tmp"), os.path.join(WEB, "basi.js"))
+
+
+def siti_militari(cfg, paesi, errori, adesso):
+    """Un pezzo alla volta: a ogni giro il programma chiede a Wikidata i siti militari di UNO Stato (basi, basi aeree e
+    navali, aree di addestramento, stazioni radar) e chi li gestisce. In qualche giorno copre tutti gli Stati, poi
+    ricomincia dopo siti_militari.giorni giorni. Wikidata non sempre registra le chiusure: ogni sito porta il suo stato."""
+    imp = cfg.get("siti_militari", {})
+    perc = os.path.join(DATI, "basi_wd.json")
+    B = leggi_json(perc, {})
+    if not B.get("stati"):  # prima volta o dopo una reinstallazione: riparte da ciò che è già sul sito
+        try:
+            B = _js_dati(os.path.join(DATI, "repo", "basi.js"))
+        except (OSError, ValueError):
+            B = {}
+    B.setdefault("stati", {})
+    B.setdefault("letti", {})
+    iso = imp.get("iso", {})
+    if not imp.get("attivo", True) or not iso:
+        return len(B["letti"])
+    iso_stato = {v: k for k, v in iso.items()}
+    vecchio = (adesso - timedelta(days=imp.get("giorni", 90))).date().isoformat()
+    da_fare = [s_ for s_ in paesi if s_ in iso and B["letti"].get(s_, "") < vecchio][:imp.get("per_giro", 1)]
+    fatti = 0
+    for st_ in da_fare:
+        try:
+            corpo = urllib.parse.urlencode({"query": BASI_Q % (" ".join("wd:" + k for k in BASI_CLASSI), iso[st_]), "format": "json"}).encode()
+            r = json.loads(scarica("https://query.wikidata.org/sparql", timeout=90, corpo=corpo, intestazioni={
+                "User-Agent": "PanGeo/" + VERSIONE + " (https://github.com/54v0B3110CCH1/pangeo; archivio personale, poche richieste)",
+                "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/sparql-results+json"}))
+            B["stati"][st_] = _basi_leggi(r.get("results", {}).get("bindings", []), iso_stato, imp.get("massimo", 300))
+            B["letti"][st_] = adesso.date().isoformat()
+            fatti += 1
+        except Exception as e:
+            errori.append(f"Wikidata (siti militari, {st_}): {e}")
+            # il sito non risponde: stesso Stato al prossimo giro. Dopo 3 volte di fila si passa oltre e lo si riprova tra una
+            # settimana, così uno Stato difficile non ferma tutti gli altri.
+            B.setdefault("falliti", {})[st_] = B.get("falliti", {}).get(st_, 0) + 1
+            if B["falliti"][st_] >= 3:
+                B["falliti"][st_] = 0
+                B["letti"][st_] = (adesso - timedelta(days=max(imp.get("giorni", 90) - 7, 0))).date().isoformat()
+                B["stati"].setdefault(st_, [])
+            scrivi_json(perc, B)
+            break
+    if fatti or (B["letti"] and not os.path.exists(os.path.join(WEB, "basi.js"))):
+        B["agg"] = adesso.date().isoformat()
+        scrivi_basi(B)
+    return len(B["letti"])
+
+
 # ----------------------------------------------------------------------------- memoria e diario
 
 def memoria_stati(archivio, adesso, cfg, ore=30):
@@ -2216,6 +2346,68 @@ PIANO_Q_INTEL = {
     "ru": '"{n}" (разведка OR спецслужбы OR шпионаж OR контрразведка) (доклад OR назначен OR директор OR реформа OR закон OR выслали OR задержан)',
     "ar": '"{n}" (المخابرات OR الاستخبارات OR تجسس OR "جهاز الأمن") (تقرير OR تعيين OR رئيس OR قانون OR طرد OR اعتقال)',
 }
+# Puzzle (dalla 2.24): a ogni Stato il lavoro a piano aggiunge UN solo tema in più, a rotazione, con una domanda in inglese
+# e una nella lingua del posto. Pezzi piccoli, uno alla volta: così Google News non blocca, e ogni 3 ore il quadro li collega.
+PIANO_PUZZLE = {
+    "energia": {
+        "nome": "ENERGIA E RETI",
+        "cosa": "reti e forniture di energia: gasdotti, oleodotti, elettrodotti e interconnessioni, centrali, gas liquefatto, contratti "
+                "di fornitura, guasti, sabotaggi e attacchi alle reti, dipendenza da un fornitore",
+        "q": {
+            "en": '"{n}" (pipeline OR "power grid" OR "gas supply" OR LNG OR "power plant" OR "nuclear plant" OR interconnector OR blackout OR "energy security") (deal OR agreement OR attack OR sabotage OR outage OR cut OR imports OR opens)',
+            "it": '"{n}" (gasdotto OR oleodotto OR "rete elettrica" OR "forniture di gas" OR GNL OR centrale OR elettrodotto OR blackout OR "sicurezza energetica") (accordo OR attacco OR sabotaggio OR guasto OR taglio OR importazioni OR inaugura)',
+            "fr": '"{n}" (gazoduc OR oléoduc OR "réseau électrique" OR GNL OR "centrale nucléaire" OR interconnexion OR "sécurité énergétique" OR "panne de courant") (accord OR attaque OR sabotage OR coupure OR importations)',
+            "es": '"{n}" (gasoducto OR oleoducto OR "red eléctrica" OR GNL OR "central nuclear" OR interconexión OR apagón OR "seguridad energética") (acuerdo OR ataque OR sabotaje OR corte OR importaciones)',
+            "pt": '"{n}" (gasoduto OR oleoduto OR "rede elétrica" OR GNL OR "central nuclear" OR "usina nuclear" OR apagão OR "segurança energética") (acordo OR ataque OR sabotagem OR corte OR importações)',
+            "de": '"{n}" (Pipeline OR Stromnetz OR Gaslieferungen OR LNG OR Kraftwerk OR Atomkraftwerk OR Stromausfall OR Energiesicherheit) (Abkommen OR Angriff OR Sabotage OR Ausfall OR Importe)',
+            "ru": '"{n}" (газопровод OR нефтепровод OR энергосистема OR "поставки газа" OR СПГ OR электростанция OR АЭС OR блэкаут) (соглашение OR атака OR диверсия OR авария OR отключение)',
+            "ar": '"{n}" ("خط أنابيب" OR "شبكة الكهرباء" OR "إمدادات الغاز" OR "الغاز المسال" OR "محطة كهرباء" OR "أمن الطاقة") (اتفاق OR هجوم OR تخريب OR انقطاع OR استيراد)',
+        }},
+    "ia": {
+        "nome": "INTELLIGENZA ARTIFICIALE IN CAMPO MILITARE",
+        "cosa": "intelligenza artificiale in campo militare: sistemi adottati o provati dalle forze armate (riconoscimento dei bersagli, "
+                "droni e mezzi autonomi, analisi di intelligence, comando e controllo), contratti con aziende di IA, regole e leggi, "
+                "incidenti e critiche. Niente dettagli tecnici su come si usano",
+        "q": {
+            "en": '"{n}" ("artificial intelligence" OR AI OR autonomous OR "drone swarm" OR "machine learning") (military OR army OR defense OR defence OR "armed forces" OR weapons OR targeting OR battlefield)',
+            "it": '"{n}" ("intelligenza artificiale" OR IA OR autonomi OR "sciami di droni" OR algoritmi) (militare OR esercito OR difesa OR "forze armate" OR armi OR bersagli)',
+            "fr": '"{n}" ("intelligence artificielle" OR IA OR autonomes OR "essaim de drones" OR algorithmes) (militaire OR armée OR défense OR armes OR ciblage)',
+            "es": '"{n}" ("inteligencia artificial" OR IA OR autónomos OR "enjambre de drones" OR algoritmos) (militar OR ejército OR defensa OR "fuerzas armadas" OR armas)',
+            "pt": '"{n}" ("inteligência artificial" OR IA OR autônomos OR "enxame de drones" OR algoritmos) (militar OR exército OR defesa OR "forças armadas" OR armas)',
+            "de": '"{n}" ("künstliche Intelligenz" OR KI OR autonome OR Drohnenschwarm OR Algorithmen) (Militär OR Bundeswehr OR Armee OR Verteidigung OR Waffen OR Streitkräfte)',
+            "ru": '"{n}" ("искусственный интеллект" OR ИИ OR автономные OR "рой дронов" OR нейросеть) (военные OR армия OR оборона OR "вооружённые силы" OR оружие)',
+            "ar": '"{n}" ("الذكاء الاصطناعي" OR "أسراب المسيرات" OR "أنظمة ذاتية") (عسكري OR الجيش OR الدفاع OR "القوات المسلحة" OR أسلحة)',
+        }},
+    "trasporti": {
+        "nome": "TRASPORTI E LOGISTICA",
+        "cosa": "trasporti e logistica: porti, ferrovie, corridoi, strade, aeroporti, canali e stretti, blocchi e interruzioni, grandi "
+                "opere, catene di rifornimento, mobilità militare",
+        "q": {
+            "en": '"{n}" (port OR railway OR corridor OR "supply chain" OR shipping OR airport OR canal OR strait OR logistics OR "military mobility") (blockade OR closure OR disruption OR opens OR deal OR strike OR expansion)',
+            "it": '"{n}" (porto OR ferrovia OR corridoio OR logistica OR "catena di approvvigionamento" OR aeroporto OR canale OR stretto OR "mobilità militare") (blocco OR chiusura OR interruzione OR inaugura OR accordo OR sciopero)',
+            "fr": '"{n}" (port OR "chemin de fer" OR corridor OR logistique OR approvisionnement OR aéroport OR canal OR détroit) (blocus OR fermeture OR perturbation OR inauguration OR accord OR grève)',
+            "es": '"{n}" (puerto OR ferrocarril OR corredor OR logística OR "cadena de suministro" OR aeropuerto OR canal OR estrecho) (bloqueo OR cierre OR interrupción OR inaugura OR acuerdo OR huelga)',
+            "pt": '"{n}" (porto OR ferrovia OR corredor OR logística OR "cadeia de abastecimento" OR aeroporto OR canal OR estreito) (bloqueio OR fechamento OR interrupção OR inaugura OR acordo OR greve)',
+            "de": '"{n}" (Hafen OR Eisenbahn OR Korridor OR Logistik OR Lieferkette OR Flughafen OR Kanal OR Meerenge) (Blockade OR Sperrung OR Störung OR Eröffnung OR Abkommen OR Streik)',
+            "ru": '"{n}" (порт OR "железная дорога" OR коридор OR логистика OR "цепочка поставок" OR аэропорт OR канал OR пролив) (блокада OR закрытие OR перебои OR открытие OR соглашение)',
+            "ar": '"{n}" (ميناء OR "سكة حديد" OR ممر OR "سلاسل الإمداد" OR مطار OR قناة OR مضيق) (حصار OR إغلاق OR تعطل OR افتتاح OR اتفاق)',
+        }},
+    "cibo": {
+        "nome": "CIBO, ACQUA E RISORSE",
+        "cosa": "cibo, acqua e risorse: raccolti, siccità, importazioni di grano e fertilizzanti, divieti di esportazione, riserve "
+                "strategiche, prezzi del cibo, carestie, materie prime critiche e terre rare",
+        "q": {
+            "en": '"{n}" (wheat OR grain OR fertilizer OR "food security" OR drought OR harvest OR "food prices" OR famine OR "critical minerals" OR "rare earths" OR "water shortage") (imports OR "export ban" OR shortage OR reserves OR deal OR crisis)',
+            "it": '"{n}" (grano OR cereali OR fertilizzanti OR "sicurezza alimentare" OR siccità OR raccolto OR "prezzi alimentari" OR carestia OR "materie prime critiche" OR "terre rare" OR "crisi idrica") (importazioni OR "blocco delle esportazioni" OR carenza OR riserve OR accordo OR crisi)',
+            "fr": '"{n}" (blé OR céréales OR engrais OR "sécurité alimentaire" OR sécheresse OR récolte OR famine OR "terres rares" OR "minerais critiques" OR pénurie) (importations OR exportations OR réserves OR accord OR crise)',
+            "es": '"{n}" (trigo OR cereales OR fertilizantes OR "seguridad alimentaria" OR sequía OR cosecha OR hambruna OR "tierras raras" OR "minerales críticos" OR escasez) (importaciones OR exportaciones OR reservas OR acuerdo OR crisis)',
+            "pt": '"{n}" (trigo OR cereais OR fertilizantes OR "segurança alimentar" OR seca OR colheita OR fome OR "terras raras" OR "minerais críticos" OR escassez) (importações OR exportações OR reservas OR acordo OR crise)',
+            "de": '"{n}" (Weizen OR Getreide OR Düngemittel OR Ernährungssicherheit OR Dürre OR Ernte OR Hungersnot OR "Seltene Erden" OR "kritische Rohstoffe" OR Wasserknappheit) (Importe OR Exportverbot OR Knappheit OR Reserven OR Abkommen OR Krise)',
+            "ru": '"{n}" (пшеница OR зерно OR удобрения OR "продовольственная безопасность" OR засуха OR урожай OR голод OR "редкоземельные металлы" OR "дефицит воды") (импорт OR "запрет экспорта" OR дефицит OR резервы OR соглашение)',
+            "ar": '"{n}" (القمح OR الحبوب OR الأسمدة OR "الأمن الغذائي" OR الجفاف OR المحصول OR المجاعة OR "المعادن النادرة" OR "أزمة المياه") (استيراد OR "حظر تصدير" OR نقص OR مخزون OR اتفاق)',
+        }},
+}
+PUZZLE_ORDINE = ("energia", "ia", "trasporti", "cibo")
 PIANO_TIPI_INTEL = ("nomina", "legge", "relazione", "espulsione", "processo", "accordo", "allarme", "altro")
 PIANO_STATI_ACCORDO = ("firmato", "ratificato", "in vigore", "in trattativa", "annunciato", "sospeso", "disdetto")
 PIANO_STATI_APPALTO = ("firmato", "in consegna", "consegnato", "approvato", "in trattativa", "annunciato", "annullato")
@@ -2267,7 +2459,12 @@ def _piano_titoli(domande, giorni, errori, pausa=1.0):
     return titoli, fatte, fallite
 
 
-def _piano_domanda(stato, titoli, giorni, noti):
+def _piano_domanda(stato, titoli, giorni, noti, tema=None):
+    pz = PIANO_PUZZLE.get(tema)
+    parte5 = (f"PARTE 5, {pz['nome']}: fatti su {pz['cosa']}, che riguardano {stato}. Solo fatti accaduti o decisi, non "
+              "commenti. Una riga per fatto:\n"
+              "F | data | che cosa, in una frase in italiano | numeri dei titoli | rilevanza\n"
+              "Se non ce ne sono scrivi «F | nessuno».\n\n") if pz else ""
     righe = "\n".join(f"{i + 1}. {x['d'] or 'senza data'} – {x['t']} – {x['f']}" for i, x in enumerate(titoli))
     gia = ("\nGIÀ IN ARCHIVIO per " + stato + " (non ripeterli, a meno che un titolo dica che qualcosa è cambiato):\n"
            + "\n".join("· " + n for n in noti[:14]) + "\n") if noti else ""
@@ -2293,15 +2490,17 @@ def _piano_domanda(stato, titoli, giorni, noti):
             "PARTE 4, DOMANDE: fino a 2 cose che i titoli lasciano aperte e che conviene cercare (per esempio se un contratto "
             "annunciato è poi stato firmato, o se un accordo è stato ratificato). Una riga per domanda:\n"
             "D | lingua in cui cercare (it, en, oppure la sigla della lingua del posto) | da 3 a 7 parole da cercare, senza "
-            "virgolette | che cosa vuoi sapere, in italiano\n\n"
-            "RILEVANZA, nelle righe A, C e I: scrivi R e un numero da 1 a 5 (per esempio R4), quanto conta il fatto per la "
+            "virgolette | che cosa vuoi sapere, in italiano\n\n" + parte5 +
+            "RILEVANZA, nelle righe A, C, I e F: scrivi R e un numero da 1 a 5 (per esempio R4), quanto conta il fatto per la "
             "difesa e la sicurezza. R5 = cambia gli equilibri tra Stati o in una regione (un'alleanza nuova, un grande contratto "
             "pluriennale, un cambio al vertice dei servizi dopo uno scandalo); R3 = importante per lo Stato; R1 = fatto minore o "
             "di routine.\n\n"
             "Regole. La data è quella del titolo più recente che ne parla, scritta AAAA-MM-GG. Lo stesso fatto una volta sola: se ne "
-            "parlano più titoli, metti tutti i loro numeri. Niente giudizi, niente previsioni, niente dettagli operativi. Se un "
+            "parlano più titoli, metti tutti i loro numeri. Lo stesso accordo o lo stesso contratto è UNA riga anche quando i "
+            "titoli ne raccontano tappe diverse (annuncio, trattativa, firma): scrivi lo stato più avanzato, la data della tappa "
+            "più recente e i numeri di tutti i titoli. Non scrivere note, commenti o rimandi («vedi sotto») dentro le righe. Niente giudizi, niente previsioni, niente dettagli operativi. Se un "
             "titolo riporta un'accusa o una voce, scrivi «secondo» e chi lo dice. Le notizie che non sono né accordi né appalti né "
-            "fatti sui servizi ignorale. Se una parte è vuota scrivi «A | nessuno», «C | nessuno» oppure «I | nessuno». Scrivi solo le righe, senza titoli e senza "
+            "fatti sui servizi" + (" né fatti della parte 5" if pz else "") + " ignorale. Se una parte è vuota scrivi «A | nessuno», «C | nessuno» oppure «I | nessuno». Scrivi solo le righe, senza titoli e senza "
             "commenti.\n" + gia + "\nTITOLI\n" + righe)
 
 
@@ -2327,13 +2526,14 @@ def _piano_leggi(risposta, titoli):
         return next((a for a in sorted(ammessi, key=len, reverse=True) if a in t), "annunciato" if t else "")
 
     accordi, appalti, intel, domande_ = [], [], [], []
+    _piano_leggi.puzzle = []  # le righe F (il tema del giro): le legge passo_piano, che sa di quale tema si tratta
     ril_rx = re.compile(r"(?i)r(?:ilevanza)?\s*[:=]?\s*([1-5])(?:\s*/\s*5)?")
     for riga in (risposta or "").splitlines():
         p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
         sigla = p[0].upper().strip(" .:)") if p else ""
         # la rilevanza (R1…R5) si toglie prima di leggere le colonne: il suo numero non va mai preso per il numero di un titolo
         ril = None
-        if sigla in ("A", "C", "I"):
+        if sigla in ("A", "C", "I", "F"):
             resto = []
             for x in p[1:]:
                 m_r = ril_rx.fullmatch(x.strip())
@@ -2342,9 +2542,11 @@ def _piano_leggi(risposta, titoli):
                 else:
                     resto.append(x)
             p = p[:1] + resto
-            minimo = {"A": 6, "C": 8, "I": 6}[sigla]
+            minimo = {"A": 6, "C": 8, "I": 6, "F": 4}[sigla]
             if ril is None and len(p) > minimo and re.fullmatch(r"\s*[1-5]\s*", p[-1]):
                 ril, p = int(p[-1].strip()), p[:-1]  # rilevanza scritta senza la R, in fondo alla riga
+        if sigla in ("A", "C", "I", "F"):  # niente note o rimandi dentro le righe: «… nota: il titolo riguarda…, vedi sotto»
+            p = [_piano_senza_note(x) for x in p]
         if sigla == "A" and len(p) >= 6:
             fonti = _piano_fonti(p[5], titoli)
             if fonti and len(p[3]) > 8:
@@ -2362,6 +2564,10 @@ def _piano_leggi(risposta, titoli):
                 ente = pulisci(p[2], 100).strip(" -–—")
                 intel.append({"d": data_di(p[1], fonti), "ente": ente, "cosa": pulisci(p[3], 300),
                               "tipo": next((t for t in PIANO_TIPI_INTEL if t in p[4].lower()), "altro"), "f": fonti, "r": ril})
+        elif sigla == "F" and len(p) >= 4:
+            fonti = _piano_fonti(p[3], titoli)
+            if fonti and len(p[2]) > 8:
+                _piano_leggi.puzzle.append({"d": data_di(p[1], fonti), "cosa": pulisci(p[2], 300), "f": fonti, "r": ril})
         elif sigla == "D" and len(p) >= 4:
             q = " ".join(re.sub(r'[<>{}\\"«»()]|https?:\S*', " ", p[2]).split())
             if 2 <= len(q.split()) <= 9 and len(q) <= 110:
@@ -2369,13 +2575,87 @@ def _piano_leggi(risposta, titoli):
     return accordi, appalti, intel, domande_[:2]
 
 
+PIANO_NOTA = re.compile(r"\s*(?:…|\.\.\.|[;,(\-–—])?\s*\b(?:nota|n\.b\.|nb)\s*:|\s*[,;(]?\s*\bvedi (?:sotto|sopra)\b", re.I)
+
+
+def _piano_senza_note(testo):
+    """Toglie le note che il cervello a volte lascia dentro una riga («… nota: il titolo riguarda…», «vedi sotto»)."""
+    testo = testo or ""
+    return PIANO_NOTA.split(testo, 1)[0].strip(" (…") if len(testo) > 20 and PIANO_NOTA.search(testo) else testo
+
+
+# parole che non dicono di quale fatto si parla: non bastano a dire che due righe sono lo stesso fatto
+PIANO_GENERICHE = {"accor", "difes", "coope", "milit", "sicur", "firma", "gover", "minis", "paese", "paesi", "stato", "stati", "nuovo",
+                   "nuova", "nuovi", "nuove", "contr", "acqui", "forni", "annun", "tratt", "intes", "parte", "ampia", "defin",
+                   "final", "cessi", "titol", "rigua", "sotto", "sopra", "dichi", "incon", "visit", "relaz", "bilat", "strat",
+                   "partn", "memor", "proto", "second", "dopo", "prima", "anche", "della", "delle", "degli", "nella", "nelle",
+                   "sulla", "sulle", "dalla", "dalle", "quest", "primo", "prima", "unita", "milio", "milia", "dolla", "euro",
+                   "press", "verso", "senza", "entro", "circa", "oltre", "conse", "ordin", "vendi", "compr", "servi", "agenz",
+                   "diret", "capo", "legge", "rappo", "relaz", "pubbl", "anno", "anni", "mese", "mesi"}
+PIANO_ORDINE_STATO = ("in vigore", "ratificato", "consegnato", "in consegna", "firmato", "approvato", "in trattativa", "annunciato",
+                      "sospeso", "disdetto", "annullato", "")
+
+
+def _piano_radici(testo, fuori=()):
+    """Le parole che contano di una riga, ridotte alla radice (prime 5 lettere): «fregate» e «fregata» sono la stessa."""
+    parole = re.findall(r"[a-zà-ÿ0-9][a-zà-ÿ0-9-]{3,}", (testo or "").lower())
+    return {w[:5] for w in parole if w[:5] not in PIANO_GENERICHE and w[:5] not in fuori}
+
+
+def _piano_stesso(a, b, campo):
+    """Vero se due righe parlano dello stesso fatto, anche se i titoli ne raccontano tappe diverse (annuncio, trattativa,
+    firma): stessa controparte (o stesso ente, stesso tema), date vicine e almeno una parola che conta in comune.
+    Senza controparte serve che i testi si somiglino molto."""
+    chi = lambda x: re.sub(r"\W+", " ", " ".join(str(x.get(k) or "") for k in ("con", "acq", "forn", "ente", "tema")).lower()).strip()
+    ca, cb = chi(a), chi(b)
+    fuori = {w[:5] for w in (ca + " " + cb).split()}
+    ra, rb = _piano_radici(a.get(campo), fuori), _piano_radici(b.get(campo), fuori)
+    if not ra or not rb:
+        return False
+    comuni = ra & rb
+    if len(comuni) >= 0.6 * min(len(ra), len(rb)) and len(comuni) >= 2:
+        return True  # testi quasi uguali
+    try:
+        giorni = abs((datetime.fromisoformat(a.get("d") or "") - datetime.fromisoformat(b.get("d") or "")).days)
+    except ValueError:
+        return False
+    # nei pezzi del puzzle la «controparte» è solo il tema: lì servono due parole in comune, non una
+    soglia = 2 if (a.get("tema") or b.get("tema")) and not (a.get("con") or a.get("ente")) else 1
+    return bool(ca) and ca == cb and giorni <= 45 and len(comuni) >= soglia
+
+
+def _piano_fondi(a, b, campo):
+    """Due righe sullo stesso fatto diventano una: resta la tappa più avanti (firmato batte annunciato) o, a parità, la più
+    recente; le fonti si sommano, la rilevanza è la più alta, le tappe precedenti restano in «tappe»."""
+    pos = lambda x: PIANO_ORDINE_STATO.index(x.get("st") or "") if (x.get("st") or "") in PIANO_ORDINE_STATO else len(PIANO_ORDINE_STATO)
+    nota = lambda x: bool(PIANO_NOTA.search(x.get(campo) or ""))  # a parità di stato, una riga con una nota dentro perde
+    capo, altro = (a, b) if (pos(a), nota(a), b.get("d") or "") <= (pos(b), nota(b), a.get("d") or "") else (b, a)
+    capo = dict(capo)
+    viste = {f[1] for f in capo.get("f") or []}
+    capo["f"] = (capo.get("f") or []) + [f for f in (altro.get("f") or []) if f[1] not in viste]
+    capo["f"] = capo["f"][:5]
+    capo["d"] = max(capo.get("d") or "", altro.get("d") or "")
+    if capo.get("r") or altro.get("r"):
+        capo["r"] = max(capo.get("r") or 0, altro.get("r") or 0)
+    tappe = (capo.get("tappe") or []) + [[altro.get("d") or "", altro.get("st") or "", altro.get(campo) or ""]] + (altro.get("tappe") or [])
+    capo["tappe"] = sorted({(t[0], t[2]): t for t in tappe if t[2] != capo.get(campo)}.values(), key=lambda t: t[0], reverse=True)[:5]
+    if not capo["tappe"]:
+        del capo["tappe"]
+    return capo
+
+
 def _piano_unisci(vecchi, nuovi, campo, massimo=30):
-    """Aggiunge i fatti nuovi a quelli delle passate precedenti, senza doppioni; in cima i più recenti."""
-    def firma(x):
-        return re.sub(r"\W+", " ", (x.get(campo) or "").lower()).strip()[:60]
-    visti = {firma(x) for x in nuovi}
-    tutti = nuovi + [x for x in (vecchi or []) if firma(x) not in visti]
-    return sorted(tutti, key=lambda x: x.get("d") or "", reverse=True)[:massimo]
+    """Aggiunge i fatti nuovi a quelli delle passate precedenti; in cima i più recenti. Lo stesso fatto resta una riga sola
+    anche quando più titoli ne raccontano tappe diverse (vedi _piano_stesso): le righe si fondono, con tutte le fonti."""
+    uniti = []
+    for x in list(nuovi) + list(vecchi or []):
+        for i, y in enumerate(uniti):
+            if _piano_stesso(x, y, campo):
+                uniti[i] = _piano_fondi(y, x, campo)
+                break
+        else:
+            uniti.append(x)
+    return sorted(uniti, key=lambda x: x.get("d") or "", reverse=True)[:massimo]
 
 
 def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
@@ -2392,6 +2672,17 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
     adesso = datetime.now(timezone.utc)
     for campo, valore in (("stati", {}), ("i", 0), ("passata", 1), ("inizio", adesso.isoformat()), ("ultimi", [])):
         P.setdefault(campo, valore)
+    if P.get("riordinato") != VERSIONE and P["stati"]:  # una volta per versione: lo stesso fatto resta una riga sola
+        for sch_ in P["stati"].values():
+            for campo_, chiave_, max_ in (("accordi", "cosa", 30), ("appalti", "ogg", 30), ("intel", "cosa", 20), ("puzzle", "cosa", 40)):
+                if sch_.get(campo_):
+                    sch_[campo_] = _piano_unisci([], sch_[campo_], chiave_, max_)
+                    for riga_ in sch_[campo_]:
+                        riga_[chiave_] = _piano_senza_note(riga_.get(chiave_))
+                        for tappa_ in riga_.get("tappe") or []:
+                            tappa_[2] = _piano_senza_note(tappa_[2])
+        P["riordinato"] = VERSIONE
+        scrivi_json(perc, P)
     ordine = piano_ordine(cfg, paesi)
     if not ordine or P.get("riposo", "") > adesso.isoformat():
         return [0, 0, 0]  # dopo un rifiuto di Google News (429) il piano riposa tre quarti d'ora
@@ -2399,8 +2690,8 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
     giorni, imp_c = imp.get("giorni", 120), cfg.get("cervello", {})
     con_cervello = bool(chiavi.get("anthropic_key")) and imp_c.get("attivo", True)
     conto = _conto_cervello()
-    fatti = n_acc = n_app = n_int = 0
-    passo_piano.intel = 0
+    fatti = n_acc = n_app = n_int = n_pz = 0
+    passo_piano.intel = passo_piano.puzzle = 0
     try:
         for _ in range(imp.get("per_giro_leggero", 1) if leggero else imp.get("per_giro_completo", 3)):
             if con_cervello and not _cervello_libero(conto, imp_c):
@@ -2418,6 +2709,14 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
                 lg_i = lg if lg in PIANO_Q_INTEL else "it"  # la lingua del posto; dove non c'è, la stampa italiana
                 if lg_i != "en":
                     dom.append(("intelligence", lg_i, PIANO_Q_INTEL[lg_i].format(n=loc[1] if lg_i == lg else paesi[stato][0])))
+            # puzzle: un solo tema in più per Stato, a rotazione (ogni passata lo Stato riceve il tema successivo)
+            tema_p = PUZZLE_ORDINE[(P["i"] + P["passata"]) % len(PUZZLE_ORDINE)] if imp.get("puzzle", True) else None
+            if tema_p:
+                q_p = PIANO_PUZZLE[tema_p]["q"]
+                dom.append((tema_p, "en", q_p["en"].format(n=en)))
+                lg_p = lg if lg in q_p else "it"
+                if lg_p != "en":
+                    dom.append((tema_p, lg_p, q_p[lg_p].format(n=loc[1] if lg_p == lg else paesi[stato][0])))
             vecchio = P["stati"].get(stato, {})
             dom += [("aperta", d["l"], d["q"] if _nome_in_lingua(stato, d["l"], paesi).lower() in d["q"].lower()
                      else '"%s" %s' % (_nome_in_lingua(stato, d["l"], paesi), d["q"]))
@@ -2429,33 +2728,38 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
                 break  # Google News non risponde: si riprova più tardi, dallo stesso Stato
             titoli.sort(key=lambda x: x["iso"], reverse=True)
             # i titoli sui servizi hanno un loro tetto: non tolgono posto ad accordi e appalti, e viceversa
-            titoli = [x for x in titoli if x["k"] != "intelligence"][:imp.get("titoli_max", 70)] + \
-                     [x for x in titoli if x["k"] == "intelligence"][:imp.get("titoli_intelligence", 25)]
+            titoli = [x for x in titoli if x["k"] != "intelligence" and x["k"] not in PIANO_PUZZLE][:imp.get("titoli_max", 70)] + \
+                     [x for x in titoli if x["k"] == "intelligence"][:imp.get("titoli_intelligence", 25)] + \
+                     [x for x in titoli if x["k"] in PIANO_PUZZLE][:imp.get("titoli_puzzle", 20)]
             if notizia:  # i titoli della settimana entrano anche tra le notizie dal vivo
-                for x in (y for y in titoli if y["iso"] and y["k"] != "intelligence"):
+                for x in (y for y in titoli if y["iso"] and y["k"] != "intelligence" and y["k"] not in PIANO_PUZZLE):
                     notizia("Industria e appalti" if x["k"] == "appalti" else "Alleanze e diplomazia", x["t"], x["u"], x["iso"],
                             x["f"], forza=stato, lingua=x["l"])
             scheda = {"blocco": blocco, "quando": adesso.isoformat(), "passata": P["passata"], "titoli": len(titoli), "domande": fatte,
                       "accordi": vecchio.get("accordi", []), "appalti": vecchio.get("appalti", []),
-                      "intel": vecchio.get("intel", []), "aperte": [],
+                      "intel": vecchio.get("intel", []), "puzzle": vecchio.get("puzzle", []), "aperte": [],
                       "risposte": vecchio.get("risposte", [])[-6:], "cervello": False}
             if titoli and con_cervello:
                 b_ = base.get(stato, {})
                 noti = [str(x) for x in b_.get("tr", []) + b_.get("ap", [])] + \
                        [x["cosa"] for x in vecchio.get("accordi", [])[:6]] + [x["ogg"] for x in vecchio.get("appalti", [])[:6]] + \
-                       [x["cosa"] for x in vecchio.get("intel", [])[:5]]
+                       [x["cosa"] for x in vecchio.get("intel", [])[:5]] + \
+                       [x["cosa"] for x in vecchio.get("puzzle", []) if x.get("tema") == tema_p][:5]
                 try:
-                    risposta = chiedi_claude(chiavi, cfg, _piano_domanda(stato, titoli, giorni, noti), 3200, conto)
+                    risposta = chiedi_claude(chiavi, cfg, _piano_domanda(stato, titoli, giorni, noti, tema_p), 3600, conto)
                     conto["chiamate"] = conto.get("chiamate", 0) + 1
                 except Exception as e:
                     errori.append("Claude (lavoro a piano): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
                     break  # il cervello non ha risposto: stesso Stato al prossimo giro
                 acc, app, intel, aperte = _piano_leggi(risposta, titoli)
+                pezzi = [dict(x, tema=tema_p) for x in _piano_leggi.puzzle] if tema_p else []
                 scheda.update({"accordi": _piano_unisci(vecchio.get("accordi"), acc, "cosa"),
                                "appalti": _piano_unisci(vecchio.get("appalti"), app, "ogg"),
-                               "intel": _piano_unisci(vecchio.get("intel"), intel, "cosa", 20), "aperte": aperte, "cervello": True})
-                scheda["nuovi"] = [len(acc), len(app), len(intel)]
-                n_acc, n_app, n_int = n_acc + len(acc), n_app + len(app), n_int + len(intel)
+                               "intel": _piano_unisci(vecchio.get("intel"), intel, "cosa", 20),
+                               "puzzle": _piano_unisci(vecchio.get("puzzle"), pezzi, "cosa", 40), "aperte": aperte, "cervello": True})
+                scheda["nuovi"] = [len(acc), len(app), len(intel), len(pezzi)]
+                scheda["tema"] = tema_p
+                n_acc, n_app, n_int, n_pz = n_acc + len(acc), n_app + len(app), n_int + len(intel), n_pz + len(pezzi)
             elif titoli:  # senza cervello: restano i titoli da leggere a mano, divisi per domanda
                 scheda["da_leggere"] = [[x["t"], x["u"], x["f"], x["d"], x["k"]] for x in titoli[:16]]
             P["stati"][stato] = scheda
@@ -2509,7 +2813,7 @@ def passo_piano(cfg, chiavi, paesi, leggero, errori, notizia=None):
     except SenzaRete:
         errori.append("rete assente: lavoro a piano interrotto, riprende dallo stesso Stato")
     P["agg"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-    passo_piano.intel = n_int
+    passo_piano.intel, passo_piano.puzzle = n_int, n_pz
     scrivi_json(perc, P)
     scrivi_json(os.path.join(DATI, "cervello.json"), conto)
     try:
@@ -2536,6 +2840,7 @@ def piano_riassunto(cfg, paesi):
             "prossimi": [s for _, s in ordine[i:i + 6]], "con_scheda": len(S),
             "accordi": sum(len(v.get("accordi", [])) for v in S.values()), "appalti": sum(len(v.get("appalti", [])) for v in S.values()),
             "intel": sum(len(v.get("intel", [])) for v in S.values()),
+            "puzzle": {t: sum(1 for v in S.values() for x in v.get("puzzle", []) if x.get("tema") == t) for t in PUZZLE_ORDINE},
             "ultimi": [[s, S[s].get("quando", ""), len(S[s].get("accordi", [])), len(S[s].get("appalti", [])), S[s].get("titoli", 0),
                         S[s].get("blocco", ""), len(S[s].get("intel", []))] for s in ult[:10]],
             "domande": [[s] + list(d) for s in ult[:5] for d in S[s].get("domande", [])][:16],
@@ -2598,11 +2903,13 @@ def _quadro_voci(archivio, P, adesso, imp):
     limite = (adesso - timedelta(days=imp.get("giorni_piano", 30))).date().isoformat()
     fatti = []
     for st_, sch in (P.get("stati") or {}).items():
-        for campo, tipo in (("accordi", "accordo"), ("appalti", "appalto"), ("intel", "intelligence")):
+        for campo, tipo in (("accordi", "accordo"), ("appalti", "appalto"), ("intel", "intelligence"), ("puzzle", "puzzle")):
             for x in sch.get(campo, []):
                 if (x.get("d") or "") < limite:
                     continue
-                if campo == "accordi":
+                if campo == "puzzle":
+                    tipo, t = x.get("tema") or "puzzle", x.get("cosa", "")
+                elif campo == "accordi":
                     t = (x.get("con", "") + ": " if x.get("con") else "") + x.get("cosa", "")
                 elif campo == "appalti":
                     t = f"{x.get('acq', '')} da {x.get('forn', '')}: {x.get('ogg', '')}" + (f" ({x['val']})" if x.get("val") else "")
@@ -2612,7 +2919,7 @@ def _quadro_voci(archivio, P, adesso, imp):
                 fatti.append({"tipo": tipo, "t": pulisci(t, 260), "u": f0[1] if len(f0) > 1 else "", "fonte": f0[0] if f0 else "",
                               "d": x.get("d", ""), "paesi": [st_], "r": x.get("r")})
     fatti.sort(key=lambda x: (x.get("r") or 0, x["d"]), reverse=True)
-    return voci + fatti[:imp.get("fatti_piano", 40)]
+    return voci + fatti[:imp.get("fatti_piano", 50)]
 
 
 def quadro(chiavi, cfg, archivio, leggero, errori):
@@ -2640,7 +2947,8 @@ def quadro(chiavi, cfg, archivio, leggero, errori):
             domanda = (
                 "Sei l'analista di un archivio pubblico di difesa e geopolitica. Qui sotto ci sono le notizie confermate da più "
                 "fonti nelle ultime 24 ore e i fatti che il programma ha trovato sulla stampa negli ultimi 30 giorni (accordi, "
-                "appalti, intelligence). Formato: numero. [tipo] data – Stati – testo – fonte. Usa SOLO queste voci: non "
+                "appalti, intelligence, energia, trasporti, cibo e risorse, IA militare). Sono i pezzi di un puzzle: cerca "
+                "soprattutto i collegamenti tra temi e Stati diversi. Formato: numero. [tipo] data – Stati – testo – fonte. Usa SOLO queste voci: non "
                 "aggiungere nulla che sai per conto tuo.\n\n"
                 "PARTE 1, SCALETTA: scegli da 10 a 15 voci, le più rilevanti per la difesa e la sicurezza, in ordine dalla più "
                 "importante. Una riga per voce:\n"
@@ -4092,6 +4400,11 @@ def _aggiorna(leggero=False):
         studia_servizi(cfg, errori, adesso)
     except Exception as e:  # i servizi non devono mai fermare il giro
         errori.append(f"Servizi: {e}")
+    stati_basi = 0
+    try:  # siti militari: uno Stato a giro, da Wikidata
+        stati_basi = siti_militari(cfg, paesi, errori, adesso)
+    except Exception as e:
+        errori.append(f"Siti militari: {e}")
 
     # 5. Cielo: traffico aereo civile per Stato
     if not cfg.get("cielo", True):
@@ -4307,6 +4620,7 @@ def _aggiorna(leggero=False):
         "piano": piano_giro + [rs_p.get("i", 0), rs_p.get("totale", 0), rs_p.get("passata", 0)],
         "intel": [getattr(passo_piano, "intel", 0), rs_p.get("intel", 0)],
         "quadro": quadro_giro, "servizi": live.get("servizi", 0),
+        "puzzle": [getattr(passo_piano, "puzzle", 0), sum((rs_p.get("puzzle") or {}).values())], "basi": stati_basi,
         "durata": int(time.time() - inizio_), "nuove": contati, "da": {k: v for k, v in tappe.items() if v},
         "live": analisi["notizie"], "confermate": analisi["confermate"], "quota": analisi["quota_confermate"],
         "livelli": analisi["per_livello"], "scoperti": analisi["stati_scoperti"],
@@ -5001,7 +5315,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
                 print("Copia di riserva non riuscita (il resto va avanti):", str(e)[:80])
         # dopo un giro leggero su GitHub va solo il diario (pochi KB): i dati grossi ci vanno ogni 3 ore, così il
         # repository non cresce tre volte più in fretta
-        for nome in (("diario.json",) if solo_diario else ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "diario.json")):
+        for nome in (("diario.json",) if solo_diario else ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))

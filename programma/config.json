@@ -4385,6 +4385,8 @@
   "seguiti_per_giro": 1,
   "giorni": 120,
   "titoli_max": 70, "intelligence": true, "titoli_intelligence": 25,
+  "puzzle": true,
+  "titoli_puzzle": 20,
   "pausa": 1.0,
   "blocchi": [
    [
@@ -4644,5 +4646,12 @@
   "fatti_piano": 40,
   "risposte_per_giro": 1,
   "tieni": 40
+ },
+ "siti_militari": {
+  "attivo": true,
+  "per_giro": 1,
+  "giorni": 90,
+  "massimo": 300,
+  "iso": {"Afghanistan": "AFG", "Albania": "ALB", "Algeria": "DZA", "Andorra": "AND", "Angola": "AGO", "Antigua e Barbuda": "ATG", "Arabia Saudita": "SAU", "Argentina": "ARG", "Armenia": "ARM", "Australia": "AUS", "Austria": "AUT", "Azerbaigian": "AZE", "Bahamas": "BHS", "Bahrein": "BHR", "Bangladesh": "BGD", "Barbados": "BRB", "Belgio": "BEL", "Belize": "BLZ", "Benin": "BEN", "Bhutan": "BTN", "Bielorussia": "BLR", "Bolivia": "BOL", "Bosnia ed Erzegovina": "BIH", "Botswana": "BWA", "Brasile": "BRA", "Brunei": "BRN", "Bulgaria": "BGR", "Burkina Faso": "BFA", "Burundi": "BDI", "Cambogia": "KHM", "Camerun": "CMR", "Canada": "CAN", "Capo Verde": "CPV", "Ciad": "TCD", "Cile": "CHL", "Cina": "CHN", "Cipro": "CYP", "Colombia": "COL", "Comore": "COM", "Congo": "COG", "Corea del Nord": "PRK", "Corea del Sud": "KOR", "Costa Rica": "CRI", "Costa d’Avorio": "CIV", "Croazia": "HRV", "Cuba": "CUB", "Danimarca": "DNK", "Dominica": "DMA", "Ecuador": "ECU", "Egitto": "EGY", "El Salvador": "SLV", "Emirati Arabi": "ARE", "Eritrea": "ERI", "Estonia": "EST", "Eswatini": "SWZ", "Etiopia": "ETH", "Figi": "FJI", "Filippine": "PHL", "Finlandia": "FIN", "Francia": "FRA", "Gabon": "GAB", "Gambia": "GMB", "Georgia": "GEO", "Germania": "DEU", "Ghana": "GHA", "Giamaica": "JAM", "Giappone": "JPN", "Gibuti": "DJI", "Giordania": "JOR", "Grecia": "GRC", "Grenada": "GRD", "Groenlandia": "GRL", "Guatemala": "GTM", "Guinea": "GIN", "Guinea Equatoriale": "GNQ", "Guinea-Bissau": "GNB", "Guyana": "GUY", "Haiti": "HTI", "Honduras": "HND", "India": "IND", "Indonesia": "IDN", "Iran": "IRN", "Iraq": "IRQ", "Irlanda": "IRL", "Islanda": "ISL", "Isole Marshall": "MHL", "Isole Salomone": "SLB", "Israele": "ISR", "Italia": "ITA", "Kazakistan": "KAZ", "Kenya": "KEN", "Kirghizistan": "KGZ", "Kiribati": "KIR", "Kosovo": "XKS", "Kuwait": "KWT", "Laos": "LAO", "Lesotho": "LSO", "Lettonia": "LVA", "Libano": "LBN", "Liberia": "LBR", "Libia": "LBY", "Liechtenstein": "LIE", "Lituania": "LTU", "Lussemburgo": "LUX", "Macedonia del Nord": "MKD", "Madagascar": "MDG", "Malawi": "MWI", "Maldive": "MDV", "Malesia": "MYS", "Mali": "MLI", "Malta": "MLT", "Marocco": "MAR", "Mauritania": "MRT", "Mauritius": "MUS", "Messico": "MEX", "Micronesia": "FSM", "Moldavia": "MDA", "Monaco": "MCO", "Mongolia": "MNG", "Montenegro": "MNE", "Mozambico": "MOZ", "Myanmar": "MMR", "Namibia": "NAM", "Nauru": "NRU", "Nepal": "NPL", "Nicaragua": "NIC", "Niger": "NER", "Nigeria": "NGA", "Norvegia": "NOR", "Nuova Zelanda": "NZL", "Oman": "OMN", "Paesi Bassi": "NLD", "Pakistan": "PAK", "Palau": "PLW", "Palestina": "PSE", "Panama": "PAN", "Papua Nuova Guinea": "PNG", "Paraguay": "PRY", "Perù": "PER", "Polonia": "POL", "Portogallo": "PRT", "Qatar": "QAT", "RD Congo": "COD", "Regno Unito": "GBR", "Repubblica Ceca": "CZE", "Repubblica Centrafricana": "CAF", "Repubblica Dominicana": "DOM", "Romania": "ROU", "Ruanda": "RWA", "Russia": "RUS", "Saint Kitts e Nevis": "KNA", "Saint Lucia": "LCA", "Saint Vincent e Grenadine": "VCT", "Samoa": "WSM", "San Marino": "SMR", "Senegal": "SEN", "Serbia": "SRB", "Seychelles": "SYC", "Sierra Leone": "SLE", "Singapore": "SGP", "Siria": "SYR", "Slovacchia": "SVK", "Slovenia": "SVN", "Somalia": "SOM", "Spagna": "ESP", "Sri Lanka": "LKA", "Sud Sudan": "SSD", "Sudafrica": "ZAF", "Sudan": "SDN", "Suriname": "SUR", "Svezia": "SWE", "Svizzera": "CHE", "São Tomé e Príncipe": "STP", "Tagikistan": "TJK", "Taiwan": "TWN", "Tanzania": "TZA", "Thailandia": "THA", "Timor Est": "TLS", "Togo": "TGO", "Tonga": "TON", "Trinidad e Tobago": "TTO", "Tunisia": "TUN", "Turchia": "TUR", "Turkmenistan": "TKM", "Tuvalu": "TUV", "USA": "USA", "Ucraina": "UKR", "Uganda": "UGA", "Ungheria": "HUN", "Uruguay": "URY", "Uzbekistan": "UZB", "Vanuatu": "VUT", "Vaticano": "VAT", "Venezuela": "VEN", "Vietnam": "VNM", "Yemen": "YEM", "Zambia": "ZMB", "Zimbabwe": "ZWE"}
  }
 }
