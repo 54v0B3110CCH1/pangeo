@@ -436,6 +436,9 @@ NOVITÀ 2.33 (20 novembre, sera) – LA STORIA DI OGNI STATO, COLLEGATA AL PRESE
   solo se lo Stato pesa almeno il doppio del solito sul totale delle notizie confermate: se il programma raccoglie di più
   per tutti (fonti nuove, giri più veloci) non è un picco. L'avviso dice anche perché: «In primo piano:» con i due titoli
   più confermati dello Stato. Cronologie storiche: 5 Stati a giro in carica, 2 fuori (prima 3 e 1).
+- 2.33.5: il programma conta anche la spesa totale del cervello (non solo del mese) e manda un avviso sul telefono e su
+  ntfy quando supera 20 € (config.json › avvisi › spesa_eur, in euro al cambio del giorno). Tetto del mese portato a 29 $,
+  sotto il limite di 30 $ della console di Anthropic (area di lavoro Default), così il cervello si ferma prima del limite.
 - Si regola in config.json › storia (attiva, giorni_archivi, cronologia, giorni_cronologia, stati_per_giro_carica,
   stati_per_giro). Nel diario: «storia» [cronologie scritte nel giro, Stati con cronologia, in coda, Stati negli
   archivi, conflitti, colpi di Stato].

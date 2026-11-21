@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.33.4"
+VERSIONE = "2.33.5"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -1476,6 +1476,8 @@ def chiedi_claude(chiavi, cfg, testo, massimo=900, conto=None):
             conto["mese"], conto["usd_mese"] = mese, 0.0
         conto["usd_oggi"] = round(conto.get("usd_oggi", 0.0) + d, 5)
         conto["usd_mese"] = round(conto.get("usd_mese", 0.0) + d, 5)
+        # dalla 2.33.5 anche il totale di sempre (parte dalla spesa del mese in cui nasce il campo)
+        conto["usd_totale"] = round((conto["usd_totale"] if "usd_totale" in conto else conto["usd_mese"] - d) + d, 5)
         conto["token_oggi"] = conto.get("token_oggi", 0) + en + us
         l_ = lavoro_di(testo)  # dalla 2.27: quanto costa ogni lavoro (per sapere che cosa conviene far fare al telefono)
         for campo_ in ("lavori_oggi", "lavori_mese"):
@@ -1494,6 +1496,7 @@ def _conto_cervello():
     if conto.get("giorno") != oggi:
         conto = {"giorno": oggi, "chiamate": 0, "brief": conto.get("brief"), "usd_oggi": 0.0, "token_oggi": 0,
                  "mese": conto.get("mese"), "usd_mese": conto.get("usd_mese", 0.0),
+                 **({"usd_totale": conto["usd_totale"]} if "usd_totale" in conto else {}),
                  "lavori_mese": conto.get("lavori_mese", {}) if conto.get("mese") == datetime.now().strftime("%Y-%m") else {}}
     return conto
 
@@ -4987,6 +4990,21 @@ def avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg, chiavi):
     calcolati_ = calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg)
     try:
         calcolati_ += avvisi_economia(cfg, adesso)  # dalla 2.30: monete e titoli di Stato
+    except Exception:
+        pass
+    # dalla 2.33.5: avviso quando la spesa totale del cervello supera una soglia in euro (config › avvisi › spesa_eur)
+    try:
+        conto_s = leggi_json(os.path.join(DATI, "cervello.json"), {}) or {}
+        tot_usd = conto_s.get("usd_totale", conto_s.get("usd_mese", 0)) or 0
+        st_v = ((leggi_json(os.path.join(DATI, "economia.json"), {}) or {}).get("valute") or {}).get("storia") or {}
+        eur_ = (st_v[max(st_v)] or {}).get("EUR") if st_v else None
+        eur_ = eur_ or 0.92
+        for soglia_ in cfg.get("avvisi", {}).get("spesa_eur", []):
+            if tot_usd * eur_ >= soglia_:
+                calcolati_.append({"id": f"spesa:{soglia_}", "tipo": "spesa", "nome": "Spesa del cervello", "stato": "", "livello": 2,
+                                   "testo": f"Spesa del cervello: superati {soglia_} € in totale ({tot_usd:.2f} $, circa {tot_usd * eur_:.2f} € al cambio di "
+                                            f"oggi). Questo mese: {conto_s.get('usd_mese', 0):.2f} $. Tetto del programma: "
+                                            f"{cfg.get('cervello', {}).get('max_usd_mese', 45)} $ al mese."})
     except Exception:
         pass
     nuovi = [dict(a, quando=adesso.isoformat()) for a in calcolati_ if a["id"] not in visti]
