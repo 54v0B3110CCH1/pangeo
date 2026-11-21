@@ -405,6 +405,31 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.35 (21 novembre) – SISTEMI D'ARMA, POTERE, BIBLIOTECA E STUDI
+- Sistemi d'arma: 204 sistemi (prima 110), ognuno con una scheda come il riquadro a lato di Wikipedia: foto (Wikimedia
+  Commons), che cos'è, costruttore e progettista, origine, date (progetto, primo volo, entrata in servizio, ritiro),
+  esemplari prodotti, costo, specifiche (lunghezza, massa, velocità, autonomia…), da che cosa deriva, varianti e
+  successori, chi lo usa (Stati), concorrenti (simili secondo Wikipedia e quelli dello stesso tipo ed epoca), link a
+  Wikipedia, Commons e Wikidata. La base l'ha costruita Claude da Wikidata (programma/sistemi_base.json); il telefono
+  aggiunge la storia in breve e i concorrenti e rifà ogni scheda ogni 30 giorni, 3–8 schede a giro con la rete buona
+  (config.json › sistemi). Nella pagina di ogni Stato: i sistemi che usa, quelli nei fatti raccolti e quelli costruiti lì.
+  Comando:  python castello.py sistemi  (o  python castello.py sistemi Leopard 2)
+- Potere, istituzionale e non: chi guida 34 istituzioni internazionali (FMI, Banca Mondiale, BRI, BCE, ONU, NATO…) e
+  196 banche centrali, 68 fondi sovrani, 39 grandi gestori e banche (con le quote nelle aziende della difesa già in
+  PanGeo, per esempio BlackRock in Rheinmetall), le 115 persone con più di 15 miliardi di dollari (solo persone
+  pubbliche, con la data del dato), chi gestisce e possiede porti e aeroporti, 197 gruppi armati non statali e compagnie
+  militari private (dove operano, chi li guida, da chi sono sostenuti; le designazioni come «terroristico» non si scrivono:
+  sono decisioni di singoli Stati). Fonte Wikidata, una sezione a giro, ogni sezione rifatta ogni 7 giorni
+  (config.json › potere). In ogni Stato il riquadro «Chi ha il potere». Comando:  python castello.py potere Italia
+- Biblioteca e studi: 18 classici liberi da diritti (Machiavelli, Sun Tzu, Tucidide, Clausewitz, Hobbes, Mahan, Adam
+  Smith, il Federalista, Keynes, Tocqueville, Gibbon, Plutarco…), un libro scaricato a giro con la rete buona; il cervello
+  studia 1–2 capitoli a giro e ne tira fuori le dinamiche del potere, ognuna con una citazione esatta che il programma
+  controlla nel testo (se non c'è parola per parola, la dinamica si scarta). Studi recenti di 15 centri di ricerca di
+  orientamenti diversi (titolo e link, ogni 6 ore). Tutto nell'indice di ricerca. Elenchi in config.json › biblioteca.
+  Comando:  python castello.py biblioteca
+- I video non si trascrivono (diritti e blocchi di YouTube): restano titolo e link.
+- Pagina, estensioni 44, 45 e 46: schede dei sistemi, sezione «Potere e soldi», sezione «Studi».
+
 NOVITÀ 2.34 (21 novembre, mattina) – OGNI STATO A 360° E SCALETTA CONTROLLATA
 - Correzione: nella scaletta «Le più rilevanti adesso» il cervello scriveva la sua classifica (1, 2, 3…) al posto del
   numero della notizia, così ogni «perché» finiva sotto la notizia sbagliata (sotto «Sciopero generale in Veneto» c'era

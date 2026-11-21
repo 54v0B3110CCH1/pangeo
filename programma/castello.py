@@ -3916,7 +3916,7 @@ def scrivi_piano_web(P, cfg, totale):
 LAVORI_CERVELLO = (("Traduci in italiano questi titoli", "traduzioni"), ("Traduci in italiano questi testi", "traduzioni del sapere"),
                    ("Sono titoli di giornali", "sala d'attesa"), ("Sei il redattore", "da sapere adesso"),
                    ("Lavori a un archivio", "lavoro a piano"), ("Ecco i fatti", "sintesi"), ("Domanda", "domande e risposte"),
-                   ("Sei il revisore", "revisore"), ("Sei lo storico", "storia"))
+                   ("Sei il revisore", "revisore"), ("Sei lo storico", "storia"), ("Sei lo studioso", "biblioteca"))
 
 
 def lavoro_di(testo):
@@ -7107,6 +7107,291 @@ def potere_passo(cfg, adesso, tel, errori, leggero):
     return r_
 
 
+# 11. Biblioteca e studi (dalla 2.35): il programma legge i classici liberi da diritti sul potere, la guerra, il denaro e
+#     la storia (Standard Ebooks e Project Gutenberg, pubblico dominio) e gli studi recenti dei centri di ricerca (titolo,
+#     link e data dai loro feed). Da ogni capitolo il cervello tira fuori poche «dinamiche», ognuna con una citazione
+#     esatta che il programma controlla nel testo: se la citazione non c'è parola per parola, la dinamica si scarta. Le
+#     dinamiche sono chiavi di lettura, non giudizi sui fatti di oggi. I testi dei libri restano sul telefono e
+#     nell'indice di ricerca; sul sito vanno titoli, dinamiche, citazioni brevi e link.
+BIB_TEMI = ["potere", "guerra", "denaro", "diplomazia", "Stato", "alleanze", "intelligence", "risorse", "società", "leadership", "storia",
+            "diritto", "economia", "strategia", "propaganda"]
+BIB_SALTA = ("titlepage", "imprint", "halftitle", "colophon", "uncopyright", "toc", "loi", "endnotes", "dedication", "epigraph",
+             "copyright", "acknowledg", "index", "glossary", "bibliography", "illustrations")
+
+
+def _bib_testo_xhtml(x):
+    """Il testo di un capitolo XHTML: titolo (h1–h3 o <title>) e paragrafi, senza le note."""
+    m_ = re.search(r"(?is)<body\b[^>]*>", x)
+    x = re.sub(r"(?is)<(script|style|head|aside|nav)\b.*?</\1>", " ", x[m_.end():] if m_ else x)
+    x = re.sub(r'(?is)<a[^>]*epub:type="noteref"[^>]*>.*?</a>', "", x)
+    tit = re.search(r"(?is)<h[1-3][^>]*>(.*?)</h[1-3]>", x)
+    sott = re.search(r'(?is)<p[^>]*epub:type="title"[^>]*>(.*?)</p>', x)
+    par = re.sub(r"(?is)<(p|h\d|li|blockquote|br)\b[^>]*>", "\n", x)
+    testo = html.unescape(re.sub(r"<[^>]+>", "", par))
+    testo = re.sub(r"[ \t\r\f\v]+", " ", testo)
+    testo = re.sub(r"\n\s*\n+", "\n", testo).strip()
+    t = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", (tit.group(1) if tit else ""))).split())
+    if sott:
+        t = (t + ": " if t else "") + " ".join(html.unescape(re.sub(r"<[^>]+>", " ", sott.group(1))).split())
+    return t[:160], testo
+
+
+def _bib_da_epub(dati):
+    """Un EPUB (Standard Ebooks) → [[titolo del capitolo, testo]] nell'ordine del libro."""
+    import zipfile, io
+    z = zipfile.ZipFile(io.BytesIO(dati))
+    opf = next(n for n in z.namelist() if n.endswith(".opf"))
+    o = z.read(opf).decode("utf-8", "replace")
+    base = opf.rsplit("/", 1)[0] + "/" if "/" in opf else ""
+    man = {}
+    for it in re.findall(r"<item\b[^>]*>", o):
+        i_, h_ = re.search(r'\bid="([^"]+)"', it), re.search(r'\bhref="([^"]+)"', it)
+        if i_ and h_:
+            man[i_.group(1)] = h_.group(1)
+    capitoli = []
+    for idref in re.findall(r'<itemref\b[^>]*idref="([^"]+)"', o):
+        h_ = man.get(idref, "")
+        if not h_.endswith((".xhtml", ".html")) or any(s in h_.lower() for s in BIB_SALTA):
+            continue
+        t, testo = _bib_testo_xhtml(z.read(base + h_).decode("utf-8", "replace"))
+        if len(testo) > 400:
+            capitoli.append([t or f"parte {len(capitoli) + 1}", testo])
+    return capitoli
+
+
+def _bib_da_testo(testo, parola, massimo=9000):
+    """Un testo semplice (Project Gutenberg): controlla che sia il libro giusto, toglie testa e coda della licenza e lo divide
+    in parti di circa «massimo» caratteri, ai capoversi."""
+    if parola and parola.lower() not in testo[:6000].lower():
+        raise ValueError(f"non è il libro atteso (manca «{parola}» all'inizio)")
+    a = re.search(r"\*\*\* ?START OF (THE|THIS) PROJECT GUTENBERG[^\n]*\n", testo)
+    b = re.search(r"\*\*\* ?END OF (THE|THIS) PROJECT GUTENBERG", testo)
+    testo = testo[a.end() if a else 0: b.start() if b else len(testo)].replace("\r\n", "\n")
+    capitoli, pezzo, titolo = [], [], ""
+    for par in re.split(r"\n\s*\n", testo):
+        p = " ".join(par.split())
+        if not p:
+            continue
+        if re.match(r"^(BOOK|CHAPTER|PART|LETTER|ESSAY|SECTION|No\.)\b[ .IVXLC0-9]*", p) and len(p) < 120:
+            if sum(len(x) for x in pezzo) > 1500:
+                capitoli.append([titolo or f"parte {len(capitoli) + 1}", "\n".join(pezzo)])
+                pezzo = []
+            titolo = p[:160]
+            continue
+        pezzo.append(p)
+        if sum(len(x) for x in pezzo) > massimo:
+            capitoli.append([titolo or f"parte {len(capitoli) + 1}", "\n".join(pezzo)])
+            pezzo, titolo = [], (titolo + " (segue)" if titolo and not titolo.endswith("(segue)") else titolo)
+    if pezzo:
+        capitoli.append([titolo or f"parte {len(capitoli) + 1}", "\n".join(pezzo)])
+    return [c for c in capitoli if len(c[1]) > 400]
+
+
+def _bib_link(L):
+    if L.get("fonte") == "se":
+        return "https://standardebooks.org/ebooks/" + L["slug"]
+    return f"https://www.gutenberg.org/ebooks/{L['slug']}"
+
+
+def _bib_scarica(L):
+    if L.get("fonte") == "se":
+        f = L["slug"].replace("/", "_")
+        return _bib_da_epub(scarica(f"https://standardebooks.org/ebooks/{L['slug']}/downloads/{f}.epub?source=download", timeout=180))
+    t = scarica(f"https://www.gutenberg.org/cache/epub/{L['slug']}/pg{L['slug']}.txt", timeout=180).decode("utf-8", "replace")
+    return _bib_da_testo(t, L.get("controllo", ""))
+
+
+def _bib_norm(t):
+    t = (t or "").lower().replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"').replace("—", "-").replace("–", "-")
+    return " ".join(re.sub(r"[^\w'\"-]+", " ", t).split())
+
+
+def _bib_domanda(L, cap, testo):
+    return (f"Sei lo studioso di un archivio pubblico su difesa, geopolitica e potere. Qui sotto c'è un passo di «{L['titolo']}» "
+            f"di {L['autore']} ({L.get('anno', '')}), capitolo «{cap}». Estrai da 2 a 4 dinamiche del potere, della guerra, del "
+            "denaro, della diplomazia o della società che il passo mostra, scritte in generale (che cosa succede, perché, a quali "
+            "condizioni), così che si possano usare per leggere fatti di altre epoche. Una riga per dinamica:\n"
+            "L | la dinamica in una frase in italiano | citazione ESATTA dal passo, copiata parola per parola, da 6 a 30 parole, "
+            "nella lingua del passo | da 1 a 3 temi tra: " + ", ".join(BIB_TEMI) + "\n"
+            "Regole: usa SOLO il passo; niente giudizi sui fatti di oggi, niente previsioni, niente consigli; se il passo non "
+            "contiene dinamiche utili scrivi solo «L | nessuna». Nessun altro testo.\n\nPASSO\n" + testo)
+
+
+def _bib_lezione(risposta, testo):
+    """Le righe L del cervello: tiene solo quelle con la citazione trovata parola per parola nel passo."""
+    tn = _bib_norm(testo)
+    tenute, scartate = [], 0
+    for riga in (risposta or "").splitlines():
+        p = [x.strip(" *`\"«»") for x in riga.strip().lstrip("-•* ").split("|")]
+        if len(p) < 4 or p[0].upper().strip(" .:") != "L" or p[1].lower().startswith("nessun"):
+            continue
+        cit, din = p[2], pulisci(p[1], 300)
+        if not (5 <= len(cit.split()) <= 40) or len(din) < 20 or _bib_norm(cit) not in tn:
+            scartate += 1
+            continue
+        temi = [t for t in BIB_TEMI if t.lower() in p[3].lower()][:3] or ["potere"]
+        tenute.append([din, cit, temi])
+    return tenute[:4], scartate
+
+
+def biblioteca_aggiorna(chiavi, cfg, adesso, tel, errori, quanti_lezioni=1, scarica_libro=True):
+    """Un libro scaricato al giro (se ne manca uno e la rete è buona), le lezioni del cervello su pochi capitoli, gli studi
+    dai feed dei centri di ricerca ogni biblioteca.studi_ore ore. Restituisce i conti per il diario."""
+    imp = cfg.get("biblioteca", {}) or {}
+    esito = {"libri": 0, "capitoli": 0, "lezioni": 0, "dinamiche": 0, "studi_nuovi": 0, "scaricato": ""}
+    if not imp.get("attiva", True):
+        return esito
+    cart = MAG("biblioteca")
+    os.makedirs(os.path.join(cart, "libri"), exist_ok=True)
+    LIB = [dict(zip(("id", "titolo", "autore", "anno", "fonte", "slug", "controllo", "temi"), x)) for x in imp.get("libri", [])]
+    perc_e = os.path.join(cart, "elenco.json")
+    E = leggi_json(perc_e, {}) or {}   # id → {"capitoli": n, "quando": data, "errore": testo}
+    # 1. un libro nuovo per giro
+    if scarica_libro:
+        for L in LIB:
+            e_ = E.get(L["id"]) or {}
+            if e_.get("capitoli") or e_.get("riprova", "") > adesso.isoformat():
+                continue
+            try:
+                caps = _bib_scarica(L)
+                if len(caps) < 2:
+                    raise ValueError("capitoli non trovati")
+                scrivi_json(os.path.join(cart, "libri", L["id"] + ".json"), {"id": L["id"], "capitoli": caps})
+                E[L["id"]] = {"capitoli": len(caps), "quando": adesso.isoformat(), "caratteri": sum(len(c[1]) for c in caps)}
+                esito["scaricato"] = L["titolo"]
+                try:  # nell'indice di ricerca, un capitolo per voce
+                    db = _indice_apri()
+                    if db.execute("SELECT name FROM sqlite_master WHERE name='testi'").fetchone():
+                        for i, c in enumerate(caps):
+                            kk = f"b:{L['id']}:{i}"
+                            if not db.execute("SELECT 1 FROM visti WHERE k=?", (kk,)).fetchone():
+                                db.execute("INSERT INTO visti VALUES (?)", (kk,))
+                                db.execute("INSERT INTO testi (testo, d, p, f, u, dove, c) VALUES (?,?,?,?,?,?,?)",
+                                           (f"{L['titolo']} ({L['autore']}) · {c[0]} · {c[1][:60000]}", str(L.get("anno", "")), "",
+                                            L["autore"], _bib_link(L), "libro", 1))
+                    db.commit()
+                    db.close()
+                except Exception as e:
+                    errori.append(f"Biblioteca (indice): {str(e)[:80]}")
+            except SenzaRete:
+                raise
+            except Exception as e:
+                E[L["id"]] = {"errore": str(e)[:120], "riprova": (adesso + timedelta(days=3)).isoformat()}
+                errori.append(f"Biblioteca ({L['titolo']}): {str(e)[:100]}")
+            break
+        scrivi_json(perc_e, E)
+    # 2. le lezioni del cervello: i capitoli nell'ordine dei libri
+    perc_l = os.path.join(cart, "lezioni.json")
+    LZ = leggi_json(perc_l, {}) or {}
+    ic = cfg.get("cervello", {}) or {}
+    if quanti_lezioni > 0 and chiavi.get("anthropic_key") and ic.get("attivo", True):
+        conto = _conto_cervello()
+        fatte = 0
+        for L in LIB:
+            if fatte >= quanti_lezioni or not (E.get(L["id"]) or {}).get("capitoli"):
+                continue
+            libro = leggi_json(os.path.join(cart, "libri", L["id"] + ".json"), {}) or {}
+            fatti_l = LZ.setdefault(L["id"], {})
+            for i, (cap, testo) in enumerate(libro.get("capitoli") or []):
+                if fatte >= quanti_lezioni:
+                    break
+                if str(i) in fatti_l:
+                    continue
+                if not _cervello_libero(conto, ic) or conto.get("passo"):
+                    fatte = quanti_lezioni
+                    break
+                passo = testo[:int(imp.get("caratteri", 7000))]
+                try:
+                    risposta = chiedi_claude(chiavi, cfg, _bib_domanda(L, cap, passo), 900, conto)
+                    conto["chiamate"] = conto.get("chiamate", 0) + 1
+                except Exception as e:
+                    errori.append("Biblioteca (cervello): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:120])
+                    fatte = quanti_lezioni
+                    break
+                tenute, scartate = _bib_lezione(risposta, passo)
+                fatti_l[str(i)] = {"quando": adesso.isoformat(), "cap": cap, "l": tenute, "scartate": scartate}
+                fatte += 1
+                esito["lezioni"] += 1
+                esito["dinamiche"] += len(tenute)
+        scrivi_json(os.path.join(DATI, "cervello.json"), conto)
+        scrivi_json(perc_l, LZ)
+    # 3. gli studi: titoli e link dai feed dei centri di ricerca
+    perc_s = os.path.join(cart, "studi.json")
+    S = leggi_json(perc_s, {}) or {}
+    if S.get("quando", "") < (adesso - timedelta(hours=imp.get("studi_ore", 6))).isoformat():
+        voci = {v[2]: v for v in S.get("voci", [])}
+        nuovi = []
+        for nome, url, paese in imp.get("studi", []):
+            try:
+                for t, u, d, *_ in leggi_rss(scarica(url, timeout=30))[:40]:
+                    if u and u not in voci:
+                        voci[u] = [(d or adesso.isoformat())[:10], pulisci(t, 240), u, nome, paese]
+                        nuovi.append(voci[u])
+            except SenzaRete:
+                raise
+            except Exception as e:
+                errori.append(f"Studi ({nome}): {str(e)[:80]}")
+        S = {"quando": adesso.isoformat(), "voci": sorted(voci.values(), key=lambda v: v[0], reverse=True)[:imp.get("studi_tieni", 1500)]}
+        scrivi_json(perc_s, S)
+        esito["studi_nuovi"] = len(nuovi)
+        if nuovi:
+            try:
+                db = _indice_apri()
+                if db.execute("SELECT name FROM sqlite_master WHERE name='testi'").fetchone():
+                    for v in nuovi:
+                        kk = "s:" + v[2]
+                        if not db.execute("SELECT 1 FROM visti WHERE k=?", (kk,)).fetchone():
+                            db.execute("INSERT INTO visti VALUES (?)", (kk,))
+                            db.execute("INSERT INTO testi (testo, d, p, f, u, dove, c) VALUES (?,?,?,?,?,?,?)",
+                                       (v[1], v[0], "", v[3], v[2], "studio", 1))
+                db.commit()
+                db.close()
+            except Exception as e:
+                errori.append(f"Studi (indice): {str(e)[:80]}")
+    esito["libri"] = sum(1 for x in E.values() if x.get("capitoli"))
+    esito["capitoli"] = sum(x.get("capitoli", 0) for x in E.values())
+    esito["lezioni_totali"] = sum(len(v) for v in LZ.values())
+    esito["dinamiche_totali"] = sum(len(c.get("l") or []) for v in LZ.values() for c in v.values())
+    return esito
+
+
+def scrivi_biblioteca_web(cfg, adesso):
+    imp = cfg.get("biblioteca", {}) or {}
+    cart = MAG("biblioteca")
+    E = leggi_json(os.path.join(cart, "elenco.json"), {}) or {}
+    LZ = leggi_json(os.path.join(cart, "lezioni.json"), {}) or {}
+    S = leggi_json(os.path.join(cart, "studi.json"), {}) or {}
+    libri, lezioni = [], []
+    for x in imp.get("libri", []):
+        L = dict(zip(("id", "titolo", "autore", "anno", "fonte", "slug", "controllo", "temi"), x))
+        e_ = E.get(L["id"]) or {}
+        lz = LZ.get(L["id"]) or {}
+        libri.append([L["id"], L["titolo"], L["autore"], L.get("anno", ""), _bib_link(L), e_.get("capitoli", 0), len(lz),
+                      "errore" if e_.get("errore") else ("letto" if e_.get("capitoli") and len(lz) >= e_["capitoli"] else
+                                                         "in lettura" if e_.get("capitoli") else "in coda")])
+        for i, c in sorted(lz.items(), key=lambda z: int(z[0])):
+            for d in c.get("l") or []:
+                lezioni.append([L["id"], int(i), c.get("cap", ""), d[0], d[1], d[2], (c.get("quando") or "")[:10]])
+    return _scrivi_se_cambia(os.path.join(WEB, "biblioteca.js"), "window.BIBLIOTECA=" + json.dumps(
+        {"agg": adesso.date().isoformat(), "temi": BIB_TEMI, "libri": libri, "lezioni": lezioni[-4000:],
+         "studi": (S.get("voci") or [])[:400], "fonti_studi": [[n, u, p] for n, u, p in imp.get("studi", [])]},
+        ensure_ascii=False, separators=(",", ":")) + ";")
+
+
+def biblioteca_passo(chiavi, cfg, adesso, tel, errori, leggero):
+    imp = cfg.get("biblioteca", {}) or {}
+    if not imp.get("attiva", True):
+        return None
+    R = leggi_json(os.path.join(DATI, "regia.json"), {}) or {}
+    lez = imp.get("lezioni_per_giro_carica", 2) if R.get("spinta") else imp.get("lezioni_per_giro", 1)
+    if (R.get("perche") and any("soldi a passo" in p for p in R.get("perche") or [])):
+        lez = min(lez, 1)
+    r_ = biblioteca_aggiorna(chiavi, cfg, adesso, tel, errori, lez, scarica_libro=(R.get("rete") != "lenta"))
+    if not leggero or r_.get("lezioni") or r_.get("scaricato") or r_.get("studi_nuovi"):
+        scrivi_biblioteca_web(cfg, adesso)
+    return r_
+
+
 # 8. Totali (dalla 2.33.7): quanto ha fatto il programma da quando esiste, ogni mese, ogni giorno. Il diario tiene solo gli
 #    ultimi 120 giri; qui i conti restano per sempre (giorni: gli ultimi 400). La base (programma/totali_base.json) è
 #    ricostruita da tutta la storia di diario.json su GitHub, dal primo diario del 18 novembre 2026.
@@ -7211,6 +7496,12 @@ def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, erro
         raise
     except Exception as e:
         errori.append(f"Potere: {str(e)[:100]}")
+    try:  # dalla 2.35: biblioteca e studi (classici liberi da diritti, lezioni del cervello, studi dei centri di ricerca)
+        esito["biblioteca"] = biblioteca_passo(chiavi, cfg, adesso, tel, errori, leggero)
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Biblioteca: {str(e)[:100]}")
     try:
         esito["indice"] = indice_aggiorna(archivio, adesso, cfg, secondi=cfg.get("indice", {}).get("secondi", 45))
     except Exception as e:
@@ -9296,6 +9587,8 @@ def _aggiorna(leggero=False):
         "storia": [(esito_229.get("storia") or {}).get(c_) for c_ in ("fatti", "con_cronologia", "in_coda", "stati", "conflitti", "golpe", "ultimo")],
         "sistemi": [(esito_229.get("sistemi") or {}).get(c_) for c_ in ("fatte", "schede", "in_coda")],
         "potere": [(esito_229.get("potere") or {}).get(c_) for c_ in ("fatte", "sezioni", "voci")],
+        "biblioteca": [(esito_229.get("biblioteca") or {}).get(c_) for c_ in ("libri", "capitoli", "lezioni", "dinamiche", "lezioni_totali",
+                                                                                "dinamiche_totali", "studi_nuovi", "scaricato")],
         "regia": [(leggi_json(os.path.join(DATI, "regia.json"), {}) or {}).get(c_) for c_ in ("passo", "articoli", "cronologie", "rete")],
         "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
@@ -10011,7 +10304,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         for nome in (("diario.json", "rapporto.json", "rapporti.json", "avvisi.json", "totali.js") if solo_diario else
                      ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json",
                       "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js", "economia.js", "storia.js", "totali.js",
-                      "sistemi.js", "potere.js")):
+                      "sistemi.js", "potere.js", "biblioteca.js")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -10527,6 +10820,19 @@ if __name__ == "__main__":
                        if cosa_p in ([v_p.get("st")] if isinstance(v_p.get("st"), str) else (v_p.get("st") or [])) + (v_p.get("area") or [])]
                 if l_p:
                     print(f"{POTERE_NOMI[s_p]}: " + "; ".join(v_p["n"] + (f" ({', '.join(v_p.get('capi') or [])})" if v_p.get("capi") else "") for v_p in l_p[:12]))
+    elif comando == "biblioteca":  # dalla 2.35: libri, lezioni e studi
+        cfg_b = leggi_json(os.path.join(QUI, "config.json"), {}) or {}
+        E_b = leggi_json(MAG("biblioteca", "elenco.json"), {}) or {}
+        LZ_b = leggi_json(MAG("biblioteca", "lezioni.json"), {}) or {}
+        for x_b in (cfg_b.get("biblioteca", {}) or {}).get("libri", []):
+            e_b, l_b = E_b.get(x_b[0]) or {}, LZ_b.get(x_b[0]) or {}
+            print(f"  {x_b[1]} ({x_b[2]}): " + (f"{e_b['capitoli']} capitoli, {len(l_b)} studiati, "
+                                                 f"{sum(len(c.get('l') or []) for c in l_b.values())} dinamiche" if e_b.get("capitoli")
+                                                 else ("errore: " + e_b["errore"] if e_b.get("errore") else "in coda")))
+        S_b = leggi_json(MAG("biblioteca", "studi.json"), {}) or {}
+        print(f"Studi dai centri di ricerca: {len(S_b.get('voci') or [])}, letti il {(S_b.get('quando') or 'mai')[:16]}")
+        for v_b in (S_b.get("voci") or [])[:8]:
+            print(f"  {v_b[0]} · {v_b[3]} · {v_b[1][:110]}")
     elif comando == "avvisi":  # dalla 2.29: gli avvisi delle ultime 48 ore
         V_ = leggi_json(os.path.join(DATI, "avvisi.json"), {}) or {}
         da_ = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
