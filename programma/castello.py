@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.33.5"
+VERSIONE = "2.33.6"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -1478,6 +1478,12 @@ def chiedi_claude(chiavi, cfg, testo, massimo=900, conto=None):
         conto["usd_mese"] = round(conto.get("usd_mese", 0.0) + d, 5)
         # dalla 2.33.5 anche il totale di sempre (parte dalla spesa del mese in cui nasce il campo)
         conto["usd_totale"] = round((conto["usd_totale"] if "usd_totale" in conto else conto["usd_mese"] - d) + d, 5)
+        # dalla 2.33.6 la memoria dello scorrere del tempo: la spesa di ogni mese e degli ultimi 400 giorni
+        conto.setdefault("mesi", {})[mese] = conto["usd_mese"]
+        g_ = conto.setdefault("giorni", {})
+        g_[datetime.now().date().isoformat()] = conto["usd_oggi"]
+        if len(g_) > 400:
+            conto["giorni"] = dict(sorted(g_.items())[-400:])
         conto["token_oggi"] = conto.get("token_oggi", 0) + en + us
         l_ = lavoro_di(testo)  # dalla 2.27: quanto costa ogni lavoro (per sapere che cosa conviene far fare al telefono)
         for campo_ in ("lavori_oggi", "lavori_mese"):
@@ -1496,7 +1502,7 @@ def _conto_cervello():
     if conto.get("giorno") != oggi:
         conto = {"giorno": oggi, "chiamate": 0, "brief": conto.get("brief"), "usd_oggi": 0.0, "token_oggi": 0,
                  "mese": conto.get("mese"), "usd_mese": conto.get("usd_mese", 0.0),
-                 **({"usd_totale": conto["usd_totale"]} if "usd_totale" in conto else {}),
+                 **{k_: conto[k_] for k_ in ("usd_totale", "mesi", "giorni") if k_ in conto},
                  "lavori_mese": conto.get("lavori_mese", {}) if conto.get("mese") == datetime.now().strftime("%Y-%m") else {}}
     return conto
 
@@ -4999,12 +5005,15 @@ def avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg, chiavi):
         st_v = ((leggi_json(os.path.join(DATI, "economia.json"), {}) or {}).get("valute") or {}).get("storia") or {}
         eur_ = (st_v[max(st_v)] or {}).get("EUR") if st_v else None
         eur_ = eur_ or 0.92
-        for soglia_ in cfg.get("avvisi", {}).get("spesa_eur", []):
-            if tot_usd * eur_ >= soglia_:
-                calcolati_.append({"id": f"spesa:{soglia_}", "tipo": "spesa", "nome": "Spesa del cervello", "stato": "", "livello": 2,
-                                   "testo": f"Spesa del cervello: superati {soglia_} € in totale ({tot_usd:.2f} $, circa {tot_usd * eur_:.2f} € al cambio di "
-                                            f"oggi). Questo mese: {conto_s.get('usd_mese', 0):.2f} $. Tetto del programma: "
-                                            f"{cfg.get('cervello', {}).get('max_usd_mese', 45)} $ al mese."})
+        mesi_ = ", ".join(f"{m[5:]}/{m[:4]} {v:.2f} $" for m, v in sorted((conto_s.get("mesi") or {}).items()))
+        soglie_ = [(x, x, "$") for x in cfg.get("avvisi", {}).get("spesa_usd", [])] + \
+                  [(x / eur_, x, "€") for x in cfg.get("avvisi", {}).get("spesa_eur", [])]
+        for soglia_usd, soglia_, mon_ in soglie_:
+            if tot_usd >= soglia_usd:
+                calcolati_.append({"id": f"spesa:{soglia_}{mon_}", "tipo": "spesa", "nome": "Spesa del cervello", "stato": "", "livello": 2,
+                                   "testo": f"Spesa del cervello: superati {soglia_} {mon_} in totale ({tot_usd:.2f} $, circa {tot_usd * eur_:.2f} €). "
+                                            + (f"Mese per mese: {mesi_}. " if mesi_ else f"Questo mese: {conto_s.get('usd_mese', 0):.2f} $. ")
+                                            + f"Tetto del programma: {cfg.get('cervello', {}).get('max_usd_mese', 45)} $ al mese."})
     except Exception:
         pass
     nuovi = [dict(a, quando=adesso.isoformat()) for a in calcolati_ if a["id"] not in visti]
@@ -9526,6 +9535,10 @@ if __name__ == "__main__":
         c_ = leggi_json(os.path.join(DATI, "cervello.json"), {})
         if c_.get("lavori_mese"):
             print("Spesa del cervello questo mese, per lavoro: " + " · ".join(f"{k} {v:.2f} $" for k, v in sorted(c_["lavori_mese"].items(), key=lambda x: -x[1])))
+        if c_.get("usd_totale") is not None or c_.get("mesi"):  # dalla 2.33.6: la spesa nel tempo
+            print(f"Spesa del cervello: oggi {c_.get('usd_oggi', 0):.2f} $ · mese {c_.get('usd_mese', 0):.2f} $ · in totale "
+                  f"{c_.get('usd_totale', c_.get('usd_mese', 0)):.2f} $" + ("" if not c_.get("mesi") else " · mese per mese: " + ", ".join(
+                      f"{m[5:]}/{m[:4]} {v:.2f} $" for m, v in sorted(c_["mesi"].items()))))
     elif comando == "storia":  # dalla 2.33: la storia di uno Stato (o il riassunto di tutti)
         A_s = _storia_carica()
         K_s = leggi_json(MAG("storia", "cronologie.json"), {}) or {}

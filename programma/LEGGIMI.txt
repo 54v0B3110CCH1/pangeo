@@ -439,6 +439,9 @@ NOVITÀ 2.33 (20 novembre, sera) – LA STORIA DI OGNI STATO, COLLEGATA AL PRESE
 - 2.33.5: il programma conta anche la spesa totale del cervello (non solo del mese) e manda un avviso sul telefono e su
   ntfy quando supera 20 € (config.json › avvisi › spesa_eur, in euro al cambio del giorno). Tetto del mese portato a 29 $,
   sotto il limite di 30 $ della console di Anthropic (area di lavoro Default), così il cervello si ferma prima del limite.
+- 2.33.6: la soglia è 20 dollari (config.json › avvisi › spesa_usd; spesa_eur resta possibile). Il programma tiene la
+  memoria della spesa nel tempo: ogni mese («mesi») e gli ultimi 400 giorni («giorni») in dati/cervello.json, oltre al
+  totale di sempre. L'avviso e «officina» mostrano la spesa mese per mese.
 - Si regola in config.json › storia (attiva, giorni_archivi, cronologia, giorni_cronologia, stati_per_giro_carica,
   stati_per_giro). Nel diario: «storia» [cronologie scritte nel giro, Stati con cronologia, in coda, Stati negli
   archivi, conflitti, colpi di Stato].
