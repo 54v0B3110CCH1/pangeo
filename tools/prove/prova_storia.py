@@ -60,7 +60,7 @@ st0 = next(iter(K))
 mali = K.get("Mali")
 if mali is None:  # Mali non tra i primi: si studia a mano
     C.leggi_json(C.MAG("storia", "cronologie.json"), {})
-ok(r.get("fatti") == 3, "3 Stati studiati in carica")
+ok(r.get("fatti") == cfg["storia"]["stati_per_giro_carica"], "Stati studiati in carica come da config")
 ok("Italia" in K, "si parte dall'ordine del piano (Italia prima)")
 q = domande[0]
 ok("Sei lo storico" in q and "U = UCDP" in q or "F = CIA" in q, "domanda con le fonti")
