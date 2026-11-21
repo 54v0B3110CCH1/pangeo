@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.33.2"
+VERSIONE = "2.33.3"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -4932,12 +4932,17 @@ def calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg):
     ieri = (adesso - timedelta(days=1)).date().isoformat()
     G = A.get("giorni", {})
     prima = [(adesso - timedelta(days=i)).date().isoformat() for i in range(2, 16)]
+    # dalla 2.33.3 contano solo i giorni «pieni» (almeno metà delle notizie del giorno più ricco): i giorni ricostruiti
+    # dall'archivio di 7 giorni hanno poche notizie e facevano credere che Russia o USA abbiano «di solito 0» notizie
+    tot_ = {d: sum((v or [0])[0] for v in (G.get(d) or {}).values()) for d in prima}
+    pieno_ = max(tot_.values(), default=0)
+    pieni = [d for d in prima if pieno_ and tot_[d] >= 0.5 * pieno_]
     nuovi = []
     for p in sorted({p for d in (oggi, ieri) for p in (G.get(d) or {})}):
         c_oggi = max(((G.get(oggi) or {}).get(p) or [0, 0])[1], 0)
-        storia = sorted(((G.get(d) or {}).get(p) or [0, 0])[1] for d in prima)
+        storia = sorted(((G.get(d) or {}).get(p) or [0, 0])[1] for d in pieni)
         mediana = storia[len(storia) // 2] if storia else 0
-        giorni_noti = sum(1 for d in prima if d in G)
+        giorni_noti = len(pieni)
         if giorni_noti >= imp.get("giorni_minimi", 5) and c_oggi >= max(imp.get("picco_minimo", 6), 3 * max(mediana, 1)):
             nuovi.append({"id": f"picco:{p}:{oggi}", "tipo": "picco", "stato": p, "livello": 2 if c_oggi >= 6 * max(mediana, 1) else 1,
                           "testo": f"{p}: {c_oggi} notizie confermate oggi, di solito {mediana} al giorno."})
@@ -6226,6 +6231,18 @@ def _storia_anni(anno):
     return None, None
 
 
+def _storia_secolo(anno):
+    """Per mettere in ordine i secoli: «XIV secolo» → 1300, «IX secolo a.C.» → -900 (dalla 2.33.3)."""
+    m = re.search(r"\b([IVXL]+)\b", anno or "")
+    if not m:
+        return -5000
+    v, prima_ = 0, 0
+    for c in reversed(m.group(1)):
+        x = {"I": 1, "V": 5, "X": 10, "L": 50}[c]
+        v, prima_ = (v - x, prima_) if x < prima_ else (v + x, x)
+    return -v * 100 if re.search(r"a\.?\s?c\.?|\bbc\b|avanti", anno, re.I) else (v - 1) * 100
+
+
 def _storia_controlla(righe, fonti, conflitti, golpe, recenti_anni):
     """Tiene solo le tappe il cui anno sta davvero nella fonte citata."""
     tenute, viste = [], set()
@@ -6262,7 +6279,7 @@ def _storia_controlla(righe, fonti, conflitti, golpe, recenti_anni):
         if chiave in viste:
             continue
         viste.add(chiave)
-        tenute.append([anno, tappa, f, a0 if a0 is not None else -1])
+        tenute.append([anno, tappa, f, a0 if a0 is not None else _storia_secolo(anno)])
     tenute.sort(key=lambda x: x[3])
     return [x[:3] for x in tenute[:30]]
 
@@ -6330,6 +6347,8 @@ def storia_studia(chiavi, cfg, adesso, tel, errori, A=None):
         tappe = _storia_controlla(risposta, fonti, conf, gol, {int(x[0][:4]) for x in mem_ if x[0][:4].isdigit()})
         proposte_ = sum(1 for r__ in (risposta or "").splitlines() if r__.count("|") >= 2 and re.search(r"\d{3,4}|secol", r__))
         ultimo_ = [st, proposte_, len(tappe)]
+        if not tappe:  # per capire che cosa non va: l'inizio della prima riga proposta finisce nel diario
+            ultimo_.append(next((r__.strip()[:140] for r__ in (risposta or "").splitlines() if r__.count("|") >= 2), (risposta or "")[:140]))
         if not tappe:  # nessuna tappa tenuta: si riprova tra un giorno (e si tiene l'inizio della risposta per capire)
             K[st] = {"quando": "", "riprova": (adesso + timedelta(days=1)).isoformat(), "tappe": [], "firma": firma(st),
                      "proposte": proposte_, "risposta": (risposta or "")[:1500]}
