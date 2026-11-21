@@ -4465,6 +4465,14 @@
   "temp_ok": 39.5,
   "batteria_min": 15
  },
+ "sistemi": {
+  "attivo": true,
+  "perche": "schede dei sistemi d'arma da Wikidata e Wikipedia: poche a giro, rifatte ogni 30 giorni",
+  "per_giro_carica": 8,
+  "per_giro": 3,
+  "giorni": 30,
+  "secondi": 120
+ },
  "storia": {
   "attiva": true,
   "perche": "dalla 2.33: il programma studia la storia di ogni Stato (conflitti armati dal 1946 dell'Università di Uppsala, colpi di Stato dal 1950 di Powell e Thyne, introduzione storica del World Factbook, Wikipedia come appoggio, fatti confermati degli ultimi mesi) e la collega al presente",

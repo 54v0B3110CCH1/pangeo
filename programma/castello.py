@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.34"
+VERSIONE = "2.35"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -6490,6 +6490,358 @@ def storia_passo(chiavi, cfg, adesso, tel, errori, leggero):
     return r_
 
 
+# 9. Sistemi d'arma (dalla 2.35): per ogni sistema una scheda come il riquadro a lato delle voci di Wikipedia. Chi lo
+#    costruisce e lo ha progettato, da dove viene, le date (primo volo, entrata in servizio, ritiro), quanti ne sono stati
+#    fatti e quanto costano, le specifiche, da che cosa deriva e che cosa lo segue, le varianti, chi lo usa (Stati), la
+#    storia in breve e i concorrenti. Fonti: Wikidata (dati strutturati, licenza CC0) e Wikipedia (appoggio, affidabilità
+#    media: la storia in breve e i «simili»). L'elenco dei sistemi sta in programma/sistemi.json; la base costruita da
+#    Claude in programma/sistemi_base.json; il telefono rinnova poche schede a giro, quando la rete è buona.
+SIS_UA = {"User-Agent": "PanGeo/" + VERSIONE + " (https://github.com/54v0B3110CCH1/pangeo; archivio pubblico non commerciale)"}
+SIS_DATE = {"P571": "nasce", "P606": "volo", "P729": "servizio", "P730": "ritiro"}
+SIS_LISTE = {"P176": "costr", "P287": "prog", "P495": "orig", "P144": "base", "P4969": "deriv", "P155": "prima", "P156": "dopo",
+             "P31": "cl", "P137": "op"}
+SIS_MISURE = [("P2043", "lunghezza"), ("P2050", "apertura alare"), ("P2048", "altezza"), ("P2049", "larghezza"),
+              ("P2386", "diametro"), ("P2262", "pescaggio"), ("P2067", "massa"), ("P2052", "velocità"),
+              ("P2073", "autonomia"), ("P2254", "quota massima"), ("P2109", "potenza"), ("P1029", "equipaggio")]
+# unità: le più comuni scritte corte; si preferisce il sistema metrico quando Wikidata ha più valori
+SIS_UNITA = {"Q11573": "m", "Q174728": "cm", "Q174789": "mm", "Q3710": "ft", "Q218593": "in", "Q11570": "kg", "Q191118": "t",
+             "Q100995": "lb", "Q180154": "km/h", "Q211256": "mph", "Q128822": "nodi", "Q182429": "m/s", "Q160669": "Mach",
+             "Q828224": "km", "Q253276": "mi", "Q93318": "miglia nautiche", "Q25269": "kW", "Q243372": "CV", "Q115533751": "CV",
+             "Q4916": "€", "Q4917": "$", "Q25417": "£", "Q41044": "rubli", "Q39099": "yuan", "Q8146": "yen"}
+SIS_METRICO = {"m", "cm", "mm", "kg", "t", "km/h", "km", "m/s", "kW", "Mach"}
+# come Wikidata scrive in italiano alcuni Stati che in PanGeo hanno un nome più corto
+SIS_STATI_WD = {"Stati Uniti d'America": "USA", "Stati Uniti": "USA", "Repubblica Popolare Cinese": "Cina",
+                "Emirati Arabi Uniti": "Emirati Arabi", "Regno dei Paesi Bassi": "Paesi Bassi", "Repubblica Democratica del Congo": "RD Congo",
+                "Repubblica del Congo": "Congo", "Repubblica di Cina": "Taiwan", "Cechia": "Repubblica Ceca", "Stato di Palestina": "Palestina",
+                "Repubblica di Corea": "Corea del Sud", "Federazione Russa": "Russia", "Regno di Danimarca": "Danimarca",
+                "Tailandia": "Thailandia", "Regno di Norvegia": "Norvegia", "Regno di Svezia": "Svezia"}
+
+
+def _sis_wd(ids, props="labels|claims|sitelinks|descriptions"):
+    """Una chiamata a Wikidata per fino a 50 elementi."""
+    u = ("https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&languages=it|en|mul&props=" + props +
+         "&ids=" + "|".join(ids[:50]))
+    return (json.loads(scarica(u, timeout=40, intestazioni=SIS_UA)) or {}).get("entities") or {}
+
+
+def _sis_etichetta(e, lingue=("it", "en")):
+    lab = (e or {}).get("labels") or {}
+    for l_ in tuple(lingue) + ("mul",):  # «mul»: il nome uguale in tutte le lingue (Wikidata dal 2024)
+        if lab.get(l_):
+            return lab[l_]["value"]
+    return next((v["value"] for v in lab.values()), "")
+
+
+def _sis_valori(e, p):
+    """I valori di una proprietà, quelli «preferiti» prima, senza quelli deprecati."""
+    cl = [c for c in ((e or {}).get("claims") or {}).get(p) or [] if c.get("rank") != "deprecated"]
+    cl.sort(key=lambda c: c.get("rank") != "preferred")
+    return [c["mainsnak"].get("datavalue", {}).get("value") for c in cl if c.get("mainsnak", {}).get("snaktype") == "value"]
+
+
+def _sis_anno(v):
+    t = (v or {}).get("time", "") if isinstance(v, dict) else ""
+    m = re.match(r"^\+?(-?\d{1,4})-(\d\d)-(\d\d)", t)
+    if not m:
+        return ""
+    pre = (v or {}).get("precision", 11)
+    a, me, g = m.groups()
+    return a if pre <= 9 or me == "00" else (f"{a}-{me}" if pre == 10 or g == "00" else f"{a}-{me}-{g}")
+
+
+def _sis_numero(x):
+    try:
+        f = float(x)
+    except (TypeError, ValueError):
+        return ""
+    if abs(f) >= 1e9:
+        return f"{f / 1e9:.1f}".replace(".", ",").replace(",0", "") + " mld"
+    if abs(f) >= 1e6:
+        return f"{f / 1e6:.1f}".replace(".", ",").replace(",0", "") + " mln"
+    if f == int(f):
+        return f"{int(f):,}".replace(",", ".")
+    return f"{f:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+
+
+def _sis_misura(valori):
+    """Da più valori della stessa misura (Wikidata li ha spesso in unità diverse) uno solo, metrico se c'è: millimetri e
+    centimetri sopra il metro diventano metri, i chili sopra le 10 tonnellate tonnellate; per la velocità anche il Mach."""
+    metr, altri, mach = [], [], ""
+    for a, u in valori:
+        try:
+            f = float(a)
+        except (TypeError, ValueError):
+            continue
+        if u == "Mach":
+            mach = mach or "Mach " + _sis_numero(f)
+            continue
+        if u == "mm" and f >= 1000:
+            f, u = f / 1000, "m"
+        elif u == "cm" and f >= 100:
+            f, u = f / 100, "m"
+        elif u == "kg" and f >= 10000:
+            f, u = f / 1000, "t"
+        (metr if u in SIS_METRICO else altri).append(_sis_numero(round(f, 2)) + (" " + u if u else ""))
+    primo = (metr or altri or [""])[0]
+    return " · ".join(x for x in (primo, mach) if x)
+
+
+def _sis_paese(nome, inverso):
+    """Il nome di uno Stato come lo scrive Wikidata in italiano → il nome della cartella di PanGeo."""
+    n = (nome or "").strip()
+    return inverso.get(n.lower()) or SIS_STATI_WD.get(n) or n
+
+
+def _sis_inverso():
+    P = leggi_json(os.path.join(QUI, "paesi.json"), {}) or {}
+    inv = {}
+    for st, alias in P.items():
+        inv[st.lower()] = st
+        for a in alias if isinstance(alias, list) else []:
+            inv.setdefault(str(a).lower(), st)
+    return inv
+
+
+def sistemi_elenco():
+    return leggi_json(os.path.join(QUI, "sistemi.json"), []) or []
+
+
+def _sis_simili(titolo_en):
+    """Su Wikipedia in inglese le voci degli aerei finiscono con «aerei di ruolo, configurazione ed epoca simili» (il
+    modello aircontent); per gli altri sistemi si guarda la sezione «See also» se dice «comparable» o «similar»."""
+    if not titolo_en:
+        return []
+    u = ("https://en.wikipedia.org/w/api.php?action=parse&format=json&prop=wikitext&redirects=1&page=" +
+         urllib.parse.quote(titolo_en.replace(" ", "_")))
+    testo = ((json.loads(scarica(u, timeout=40, intestazioni=SIS_UA)) or {}).get("parse") or {}).get("wikitext", {}).get("*", "")
+    pezzi = re.findall(r"\|\s*similar aircraft\s*=(.*?)(?=\n\s*\||\}\})", testo, re.S | re.I)
+    m = re.search(r"==\s*See also\s*==(.*?)(?:\n==[^=]|\Z)", testo, re.S | re.I)
+    if m:
+        for blocco in re.split(r"\n(?=[^*\n])", m.group(1)):
+            if re.search(r"comparable|similar|equivalent|counterpart", blocco[:200], re.I) and "aircontent" not in blocco.lower():
+                pezzi.append(blocco)
+    nomi = []
+    for p in pezzi:
+        # in ogni riga dell'elenco conta solo il primo collegamento: dopo c'è la descrizione (con altri nomi)
+        righe_ = [r_ for r_ in p.splitlines() if r_.strip().startswith("*")] or [p]
+        for r_ in righe_:
+            l_ = re.search(r"\[\[([^\]|#]+)(?:\|([^\]]+))?\]\]", r_)
+            if not l_:
+                continue
+            n = (l_.group(2) or l_.group(1)).strip()
+            if 2 <= len(n) < 70 and not n.lower().startswith(("list of", "category:", "file:", "portal:")) and n not in nomi:
+                nomi.append(n)
+    return nomi[:12]
+
+
+def _sis_storie(titoli, lingua):
+    """Le prime righe delle voci di Wikipedia (fino a 20 per chiamata): la storia in breve."""
+    if not titoli:
+        return {}
+    u = (f"https://{lingua}.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&exintro=1&explaintext=1"
+         "&exsentences=6&redirects=1&titles=" + urllib.parse.quote("|".join(titoli[:20])))
+    q = (json.loads(scarica(u, timeout=40, intestazioni=SIS_UA)) or {}).get("query") or {}
+    via = {x["to"]: x["from"] for x in (q.get("normalized") or []) + (q.get("redirects") or [])}
+    out = {}
+    for p in (q.get("pages") or {}).values():
+        t = p.get("title", "")
+        orig = via.get(t, t)
+        orig = via.get(orig, orig)
+        if p.get("extract"):
+            out[orig] = pulisci(re.sub(r"\s*\n\s*", " ", p["extract"]), 900)
+    return out
+
+
+def sistemi_aggiorna(cfg, adesso, errori, quanti=6, secondi=120):
+    """Poche schede a giro: le mancanti prima, poi le più vecchie (si rifanno dopo sistemi.giorni giorni). Per ogni gruppo:
+    una chiamata a Wikidata per i sistemi, una per i nomi di ciò che citano (costruttori, Stati, varianti), le prime righe
+    di Wikipedia in italiano (in inglese se manca la voce italiana) e i «simili» da Wikipedia in inglese.
+    Restituisce {"fatte": n, "schede": totale, "in_coda": n}."""
+    imp = cfg.get("sistemi", {}) or {}
+    perc = MAG("sistemi", "schede.json")
+    os.makedirs(os.path.dirname(perc), exist_ok=True)
+    K = leggi_json(perc, None)
+    if K is None:
+        K = leggi_json(os.path.join(QUI, "sistemi_base.json"), {}) or {}
+    E = [s for s in sistemi_elenco() if s.get("q")]
+    vecchie = (adesso - timedelta(days=imp.get("giorni", 30))).date().isoformat()
+    coda = sorted((s for s in E if (K.get(s["id"]) or {}).get("agg", "") < vecchie or not (K.get(s["id"]) or {}).get("st")),
+                  key=lambda s: (bool(K.get(s["id"])), (K.get(s["id"]) or {}).get("agg", "")))
+    esito = {"fatte": 0, "schede": len(K), "in_coda": len(coda)}
+    if not imp.get("attivo", True) or not coda or quanti <= 0:
+        return esito
+    t0 = time.time()
+    gruppo = coda[:quanti]
+    inv = _sis_inverso()
+    try:
+        ent = _sis_wd([s["q"] for s in gruppo])
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Sistemi d'arma (Wikidata): {str(e)[:100]}")
+        return esito
+    # i nomi di tutto ciò che le schede citano, in una o due chiamate
+    citati = set()
+    for s in gruppo:
+        e = ent.get(s["q"]) or {}
+        for p in list(SIS_LISTE) + [m[0] for m in SIS_MISURE] + ["P2130"]:
+            for v in _sis_valori(e, p):
+                if isinstance(v, dict) and v.get("id"):
+                    citati.add(v["id"])
+                elif isinstance(v, dict) and str(v.get("unit", "")).startswith("http"):
+                    u_ = v["unit"].rsplit("/", 1)[-1]
+                    if u_ not in SIS_UNITA:
+                        citati.add(u_)
+    # varianti: gli elementi che dicono di essere una sottoclasse del sistema o di derivarne
+    varianti = {}
+    for s in gruppo:
+        try:
+            u = ("https://www.wikidata.org/w/api.php?action=query&format=json&list=search&srlimit=40&srsearch=" +
+                 urllib.parse.quote(f"haswbstatement:P279={s['q']}|P144={s['q']}"))
+            varianti[s["q"]] = [x["title"] for x in ((json.loads(scarica(u, timeout=30, intestazioni=SIS_UA)) or {})
+                                                     .get("query") or {}).get("search") or [] if re.match(r"^Q\d+$", x.get("title", ""))]
+            citati.update(varianti[s["q"]])
+        except SenzaRete:
+            raise
+        except Exception as e:
+            errori.append(f"Sistemi d'arma (varianti): {str(e)[:80]}")
+        if time.time() - t0 > secondi:
+            break
+    nomi = {}
+    citati = sorted(citati)
+    for i in range(0, len(citati), 50):
+        try:
+            nomi.update(_sis_wd(citati[i:i + 50], props="labels|claims"))
+        except SenzaRete:
+            raise
+        except Exception as e:
+            errori.append(f"Sistemi d'arma (nomi): {str(e)[:80]}")
+            break
+    # la storia in breve: Wikipedia in italiano, in inglese se la voce italiana non c'è
+    tit_it = {s["id"]: ((ent.get(s["q"]) or {}).get("sitelinks") or {}).get("itwiki", {}).get("title") for s in gruppo}
+    tit_en = {s["id"]: ((ent.get(s["q"]) or {}).get("sitelinks") or {}).get("enwiki", {}).get("title") for s in gruppo}
+    storie_it, storie_en = {}, {}
+    try:
+        storie_it = _sis_storie([t for t in tit_it.values() if t], "it")
+        mancano = [tit_en[k] for k, t in tit_it.items() if (not t or t not in storie_it) and tit_en.get(k)]
+        storie_en = _sis_storie(mancano, "en") if mancano else {}
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Sistemi d'arma (Wikipedia): {str(e)[:80]}")
+    for s in gruppo:
+        e = ent.get(s["q"])
+        if not e:
+            continue
+        x = dict(K.get(s["id"]) or {})
+        x["q"] = s["q"]
+        x["n"] = _sis_etichetta(e) or s.get("nome", "")
+        x["d"] = pulisci(((e.get("descriptions") or {}).get("it") or (e.get("descriptions") or {}).get("en") or {}).get("value", ""), 200)
+        x["w"], x["we"] = tit_it.get(s["id"]) or "", tit_en.get(s["id"]) or ""
+        img = _sis_valori(e, "P18")
+        x["img"] = img[0] if img and isinstance(img[0], str) else ""
+        com = _sis_valori(e, "P373")
+        x["com"] = com[0] if com and isinstance(com[0], str) else ""
+        for p, k in SIS_LISTE.items():
+            if p == "P137":
+                continue
+            vals = []
+            for v in _sis_valori(e, p):
+                n_ = _sis_etichetta(nomi.get((v or {}).get("id")), ("it", "en") if p in ("P495", "P31") else ("en", "it"))
+                if p == "P495":
+                    n_ = _sis_paese(n_, inv)
+                if n_ and n_ not in vals:
+                    vals.append(n_)
+            x[k] = vals[:8]
+        x["date"] = {k: _sis_anno((_sis_valori(e, p) or [None])[0]) for p, k in SIS_DATE.items() if _sis_valori(e, p)}
+        prod = _sis_valori(e, "P1092")
+        x["prod"] = _sis_numero((prod[0] or {}).get("amount")) if prod and isinstance(prod[0], dict) else ""
+        costi = []
+        for v in _sis_valori(e, "P2130"):
+            if isinstance(v, dict) and v.get("amount"):
+                un = str(v.get("unit", "")).rsplit("/", 1)[-1]
+                costi.append(_sis_numero(v["amount"]) + " " + (SIS_UNITA.get(un) or _sis_etichetta(nomi.get(un)) or ""))
+        x["costo"] = costi[:2]
+        # specifiche: per ogni misura il valore metrico se c'è, altrimenti il primo
+        spec = []
+        for p, nome in SIS_MISURE:
+            vals = []
+            for v in _sis_valori(e, p):
+                if not isinstance(v, dict) or v.get("amount") is None:
+                    continue
+                un = str(v.get("unit", "")).rsplit("/", 1)[-1]
+                vals.append((v["amount"], SIS_UNITA.get(un) or ("" if un in ("1", "") else _sis_etichetta(nomi.get(un)))))
+            m_ = _sis_misura(vals)
+            if m_:
+                spec.append([nome, m_])
+        x["spec"] = spec
+        # chi lo usa: gli operatori sono Stati o forze armate (per queste conta lo Stato a cui appartengono)
+        op = {}
+        for v in _sis_valori(e, "P137"):
+            o = nomi.get((v or {}).get("id")) or {}
+            n_o = _sis_etichetta(o)
+            stati_o = [_sis_etichetta(nomi.get((z or {}).get("id"))) for z in _sis_valori(o, "P17")]
+            if not stati_o and _sis_paese(n_o, inv) in inv.values():
+                stati_o = [n_o]
+            for st_ in stati_o or ["?"]:
+                st_ = _sis_paese(st_, inv) if st_ != "?" else "?"
+                if st_ != "?" or n_o:
+                    op.setdefault(st_, [])
+                    if n_o and n_o != st_ and n_o not in op[st_]:
+                        op[st_].append(n_o)
+        x["op"] = op
+        var = []
+        for q_ in varianti.get(s["q"], []):
+            ev = nomi.get(q_) or {}
+            n_ = _sis_etichetta(ev, ("en", "it"))
+            if n_ and n_ != x["n"]:
+                var.append([n_, _sis_anno((_sis_valori(ev, "P729") or _sis_valori(ev, "P606") or [None])[0])[:4]])
+        x["var"] = sorted(var, key=lambda z: (z[1] or "9999", z[0]))[:30] or x.get("var", [])
+        st_ = storie_it.get(tit_it.get(s["id"]) or "") or ""
+        x["st"], x["stl"] = (st_, "it") if st_ else (storie_en.get(tit_en.get(s["id"]) or "") or x.get("st", ""), "en")
+        if time.time() - t0 < secondi:
+            try:
+                x["sim"] = _sis_simili(x["we"]) or x.get("sim", [])
+            except SenzaRete:
+                raise
+            except Exception as e_:
+                errori.append(f"Sistemi d'arma (simili): {str(e_)[:80]}")
+        x["agg"] = adesso.date().isoformat()
+        K[s["id"]] = x
+        esito["fatte"] += 1
+    scrivi_json(perc, K)
+    esito.update(schede=len(K), in_coda=max(0, len(coda) - esito["fatte"]))
+    return esito
+
+
+def scrivi_sistemi_web(adesso):
+    """sistemi.js per la pagina: l'elenco (con i nomi per riconoscerli nei testi) e le schede."""
+    K = leggi_json(MAG("sistemi", "schede.json"), None)
+    if K is None:
+        K = leggi_json(os.path.join(QUI, "sistemi_base.json"), {}) or {}
+    E = sistemi_elenco()
+    if not E:
+        return False
+    return _scrivi_se_cambia(os.path.join(WEB, "sistemi.js"), "window.SISTEMI_SCHEDE=" + json.dumps(
+        {"agg": adesso.date().isoformat(), "elenco": [[s["id"], s["nome"], s["tipo"], s.get("chi", ""), s.get("alias", [])] for s in E],
+         "schede": K}, ensure_ascii=False, separators=(",", ":")) + ";")
+
+
+def sistemi_passo(cfg, adesso, tel, errori, leggero):
+    """Dentro il giro: con la rete buona poche schede (di più in carica), poi sistemi.js."""
+    imp = cfg.get("sistemi", {}) or {}
+    if not imp.get("attivo", True):
+        return None
+    R = leggi_json(os.path.join(DATI, "regia.json"), {}) or {}
+    quanti = imp.get("per_giro_carica", 8) if R.get("spinta") else imp.get("per_giro", 3)
+    if R.get("rete") == "lenta":
+        quanti = min(quanti, 2)
+    r_ = sistemi_aggiorna(cfg, adesso, errori, quanti, imp.get("secondi", 120))
+    if not leggero or r_.get("fatte"):
+        scrivi_sistemi_web(adesso)
+    return r_
+
+
 # 8. Totali (dalla 2.33.7): quanto ha fatto il programma da quando esiste, ogni mese, ogni giorno. Il diario tiene solo gli
 #    ultimi 120 giri; qui i conti restano per sempre (giorni: gli ultimi 400). La base (programma/totali_base.json) è
 #    ricostruita da tutta la storia di diario.json su GitHub, dal primo diario del 18 novembre 2026.
@@ -6582,6 +6934,12 @@ def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, erro
         esito["storia"] = storia_passo(chiavi, cfg, adesso, tel, errori, leggero)
     except Exception as e:
         errori.append(f"Storia: {str(e)[:100]}")
+    try:  # dalla 2.35: le schede dei sistemi d'arma (Wikidata e Wikipedia), poche a giro
+        esito["sistemi"] = sistemi_passo(cfg, adesso, tel, errori, leggero)
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Sistemi d'arma: {str(e)[:100]}")
     try:
         esito["indice"] = indice_aggiorna(archivio, adesso, cfg, secondi=cfg.get("indice", {}).get("secondi", 45))
     except Exception as e:
@@ -8665,6 +9023,7 @@ def _aggiorna(leggero=False):
         "off": [(stato_off or {}).get("fase", ""), getattr(officina_traduci, "fatti", 0)] if stato_off else None,
         "articoli": [(esito_229.get("articoli") or {}).get(c_) for c_ in ("letti", "poco_testo", "provati", "in_coda", "totale")],
         "storia": [(esito_229.get("storia") or {}).get(c_) for c_ in ("fatti", "con_cronologia", "in_coda", "stati", "conflitti", "golpe", "ultimo")],
+        "sistemi": [(esito_229.get("sistemi") or {}).get(c_) for c_ in ("fatte", "schede", "in_coda")],
         "regia": [(leggi_json(os.path.join(DATI, "regia.json"), {}) or {}).get(c_) for c_ in ("passo", "articoli", "cronologie", "rete")],
         "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
@@ -9286,7 +9645,8 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         # nuove versioni del programma, se Claude le ha messe nel repository (cartella programma/)
         cambiati = []
         avvisato = False
-        for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json", "totali_base.json") + tuple(sorted(SCRIPT)):
+        for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json", "totali_base.json",
+                     "sistemi.json", "sistemi_base.json") + tuple(sorted(SCRIPT)):
             src = os.path.join(cartella, "programma", nome)
             dst = os.path.join(QUI, nome)
             if os.path.exists(src) and (not os.path.exists(dst) or open(src, "rb").read() != open(dst, "rb").read()):
@@ -9378,7 +9738,8 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         # repository non cresce tre volte più in fretta
         for nome in (("diario.json", "rapporto.json", "rapporti.json", "avvisi.json", "totali.js") if solo_diario else
                      ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json",
-                      "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js", "economia.js", "storia.js", "totali.js")):
+                      "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js", "economia.js", "storia.js", "totali.js",
+                      "sistemi.js")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -9851,6 +10212,32 @@ if __name__ == "__main__":
             print(f"Colpi di Stato dal 1950 (Powell e Thyne): {len(g_s)}" + ("" if not g_s else " · " + ", ".join(
                 f"{g_[0][:4]} {'riuscito' if g_[1] else 'fallito'}" for g_ in g_s[:12])))
             print("Lettere delle fonti: " + " · ".join(f"{k} = {v[0]}" for k, v in STORIA_FONTI.items()))
+    elif comando == "sistemi":  # dalla 2.35: le schede dei sistemi d'arma
+        K_w = leggi_json(MAG("sistemi", "schede.json"), None) or leggi_json(os.path.join(QUI, "sistemi_base.json"), {}) or {}
+        nome_w = " ".join(a[1:]).strip().lower()
+        E_w = sistemi_elenco()
+        if not nome_w:
+            print(f"Sistemi d'arma: {len(E_w)} nell'elenco, {len(K_w)} schede, {sum(1 for x in K_w.values() if x.get('st'))} con la storia "
+                  f"da Wikipedia, {sum(1 for x in K_w.values() if x.get('sim'))} con i concorrenti.")
+            print("Per uno:  python castello.py sistemi Leopard 2")
+        else:
+            s_w = next((s for s in E_w if nome_w in (s["id"], s["nome"].lower()) or nome_w in [x.lower() for x in s.get("alias", [])]), None)
+            x_w = K_w.get(s_w["id"]) if s_w else None
+            if not x_w:
+                print("Non trovato. I nomi sono quelli dell'elenco (python castello.py sistemi).")
+            else:
+                print(f"{x_w.get('n')} — {x_w.get('d', '')}")
+                for k_, n_ in (("costr", "Costruttore"), ("prog", "Progettista"), ("orig", "Origine"), ("prima", "Viene dopo"),
+                               ("base", "Deriva da"), ("dopo", "Seguito da"), ("sim", "Concorrenti (Wikipedia)")):
+                    if x_w.get(k_):
+                        print(f"  {n_}: {', '.join(x_w[k_])}")
+                print("  Date: " + ", ".join(f"{k} {v}" for k, v in (x_w.get("date") or {}).items()) + (f" · prodotti {x_w['prod']}" if x_w.get("prod") else ""))
+                print("  Specifiche: " + "; ".join(f"{a_} {b_}" for a_, b_ in x_w.get("spec") or []))
+                print("  Chi lo usa: " + ", ".join(sorted(x_w.get("op") or {})))
+                print("  Varianti: " + ", ".join(f"{v_[0]}" + (f" ({v_[1]})" if v_[1] else "") for v_ in (x_w.get("var") or [])[:15]))
+                if x_w.get("st"):
+                    print("  " + x_w["st"][:400])
+                print(f"  Aggiornata il {x_w.get('agg', '?')} · fonti: Wikidata, Wikipedia")
     elif comando == "avvisi":  # dalla 2.29: gli avvisi delle ultime 48 ore
         V_ = leggi_json(os.path.join(DATI, "avvisi.json"), {}) or {}
         da_ = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()

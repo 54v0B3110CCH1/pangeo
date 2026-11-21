@@ -1,0 +1,2195 @@
+[
+{
+"id": "f-35",
+"nome": "F-35 Lightning II",
+"tipo": "caccia",
+"chi": "Lockheed Martin",
+"alias": [
+"F-35",
+"F35",
+"F-35A",
+"F-35B",
+"F-35C",
+"Lightning II"
+],
+"q": "Q29261"
+},
+{
+"id": "f-16",
+"nome": "F-16",
+"tipo": "caccia",
+"chi": "Lockheed Martin",
+"alias": [
+"F-16",
+"F16",
+"F-16V",
+"F-16 Viper"
+],
+"q": "Q100026"
+},
+{
+"id": "f-15",
+"nome": "F-15",
+"tipo": "caccia",
+"chi": "Boeing",
+"alias": [
+"F-15",
+"F-15EX",
+"F-15E",
+"F-15IA"
+],
+"q": "Q29251"
+},
+{
+"id": "f-a-18",
+"nome": "F/A-18 Super Hornet",
+"tipo": "caccia",
+"chi": "Boeing",
+"alias": [
+"F/A-18",
+"F-18",
+"Super Hornet"
+],
+"q": "Q223318"
+},
+{
+"id": "f-22",
+"nome": "F-22 Raptor",
+"tipo": "caccia",
+"chi": "Lockheed Martin",
+"alias": [
+"F-22",
+"Raptor"
+],
+"q": "Q133324"
+},
+{
+"id": "b-21",
+"nome": "B-21 Raider",
+"tipo": "bombardiere",
+"chi": "Northrop Grumman",
+"alias": [
+"B-21"
+],
+"q": "Q22960692"
+},
+{
+"id": "eurofighter",
+"nome": "Eurofighter Typhoon",
+"tipo": "caccia",
+"chi": "Eurofighter",
+"alias": [
+"Eurofighter",
+"Typhoon"
+],
+"q": "Q151384"
+},
+{
+"id": "rafale",
+"nome": "Rafale",
+"tipo": "caccia",
+"chi": "Dassault Aviation",
+"alias": [
+"Rafale"
+],
+"q": "Q190973"
+},
+{
+"id": "gripen",
+"nome": "Gripen",
+"tipo": "caccia",
+"chi": "Saab",
+"alias": [
+"Gripen",
+"JAS 39"
+],
+"q": "Q150088"
+},
+{
+"id": "kf-21",
+"nome": "KF-21 Boramae",
+"tipo": "caccia",
+"chi": "KAI",
+"alias": [
+"KF-21",
+"Boramae"
+],
+"q": "Q495218"
+},
+{
+"id": "j-20",
+"nome": "J-20",
+"tipo": "caccia",
+"chi": "AVIC",
+"alias": [
+"J-20"
+],
+"q": "Q560319"
+},
+{
+"id": "j-10",
+"nome": "J-10",
+"tipo": "caccia",
+"chi": "AVIC",
+"alias": [
+"J-10",
+"J-10C",
+"J-10CE"
+],
+"q": "Q635779"
+},
+{
+"id": "jf-17",
+"nome": "JF-17 Thunder",
+"tipo": "caccia",
+"chi": "PAC / AVIC",
+"alias": [
+"JF-17"
+],
+"q": "Q744253"
+},
+{
+"id": "tejas",
+"nome": "Tejas",
+"tipo": "caccia",
+"chi": "HAL",
+"alias": [
+"Tejas"
+],
+"q": "Q175940"
+},
+{
+"id": "su-57",
+"nome": "Su-57",
+"tipo": "caccia",
+"chi": "Sukhoi",
+"alias": [
+"Su-57"
+],
+"q": "Q194455"
+},
+{
+"id": "su-35",
+"nome": "Su-35",
+"tipo": "caccia",
+"chi": "Sukhoi",
+"alias": [
+"Su-35"
+],
+"q": "Q245275"
+},
+{
+"id": "su-30",
+"nome": "Su-30",
+"tipo": "caccia",
+"chi": "Sukhoi",
+"alias": [
+"Su-30",
+"Su-30MKI"
+],
+"q": "Q204331"
+},
+{
+"id": "mig-29",
+"nome": "MiG-29",
+"tipo": "caccia",
+"chi": "MiG",
+"alias": [
+"MiG-29"
+],
+"q": "Q130681"
+},
+{
+"id": "gcap",
+"nome": "GCAP (Tempest)",
+"tipo": "caccia di sesta generazione",
+"chi": "BAE Systems, Leonardo, Mitsubishi",
+"alias": [
+"GCAP",
+"Tempest"
+],
+"q": "Q115867047"
+},
+{
+"id": "fcas",
+"nome": "FCAS / SCAF",
+"tipo": "caccia di sesta generazione",
+"chi": "Dassault, Airbus, Indra",
+"alias": [
+"FCAS",
+"SCAF"
+],
+"q": "Q31840575"
+},
+{
+"id": "a400m",
+"nome": "A400M Atlas",
+"tipo": "aereo da trasporto",
+"chi": "Airbus",
+"alias": [
+"A400M"
+],
+"q": "Q6496"
+},
+{
+"id": "c-390",
+"nome": "C-390 Millennium",
+"tipo": "aereo da trasporto",
+"chi": "Embraer",
+"alias": [
+"C-390",
+"KC-390"
+],
+"q": "Q975281"
+},
+{
+"id": "c-130",
+"nome": "C-130 Hercules",
+"tipo": "aereo da trasporto",
+"chi": "Lockheed Martin",
+"alias": [
+"C-130",
+"C-130J"
+],
+"q": "Q182027"
+},
+{
+"id": "kc-46",
+"nome": "KC-46 Pegasus",
+"tipo": "aereo cisterna",
+"chi": "Boeing",
+"alias": [
+"KC-46"
+],
+"q": "Q499738"
+},
+{
+"id": "p-8",
+"nome": "P-8 Poseidon",
+"tipo": "pattugliatore marittimo",
+"chi": "Boeing",
+"alias": [
+"P-8",
+"P-8A",
+"Poseidon"
+],
+"q": "Q611401"
+},
+{
+"id": "e-7",
+"nome": "E-7 Wedgetail",
+"tipo": "radar volante",
+"chi": "Boeing",
+"alias": [
+"E-7",
+"Wedgetail"
+],
+"q": "Q889373"
+},
+{
+"id": "mq-9",
+"nome": "MQ-9 Reaper",
+"tipo": "drone",
+"chi": "General Atomics",
+"alias": [
+"MQ-9",
+"MQ-9B",
+"Reaper",
+"SkyGuardian",
+"SeaGuardian"
+],
+"q": "Q816695"
+},
+{
+"id": "tb2",
+"nome": "Bayraktar TB2",
+"tipo": "drone",
+"chi": "Baykar",
+"alias": [
+"Bayraktar",
+"TB2"
+],
+"q": "Q17501733"
+},
+{
+"id": "akinci",
+"nome": "Bayraktar Akıncı",
+"tipo": "drone",
+"chi": "Baykar",
+"alias": [
+"Akıncı",
+"Akinci"
+],
+"q": "Q60594362"
+},
+{
+"id": "shahed",
+"nome": "Shahed / Geran",
+"tipo": "drone d’attacco",
+"chi": "Iran",
+"alias": [
+"Shahed",
+"Geran",
+"Geran-2"
+],
+"q": "Q109044360"
+},
+{
+"id": "ah-64",
+"nome": "AH-64 Apache",
+"tipo": "elicottero d’attacco",
+"chi": "Boeing",
+"alias": [
+"AH-64",
+"Apache"
+],
+"q": "Q171468"
+},
+{
+"id": "uh-60",
+"nome": "UH-60 Black Hawk",
+"tipo": "elicottero",
+"chi": "Lockheed Martin (Sikorsky)",
+"alias": [
+"UH-60",
+"Black Hawk"
+],
+"q": "Q189491"
+},
+{
+"id": "ch-47",
+"nome": "CH-47 Chinook",
+"tipo": "elicottero da trasporto",
+"chi": "Boeing",
+"alias": [
+"CH-47",
+"Chinook"
+],
+"q": "Q209613"
+},
+{
+"id": "nh90",
+"nome": "NH90",
+"tipo": "elicottero",
+"chi": "NHIndustries",
+"alias": [
+"NH90"
+],
+"q": "Q629539"
+},
+{
+"id": "aw149",
+"nome": "AW149",
+"tipo": "elicottero",
+"chi": "Leonardo",
+"alias": [
+"AW149"
+],
+"q": "Q1043921"
+},
+{
+"id": "aw101",
+"nome": "AW101",
+"tipo": "elicottero",
+"chi": "Leonardo",
+"alias": [
+"AW101"
+],
+"q": "Q398881"
+},
+{
+"id": "patriot",
+"nome": "Patriot",
+"tipo": "difesa aerea",
+"chi": "RTX",
+"alias": [
+"Patriot",
+"PAC-3"
+],
+"q": "Q339025"
+},
+{
+"id": "samp-t",
+"nome": "SAMP/T",
+"tipo": "difesa aerea",
+"chi": "Eurosam (MBDA, Thales)",
+"alias": [
+"SAMP/T",
+"SAMP-T"
+],
+"q": "Q3737338"
+},
+{
+"id": "iris-t",
+"nome": "IRIS-T",
+"tipo": "difesa aerea",
+"chi": "Diehl Defence",
+"alias": [
+"IRIS-T",
+"IRIS-T SLM"
+],
+"q": "Q432650"
+},
+{
+"id": "nasams",
+"nome": "NASAMS",
+"tipo": "difesa aerea",
+"chi": "Kongsberg, RTX",
+"alias": [
+"NASAMS"
+],
+"q": "Q2590112"
+},
+{
+"id": "thaad",
+"nome": "THAAD",
+"tipo": "difesa antimissile",
+"chi": "Lockheed Martin",
+"alias": [
+"THAAD"
+],
+"q": "Q523156"
+},
+{
+"id": "iron-dome",
+"nome": "Iron Dome",
+"tipo": "difesa aerea",
+"chi": "Rafael",
+"alias": [
+"Iron Dome",
+"Cupola di ferro"
+],
+"q": "Q81231"
+},
+{
+"id": "arrow",
+"nome": "Arrow",
+"tipo": "difesa antimissile",
+"chi": "IAI",
+"alias": [
+"Arrow 3",
+"Arrow-3",
+"Arrow 4"
+],
+"q": "Q671836"
+},
+{
+"id": "davids-sling",
+"nome": "Fionda di Davide",
+"tipo": "difesa aerea",
+"chi": "Rafael",
+"alias": [
+"David’s Sling",
+"David's Sling",
+"Fionda di Davide"
+],
+"q": "Q64158"
+},
+{
+"id": "s-400",
+"nome": "S-400",
+"tipo": "difesa aerea",
+"chi": "Almaz-Antey",
+"alias": [
+"S-400"
+],
+"q": "Q861006"
+},
+{
+"id": "s-500",
+"nome": "S-500",
+"tipo": "difesa aerea",
+"chi": "Almaz-Antey",
+"alias": [
+"S-500"
+],
+"q": "Q2502230"
+},
+{
+"id": "s-300",
+"nome": "S-300",
+"tipo": "difesa aerea",
+"chi": "Almaz-Antey",
+"alias": [
+"S-300"
+],
+"q": "Q48446"
+},
+{
+"id": "hq-9",
+"nome": "HQ-9",
+"tipo": "difesa aerea",
+"chi": "CASIC",
+"alias": [
+"HQ-9"
+],
+"q": "Q169261"
+},
+{
+"id": "camm",
+"nome": "CAMM",
+"tipo": "difesa aerea",
+"chi": "MBDA",
+"alias": [
+"CAMM"
+],
+"q": "Q5153280"
+},
+{
+"id": "barak",
+"nome": "Barak",
+"tipo": "difesa aerea",
+"chi": "IAI",
+"alias": [
+"Barak 8",
+"Barak MX"
+],
+"q": "Q16695097"
+},
+{
+"id": "cheongung",
+"nome": "Cheongung (KM-SAM)",
+"tipo": "difesa aerea",
+"chi": "LIG Nex1",
+"alias": [
+"Cheongung",
+"KM-SAM",
+"M-SAM"
+],
+"q": "Q11273512"
+},
+{
+"id": "pantsir",
+"nome": "Pantsir",
+"tipo": "difesa aerea",
+"chi": "KBP",
+"alias": [
+"Pantsir"
+],
+"q": "Q1424781"
+},
+{
+"id": "golden-dome",
+"nome": "Golden Dome",
+"tipo": "difesa antimissile",
+"chi": "USA",
+"alias": [
+"Golden Dome",
+"Cupola d’oro"
+],
+"q": "Q134396120"
+},
+{
+"id": "essi",
+"nome": "European Sky Shield",
+"tipo": "difesa aerea",
+"chi": "iniziativa europea",
+"alias": [
+"European Sky Shield",
+"ESSI"
+],
+"q": "Q114639682"
+},
+{
+"id": "tomahawk",
+"nome": "Tomahawk",
+"tipo": "missile da crociera",
+"chi": "RTX",
+"alias": [
+"Tomahawk"
+],
+"q": "Q150115"
+},
+{
+"id": "storm-shadow",
+"nome": "Storm Shadow / SCALP",
+"tipo": "missile da crociera",
+"chi": "MBDA",
+"alias": [
+"Storm Shadow",
+"SCALP"
+],
+"q": "Q1200222"
+},
+{
+"id": "taurus",
+"nome": "Taurus KEPD 350",
+"tipo": "missile da crociera",
+"chi": "Taurus Systems",
+"alias": [
+"Taurus"
+],
+"q": "Q1063607"
+},
+{
+"id": "atacms",
+"nome": "ATACMS",
+"tipo": "missile balistico",
+"chi": "Lockheed Martin",
+"alias": [
+"ATACMS"
+],
+"q": "Q298732"
+},
+{
+"id": "prsm",
+"nome": "PrSM",
+"tipo": "missile balistico",
+"chi": "Lockheed Martin",
+"alias": [
+"PrSM"
+],
+"q": "Q109041895"
+},
+{
+"id": "jassm",
+"nome": "JASSM",
+"tipo": "missile da crociera",
+"chi": "Lockheed Martin",
+"alias": [
+"JASSM",
+"JASSM-ER"
+],
+"q": "Q292456"
+},
+{
+"id": "kalibr",
+"nome": "Kalibr",
+"tipo": "missile da crociera",
+"chi": "Russia",
+"alias": [
+"Kalibr"
+],
+"q": "Q1333260"
+},
+{
+"id": "iskander",
+"nome": "Iskander",
+"tipo": "missile balistico",
+"chi": "Russia",
+"alias": [
+"Iskander"
+],
+"q": "Q483042"
+},
+{
+"id": "kinzhal",
+"nome": "Kinzhal",
+"tipo": "missile ipersonico",
+"chi": "Russia",
+"alias": [
+"Kinzhal"
+],
+"q": "Q50379192"
+},
+{
+"id": "oreshnik",
+"nome": "Oreshnik",
+"tipo": "missile balistico",
+"chi": "Russia",
+"alias": [
+"Oreshnik"
+],
+"q": "Q131301098"
+},
+{
+"id": "zircon",
+"nome": "Zircon",
+"tipo": "missile ipersonico",
+"chi": "Russia",
+"alias": [
+"Zircon",
+"Tsirkon"
+],
+"q": "Q29413411"
+},
+{
+"id": "brahmos",
+"nome": "BrahMos",
+"tipo": "missile da crociera",
+"chi": "BrahMos Aerospace",
+"alias": [
+"BrahMos"
+],
+"q": "Q856699"
+},
+{
+"id": "meteor",
+"nome": "Meteor",
+"tipo": "missile aria-aria",
+"chi": "MBDA",
+"alias": [
+"Meteor"
+],
+"q": "Q1147665"
+},
+{
+"id": "amraam",
+"nome": "AMRAAM",
+"tipo": "missile aria-aria",
+"chi": "RTX",
+"alias": [
+"AMRAAM"
+],
+"q": "Q293743"
+},
+{
+"id": "javelin",
+"nome": "Javelin",
+"tipo": "missile anticarro",
+"chi": "RTX, Lockheed Martin",
+"alias": [
+"Javelin"
+],
+"q": "Q634188"
+},
+{
+"id": "spike",
+"nome": "Spike",
+"tipo": "missile anticarro",
+"chi": "Rafael",
+"alias": [
+"Spike"
+],
+"q": "Q1063142"
+},
+{
+"id": "nlaw",
+"nome": "NLAW",
+"tipo": "arma anticarro",
+"chi": "Saab",
+"alias": [
+"NLAW"
+],
+"q": "Q3112988"
+},
+{
+"id": "harpoon",
+"nome": "Harpoon",
+"tipo": "missile antinave",
+"chi": "Boeing",
+"alias": [
+"Harpoon"
+],
+"q": "Q331436"
+},
+{
+"id": "nsm",
+"nome": "Naval Strike Missile",
+"tipo": "missile antinave",
+"chi": "Kongsberg",
+"alias": [
+"Naval Strike Missile",
+"NSM"
+],
+"q": "Q282470"
+},
+{
+"id": "exocet",
+"nome": "Exocet",
+"tipo": "missile antinave",
+"chi": "MBDA",
+"alias": [
+"Exocet"
+],
+"q": "Q150570"
+},
+{
+"id": "hellfire",
+"nome": "Hellfire",
+"tipo": "missile",
+"chi": "Lockheed Martin",
+"alias": [
+"Hellfire"
+],
+"q": "Q271930"
+},
+{
+"id": "leopard-2",
+"nome": "Leopard 2",
+"tipo": "carro armato",
+"chi": "KNDS",
+"alias": [
+"Leopard 2",
+"Leopard 2A7",
+"Leopard 2A8",
+"Leopard"
+],
+"q": "Q151968"
+},
+{
+"id": "abrams",
+"nome": "M1 Abrams",
+"tipo": "carro armato",
+"chi": "General Dynamics",
+"alias": [
+"Abrams",
+"M1A2",
+"M1 Abrams"
+],
+"q": "Q173684"
+},
+{
+"id": "k2",
+"nome": "K2 Black Panther",
+"tipo": "carro armato",
+"chi": "Hyundai Rotem",
+"alias": [
+"K2 Black Panther",
+"K2PL",
+"carri K2",
+"carro K2"
+],
+"q": "Q495177"
+},
+{
+"id": "challenger",
+"nome": "Challenger",
+"tipo": "carro armato",
+"chi": "RBSL",
+"alias": [
+"Challenger 2",
+"Challenger 3"
+],
+"q": "Q234676"
+},
+{
+"id": "leclerc",
+"nome": "Leclerc",
+"tipo": "carro armato",
+"chi": "KNDS",
+"alias": [
+"Leclerc"
+],
+"q": "Q242398"
+},
+{
+"id": "t-90",
+"nome": "T-90",
+"tipo": "carro armato",
+"chi": "Uralvagonzavod",
+"alias": [
+"T-90"
+],
+"q": "Q192757"
+},
+{
+"id": "t-72",
+"nome": "T-72",
+"tipo": "carro armato",
+"chi": "Uralvagonzavod",
+"alias": [
+"T-72"
+],
+"q": "Q155658"
+},
+{
+"id": "merkava",
+"nome": "Merkava",
+"tipo": "carro armato",
+"chi": "Israele",
+"alias": [
+"Merkava"
+],
+"q": "Q190986"
+},
+{
+"id": "boxer",
+"nome": "Boxer",
+"tipo": "blindato",
+"chi": "ARTEC (KNDS, Rheinmetall)",
+"alias": [
+"Boxer"
+],
+"q": "Q28216"
+},
+{
+"id": "cv90",
+"nome": "CV90",
+"tipo": "veicolo da combattimento",
+"chi": "BAE Systems",
+"alias": [
+"CV90"
+],
+"q": "Q659630"
+},
+{
+"id": "lynx",
+"nome": "Lynx KF41",
+"tipo": "veicolo da combattimento",
+"chi": "Rheinmetall",
+"alias": [
+"Lynx KF41",
+"KF41"
+],
+"q": "Q24885889"
+},
+{
+"id": "bradley",
+"nome": "M2 Bradley",
+"tipo": "veicolo da combattimento",
+"chi": "BAE Systems",
+"alias": [
+"Bradley"
+],
+"q": "Q473430"
+},
+{
+"id": "stryker",
+"nome": "Stryker",
+"tipo": "blindato",
+"chi": "General Dynamics",
+"alias": [
+"Stryker"
+],
+"q": "Q612829"
+},
+{
+"id": "patria-amv",
+"nome": "Patria AMV",
+"tipo": "blindato",
+"chi": "Patria",
+"alias": [
+"Patria AMV",
+"AMV XP"
+],
+"q": "Q1521659"
+},
+{
+"id": "k9",
+"nome": "K9 Thunder",
+"tipo": "obice semovente",
+"chi": "Hanwha Aerospace",
+"alias": [
+"K9 Thunder",
+"obici K9",
+"K9A1",
+"K9A2"
+],
+"q": "Q488232"
+},
+{
+"id": "pzh-2000",
+"nome": "PzH 2000",
+"tipo": "obice semovente",
+"chi": "KNDS",
+"alias": [
+"PzH 2000",
+"PzH2000"
+],
+"q": "Q156968"
+},
+{
+"id": "caesar",
+"nome": "CAESAR",
+"tipo": "obice",
+"chi": "KNDS",
+"alias": [
+"CAESAR",
+"Caesar"
+],
+"q": "Q262670"
+},
+{
+"id": "himars",
+"nome": "HIMARS",
+"tipo": "lanciarazzi",
+"chi": "Lockheed Martin",
+"alias": [
+"HIMARS",
+"M142"
+],
+"q": "Q2495802"
+},
+{
+"id": "chunmoo",
+"nome": "Chunmoo (K239)",
+"tipo": "lanciarazzi",
+"chi": "Hanwha Aerospace",
+"alias": [
+"Chunmoo",
+"K239"
+],
+"q": "Q24000264"
+},
+{
+"id": "m270",
+"nome": "M270 MLRS",
+"tipo": "lanciarazzi",
+"chi": "Lockheed Martin",
+"alias": [
+"M270",
+"MLRS"
+],
+"q": "Q328978"
+},
+{
+"id": "fremm",
+"nome": "FREMM",
+"tipo": "fregata",
+"chi": "Fincantieri, Naval Group",
+"alias": [
+"FREMM",
+"Fremm"
+],
+"q": "Q1380284"
+},
+{
+"id": "fdi",
+"nome": "FDI (Belharra)",
+"tipo": "fregata",
+"chi": "Naval Group",
+"alias": [
+"FDI",
+"Belharra"
+],
+"q": "Q20724657"
+},
+{
+"id": "type-26",
+"nome": "Type 26",
+"tipo": "fregata",
+"chi": "BAE Systems",
+"alias": [
+"Type 26",
+"Type-26",
+"classe City"
+],
+"q": "Q1475619"
+},
+{
+"id": "type-31",
+"nome": "Type 31",
+"tipo": "fregata",
+"chi": "Babcock",
+"alias": [
+"Type 31",
+"Type-31"
+],
+"q": "Q26883455"
+},
+{
+"id": "arleigh-burke",
+"nome": "Arleigh Burke",
+"tipo": "cacciatorpediniere",
+"chi": "USA",
+"alias": [
+"Arleigh Burke"
+],
+"q": "Q674909"
+},
+{
+"id": "constellation",
+"nome": "Constellation",
+"tipo": "fregata",
+"chi": "Fincantieri Marinette Marine",
+"alias": [
+"classe Constellation",
+"fregate Constellation"
+],
+"q": "Q38017896"
+},
+{
+"id": "ppa",
+"nome": "PPA (Thaon di Revel)",
+"tipo": "pattugliatore",
+"chi": "Fincantieri",
+"alias": [
+"PPA",
+"Thaon di Revel"
+],
+"q": "Q28127274"
+},
+{
+"id": "hobart",
+"nome": "Hobart",
+"tipo": "cacciatorpediniere",
+"chi": "Navantia",
+"alias": [
+"classe Hobart"
+],
+"q": "Q1621548"
+},
+{
+"id": "virginia",
+"nome": "Virginia",
+"tipo": "sottomarino nucleare",
+"chi": "General Dynamics, HII",
+"alias": [
+"classe Virginia",
+"sottomarini Virginia"
+],
+"q": "Q633556"
+},
+{
+"id": "aukus",
+"nome": "AUKUS",
+"tipo": "patto e sottomarini",
+"chi": "Australia, Regno Unito, USA",
+"alias": [
+"AUKUS"
+],
+"q": "Q108556886"
+},
+{
+"id": "scorpene",
+"nome": "Scorpène",
+"tipo": "sottomarino",
+"chi": "Naval Group",
+"alias": [
+"Scorpène",
+"Scorpene"
+],
+"q": "Q1152494"
+},
+{
+"id": "u212",
+"nome": "U212 / Type 212",
+"tipo": "sottomarino",
+"chi": "TKMS, Fincantieri",
+"alias": [
+"U212",
+"U-212",
+"Type 212",
+"U212NFS",
+"212CD"
+],
+"q": "Q310512"
+},
+{
+"id": "type-214",
+"nome": "Type 214",
+"tipo": "sottomarino",
+"chi": "TKMS",
+"alias": [
+"Type 214"
+],
+"q": "Q494403"
+},
+{
+"id": "starlink",
+"nome": "Starlink",
+"tipo": "satelliti",
+"chi": "SpaceX",
+"alias": [
+"Starlink",
+"Starshield"
+],
+"q": "Q19867977"
+},
+{
+"id": "iris2",
+"nome": "IRIS²",
+"tipo": "satelliti",
+"chi": "Unione europea",
+"alias": [
+"IRIS²",
+"IRIS2"
+],
+"q": "Q115266452"
+},
+{
+"id": "su-25",
+"nome": "Su-25",
+"tipo": "aereo d’attacco",
+"chi": "Sukhoi",
+"alias": [
+"Su-25"
+],
+"q": "Q192137"
+},
+{
+"id": "su-34",
+"nome": "Su-34",
+"tipo": "bombardiere",
+"chi": "Sukhoi",
+"alias": [
+"Su-34"
+],
+"q": "Q309177"
+},
+{
+"id": "tu-95",
+"nome": "Tu-95",
+"tipo": "bombardiere",
+"chi": "Tupolev",
+"alias": [
+"Tu-95"
+],
+"q": "Q181815"
+},
+{
+"id": "tu-160",
+"nome": "Tu-160",
+"tipo": "bombardiere",
+"chi": "Tupolev",
+"alias": [
+"Tu-160"
+],
+"q": "Q191111"
+},
+{
+"id": "tu-22m",
+"nome": "Tu-22M",
+"tipo": "bombardiere",
+"chi": "Tupolev",
+"alias": [
+"Tu-22M",
+"Tu-22M3"
+],
+"q": "Q204944"
+},
+{
+"id": "b-52",
+"nome": "B-52 Stratofortress",
+"tipo": "bombardiere",
+"chi": "Boeing",
+"alias": [
+"B-52"
+],
+"q": "Q174534"
+},
+{
+"id": "b-2",
+"nome": "B-2 Spirit",
+"tipo": "bombardiere",
+"chi": "Northrop Grumman",
+"alias": [
+"B-2 Spirit",
+"B-2"
+],
+"q": "Q180285"
+},
+{
+"id": "b-1",
+"nome": "B-1 Lancer",
+"tipo": "bombardiere",
+"chi": "Rockwell",
+"alias": [
+"B-1B",
+"B-1 Lancer"
+],
+"q": "Q218636"
+},
+{
+"id": "h-6",
+"nome": "Xian H-6",
+"tipo": "bombardiere",
+"chi": "Xi'an Aircraft",
+"alias": [
+"H-6",
+"H-6K"
+],
+"q": "Q39600"
+},
+{
+"id": "a-10",
+"nome": "A-10 Thunderbolt II",
+"tipo": "aereo d’attacco",
+"chi": "Fairchild Republic",
+"alias": [
+"A-10",
+"Warthog"
+],
+"q": "Q192443"
+},
+{
+"id": "mirage-2000",
+"nome": "Mirage 2000",
+"tipo": "caccia",
+"chi": "Dassault Aviation",
+"alias": [
+"Mirage 2000"
+],
+"q": "Q200038"
+},
+{
+"id": "tornado",
+"nome": "Tornado",
+"tipo": "caccia",
+"chi": "Panavia",
+"alias": [
+"Panavia Tornado",
+"Tornado IDS",
+"Tornado ECR",
+"caccia Tornado"
+],
+"q": "Q152200"
+},
+{
+"id": "j-16",
+"nome": "J-16",
+"tipo": "caccia",
+"chi": "Shenyang",
+"alias": [
+"J-16"
+],
+"q": "Q7482884"
+},
+{
+"id": "j-35",
+"nome": "J-35",
+"tipo": "caccia",
+"chi": "Shenyang",
+"alias": [
+"J-35",
+"FC-31"
+],
+"q": "Q131176348"
+},
+{
+"id": "f-2",
+"nome": "Mitsubishi F-2",
+"tipo": "caccia",
+"chi": "Mitsubishi",
+"alias": [
+"Mitsubishi F-2"
+],
+"q": "Q209480"
+},
+{
+"id": "su-27",
+"nome": "Su-27",
+"tipo": "caccia",
+"chi": "Sukhoi",
+"alias": [
+"Su-27"
+],
+"q": "Q173680"
+},
+{
+"id": "mig-31",
+"nome": "MiG-31",
+"tipo": "caccia",
+"chi": "Mikoyan",
+"alias": [
+"MiG-31"
+],
+"q": "Q150050"
+},
+{
+"id": "y-20",
+"nome": "Y-20",
+"tipo": "aereo da trasporto",
+"chi": "Xi'an Aircraft",
+"alias": [
+"Y-20"
+],
+"q": "Q1654128"
+},
+{
+"id": "il-76",
+"nome": "Il-76",
+"tipo": "aereo da trasporto",
+"chi": "Ilyushin",
+"alias": [
+"Il-76"
+],
+"q": "Q142549"
+},
+{
+"id": "c-17",
+"nome": "C-17 Globemaster III",
+"tipo": "aereo da trasporto",
+"chi": "Boeing",
+"alias": [
+"C-17",
+"Globemaster"
+],
+"q": "Q211369"
+},
+{
+"id": "e-2",
+"nome": "E-2 Hawkeye",
+"tipo": "radar volante",
+"chi": "Northrop Grumman",
+"alias": [
+"E-2D",
+"E-2 Hawkeye",
+"Hawkeye"
+],
+"q": "Q223372"
+},
+{
+"id": "mi-24",
+"nome": "Mi-24",
+"tipo": "elicottero d’attacco",
+"chi": "Mil",
+"alias": [
+"Mi-24",
+"Mi-35"
+],
+"q": "Q155651"
+},
+{
+"id": "mi-8",
+"nome": "Mi-8",
+"tipo": "elicottero da trasporto",
+"chi": "Mil",
+"alias": [
+"Mi-8",
+"Mi-17"
+],
+"q": "Q155635"
+},
+{
+"id": "ka-52",
+"nome": "Ka-52",
+"tipo": "elicottero d’attacco",
+"chi": "Kamov",
+"alias": [
+"Ka-52"
+],
+"q": "Q269250"
+},
+{
+"id": "tiger",
+"nome": "Tiger",
+"tipo": "elicottero d’attacco",
+"chi": "Airbus Helicopters",
+"alias": [
+"Eurocopter Tiger",
+"elicotteri Tigre",
+"Tiger HAD"
+],
+"q": "Q159601"
+},
+{
+"id": "ah-1z",
+"nome": "AH-1Z Viper",
+"tipo": "elicottero d’attacco",
+"chi": "Bell",
+"alias": [
+"AH-1Z"
+],
+"q": "Q2419137"
+},
+{
+"id": "z-10",
+"nome": "Z-10",
+"tipo": "elicottero d’attacco",
+"chi": "Changhe",
+"alias": [
+"Z-10"
+],
+"q": "Q1094179"
+},
+{
+"id": "aw129",
+"nome": "A129 Mangusta",
+"tipo": "elicottero d’attacco",
+"chi": "Leonardo",
+"alias": [
+"A129",
+"Mangusta",
+"AW249"
+],
+"q": "Q398999"
+},
+{
+"id": "rq-4",
+"nome": "RQ-4 Global Hawk",
+"tipo": "drone",
+"chi": "Northrop Grumman",
+"alias": [
+"Global Hawk",
+"RQ-4"
+],
+"q": "Q162066"
+},
+{
+"id": "heron",
+"nome": "Heron",
+"tipo": "drone",
+"chi": "IAI",
+"alias": [
+"IAI Heron",
+"Heron TP",
+"droni Heron"
+],
+"q": "Q595582"
+},
+{
+"id": "hermes-900",
+"nome": "Hermes 900",
+"tipo": "drone",
+"chi": "Elbit Systems",
+"alias": [
+"Hermes 900"
+],
+"q": "Q1325361"
+},
+{
+"id": "wing-loong",
+"nome": "Wing Loong",
+"tipo": "drone",
+"chi": "AVIC",
+"alias": [
+"Wing Loong"
+],
+"q": "Q5091327"
+},
+{
+"id": "orlan-10",
+"nome": "Orlan-10",
+"tipo": "drone",
+"chi": "Special Technology Center",
+"alias": [
+"Orlan-10"
+],
+"q": "Q4336510"
+},
+{
+"id": "lancet",
+"nome": "Lancet",
+"tipo": "munizione circuitante",
+"chi": "ZALA Aero",
+"alias": [
+"Lancet-3",
+"droni Lancet",
+"Lancet"
+],
+"q": "Q113841561"
+},
+{
+"id": "switchblade",
+"nome": "Switchblade",
+"tipo": "munizione circuitante",
+"chi": "AeroVironment",
+"alias": [
+"Switchblade"
+],
+"q": "Q2867416"
+},
+{
+"id": "t-80",
+"nome": "T-80",
+"tipo": "carro armato",
+"chi": "Uralvagonzavod",
+"alias": [
+"T-80"
+],
+"q": "Q237135"
+},
+{
+"id": "t-14",
+"nome": "T-14 Armata",
+"tipo": "carro armato",
+"chi": "Uralvagonzavod",
+"alias": [
+"T-14",
+"Armata"
+],
+"q": "Q19003618"
+},
+{
+"id": "type-99",
+"nome": "Type 99",
+"tipo": "carro armato",
+"chi": "Norinco",
+"alias": [
+"Type 99",
+"ZTZ-99"
+],
+"q": "Q645845"
+},
+{
+"id": "altay",
+"nome": "Altay",
+"tipo": "carro armato",
+"chi": "BMC",
+"alias": [
+"carro Altay",
+"carri Altay"
+],
+"q": "Q434883"
+},
+{
+"id": "arjun",
+"nome": "Arjun",
+"tipo": "carro armato",
+"chi": "DRDO",
+"alias": [
+"Arjun Mk1A",
+"carri Arjun"
+],
+"q": "Q512263"
+},
+{
+"id": "k21",
+"nome": "K21",
+"tipo": "veicolo da combattimento",
+"chi": "Hanwha",
+"alias": [
+"K21"
+],
+"q": "Q486699"
+},
+{
+"id": "bmp-3",
+"nome": "BMP-3",
+"tipo": "veicolo da combattimento",
+"chi": "Kurganmashzavod",
+"alias": [
+"BMP-3"
+],
+"q": "Q796368"
+},
+{
+"id": "bmp-2",
+"nome": "BMP-2",
+"tipo": "veicolo da combattimento",
+"chi": "Kurganmashzavod",
+"alias": [
+"BMP-2"
+],
+"q": "Q160357"
+},
+{
+"id": "freccia",
+"nome": "VBM Freccia",
+"tipo": "veicolo da combattimento",
+"chi": "Iveco, Leonardo",
+"alias": [
+"VBM Freccia",
+"blindati Freccia"
+],
+"q": "Q1784933"
+},
+{
+"id": "centauro",
+"nome": "Centauro",
+"tipo": "blindato",
+"chi": "Iveco, Leonardo",
+"alias": [
+"Centauro II",
+"blindo Centauro"
+],
+"q": "Q3664441"
+},
+{
+"id": "m777",
+"nome": "M777",
+"tipo": "obice",
+"chi": "BAE Systems",
+"alias": [
+"M777"
+],
+"q": "Q1068971"
+},
+{
+"id": "m109",
+"nome": "M109",
+"tipo": "obice semovente",
+"chi": "BAE Systems",
+"alias": [
+"M109",
+"M109A7"
+],
+"q": "Q170296"
+},
+{
+"id": "2s19",
+"nome": "2S19 Msta",
+"tipo": "obice semovente",
+"chi": "Uraltransmash",
+"alias": [
+"Msta",
+"2S19"
+],
+"q": "Q222793"
+},
+{
+"id": "archer",
+"nome": "Archer",
+"tipo": "obice semovente",
+"chi": "BAE Systems Bofors",
+"alias": [
+"obice Archer",
+"obici Archer",
+"Archer FH77"
+],
+"q": "Q713001"
+},
+{
+"id": "krab",
+"nome": "AHS Krab",
+"tipo": "obice semovente",
+"chi": "Huta Stalowa Wola",
+"alias": [
+"AHS Krab",
+"obici Krab"
+],
+"q": "Q389052"
+},
+{
+"id": "bm-21",
+"nome": "BM-21 Grad",
+"tipo": "lanciarazzi",
+"chi": "Splav",
+"alias": [
+"BM-21",
+"lanciarazzi Grad",
+"razzi Grad"
+],
+"q": "Q270289"
+},
+{
+"id": "tos-1",
+"nome": "TOS-1",
+"tipo": "lanciarazzi",
+"chi": "Omsk",
+"alias": [
+"TOS-1",
+"TOS-1A"
+],
+"q": "Q1854416"
+},
+{
+"id": "df-21",
+"nome": "DF-21",
+"tipo": "missile balistico",
+"chi": "CASIC",
+"alias": [
+"DF-21"
+],
+"q": "Q425558"
+},
+{
+"id": "df-26",
+"nome": "DF-26",
+"tipo": "missile balistico",
+"chi": "CASIC",
+"alias": [
+"DF-26"
+],
+"q": "Q20900616"
+},
+{
+"id": "df-41",
+"nome": "DF-41",
+"tipo": "missile balistico intercontinentale",
+"chi": "CASIC",
+"alias": [
+"DF-41"
+],
+"q": "Q2574324"
+},
+{
+"id": "minuteman",
+"nome": "Minuteman III",
+"tipo": "missile balistico intercontinentale",
+"chi": "Boeing",
+"alias": [
+"Minuteman III",
+"Minuteman"
+],
+"q": "Q861662"
+},
+{
+"id": "sentinel",
+"nome": "Sentinel (LGM-35)",
+"tipo": "missile balistico intercontinentale",
+"chi": "Northrop Grumman",
+"alias": [
+"LGM-35",
+"Sentinel ICBM"
+],
+"q": "Q60745771"
+},
+{
+"id": "trident",
+"nome": "Trident II",
+"tipo": "missile balistico intercontinentale",
+"chi": "Lockheed Martin",
+"alias": [
+"Trident II",
+"Trident D5"
+],
+"q": "Q484374"
+},
+{
+"id": "sarmat",
+"nome": "RS-28 Sarmat",
+"tipo": "missile balistico intercontinentale",
+"chi": "Makeyev",
+"alias": [
+"Sarmat",
+"RS-28"
+],
+"q": "Q18805944"
+},
+{
+"id": "yars",
+"nome": "RS-24 Yars",
+"tipo": "missile balistico intercontinentale",
+"chi": "MITT",
+"alias": [
+"Yars",
+"RS-24"
+],
+"q": "Q1372951"
+},
+{
+"id": "bulava",
+"nome": "Bulava",
+"tipo": "missile balistico intercontinentale",
+"chi": "MITT",
+"alias": [
+"Bulava"
+],
+"q": "Q587835"
+},
+{
+"id": "avangard",
+"nome": "Avangard",
+"tipo": "missile ipersonico",
+"chi": "NPO Mashinostroyeniya",
+"alias": [
+"missili Avangard",
+"Avangard ipersonico"
+],
+"q": "Q55604542"
+},
+{
+"id": "hwasong-18",
+"nome": "Hwasong-18",
+"tipo": "missile balistico intercontinentale",
+"chi": "Corea del Nord",
+"alias": [
+"Hwasong-18"
+],
+"q": "Q117705310"
+},
+{
+"id": "fattah",
+"nome": "Fattah",
+"tipo": "missile ipersonico",
+"chi": "IRGC",
+"alias": [
+"Fattah-1",
+"Fattah-2",
+"missile Fattah"
+],
+"q": "Q119132754"
+},
+{
+"id": "shahab-3",
+"nome": "Shahab-3",
+"tipo": "missile balistico",
+"chi": "Iran",
+"alias": [
+"Shahab-3"
+],
+"q": "Q668579"
+},
+{
+"id": "kh-101",
+"nome": "Kh-101",
+"tipo": "missile da crociera",
+"chi": "Raduga",
+"alias": [
+"Kh-101"
+],
+"q": "Q3562874"
+},
+{
+"id": "onyx",
+"nome": "P-800 Oniks",
+"tipo": "missile antinave",
+"chi": "NPO Mashinostroyeniya",
+"alias": [
+"P-800",
+"Oniks"
+],
+"q": "Q1475405"
+},
+{
+"id": "sm-6",
+"nome": "SM-6",
+"tipo": "missile antiaereo",
+"chi": "Raytheon",
+"alias": [
+"SM-6",
+"Standard Missile 6"
+],
+"q": "Q1051738"
+},
+{
+"id": "sm-3",
+"nome": "SM-3",
+"tipo": "difesa antimissile",
+"chi": "Raytheon",
+"alias": [
+"SM-3"
+],
+"q": "Q900937"
+},
+{
+"id": "aster",
+"nome": "Aster",
+"tipo": "missile antiaereo",
+"chi": "MBDA",
+"alias": [
+"Aster 30",
+"Aster 15"
+],
+"q": "Q747354"
+},
+{
+"id": "buk",
+"nome": "Buk",
+"tipo": "difesa aerea",
+"chi": "Almaz-Antey",
+"alias": [
+"Buk-M1",
+"Buk-M2",
+"Buk-M3",
+"sistema Buk",
+"missili Buk"
+],
+"q": "Q950158"
+},
+{
+"id": "tor",
+"nome": "Tor",
+"tipo": "difesa aerea",
+"chi": "Almaz-Antey",
+"alias": [
+"Tor-M2",
+"Tor-M1"
+],
+"q": "Q756212"
+},
+{
+"id": "stinger",
+"nome": "Stinger",
+"tipo": "difesa aerea portatile",
+"chi": "Raytheon",
+"alias": [
+"Stinger"
+],
+"q": "Q223697"
+},
+{
+"id": "gepard",
+"nome": "Gepard",
+"tipo": "difesa aerea",
+"chi": "KMW",
+"alias": [
+"Flakpanzer Gepard",
+"semoventi Gepard"
+],
+"q": "Q695759"
+},
+{
+"id": "hawk",
+"nome": "MIM-23 Hawk",
+"tipo": "difesa aerea",
+"chi": "Raytheon",
+"alias": [
+"MIM-23 Hawk"
+],
+"q": "Q482414"
+},
+{
+"id": "nimitz",
+"nome": "Classe Nimitz",
+"tipo": "portaerei",
+"chi": "Newport News",
+"alias": [
+"classe Nimitz",
+"USS Nimitz"
+],
+"q": "Q309336"
+},
+{
+"id": "ford",
+"nome": "Classe Gerald R. Ford",
+"tipo": "portaerei",
+"chi": "HII",
+"alias": [
+"USS Gerald R. Ford",
+"classe Ford"
+],
+"q": "Q287632"
+},
+{
+"id": "queen-elizabeth",
+"nome": "Classe Queen Elizabeth",
+"tipo": "portaerei",
+"chi": "Aircraft Carrier Alliance",
+"alias": [
+"HMS Queen Elizabeth",
+"HMS Prince of Wales",
+"classe Queen Elizabeth"
+],
+"q": "Q948494"
+},
+{
+"id": "cavour",
+"nome": "Cavour",
+"tipo": "portaerei",
+"chi": "Fincantieri",
+"alias": [
+"portaerei Cavour",
+"nave Cavour"
+],
+"q": "Q842494"
+},
+{
+"id": "charles-de-gaulle",
+"nome": "Charles de Gaulle",
+"tipo": "portaerei",
+"chi": "DCNS",
+"alias": [
+"portaerei Charles de Gaulle"
+],
+"q": "Q461375"
+},
+{
+"id": "fujian",
+"nome": "Fujian",
+"tipo": "portaerei",
+"chi": "Jiangnan",
+"alias": [
+"portaerei Fujian"
+],
+"q": "Q29654179"
+},
+{
+"id": "kuznetsov",
+"nome": "Admiral Kuznetsov",
+"tipo": "portaerei",
+"chi": "Chernomorsky",
+"alias": [
+"Admiral Kuznetsov",
+"Ammiraglio Kuznetsov"
+],
+"q": "Q274924"
+},
+{
+"id": "type-055",
+"nome": "Type 055",
+"tipo": "cacciatorpediniere",
+"chi": "Jiangnan, Dalian",
+"alias": [
+"Type 055",
+"Renhai"
+],
+"q": "Q15729915"
+},
+{
+"id": "type-052d",
+"nome": "Type 052D",
+"tipo": "cacciatorpediniere",
+"chi": "Jiangnan, Dalian",
+"alias": [
+"Type 052D"
+],
+"q": "Q3492255"
+},
+{
+"id": "sejong",
+"nome": "Classe Sejong il Grande",
+"tipo": "cacciatorpediniere",
+"chi": "Hyundai Heavy Industries",
+"alias": [
+"classe Sejong"
+],
+"q": "Q495389"
+},
+{
+"id": "type-45",
+"nome": "Type 45",
+"tipo": "cacciatorpediniere",
+"chi": "BAE Systems",
+"alias": [
+"Type 45"
+],
+"q": "Q1073186"
+},
+{
+"id": "admiral-gorshkov",
+"nome": "Classe Admiral Gorshkov",
+"tipo": "fregata",
+"chi": "Severnaya Verf",
+"alias": [
+"Admiral Gorshkov"
+],
+"q": "Q358930"
+},
+{
+"id": "borei",
+"nome": "Classe Borei",
+"tipo": "sottomarino nucleare",
+"chi": "Sevmash",
+"alias": [
+"classe Borei",
+"Borei-A"
+],
+"q": "Q640482"
+},
+{
+"id": "yasen",
+"nome": "Classe Yasen",
+"tipo": "sottomarino nucleare",
+"chi": "Sevmash",
+"alias": [
+"classe Yasen",
+"Yasen-M"
+],
+"q": "Q1193363"
+},
+{
+"id": "kilo",
+"nome": "Classe Kilo",
+"tipo": "sottomarino",
+"chi": "Admiralty Shipyards",
+"alias": [
+"classe Kilo"
+],
+"q": "Q55520"
+},
+{
+"id": "columbia",
+"nome": "Classe Columbia",
+"tipo": "sottomarino nucleare",
+"chi": "General Dynamics, HII",
+"alias": [
+"classe Columbia"
+],
+"q": "Q9332304"
+},
+{
+"id": "astute",
+"nome": "Classe Astute",
+"tipo": "sottomarino nucleare",
+"chi": "BAE Systems",
+"alias": [
+"classe Astute"
+],
+"q": "Q121982"
+},
+{
+"id": "type-094",
+"nome": "Type 094",
+"tipo": "sottomarino nucleare",
+"chi": "Bohai",
+"alias": [
+"Type 094"
+],
+"q": "Q1203377"
+},
+{
+"id": "poseidon-torp",
+"nome": "Poseidon",
+"tipo": "siluro nucleare",
+"chi": "Rubin",
+"alias": [
+"Status-6",
+"siluro Poseidon"
+],
+"q": "Q21467398"
+}
+]
