@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.33.3"
+VERSIONE = "2.33.4"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -4937,15 +4937,26 @@ def calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg):
     tot_ = {d: sum((v or [0])[0] for v in (G.get(d) or {}).values()) for d in prima}
     pieno_ = max(tot_.values(), default=0)
     pieni = [d for d in prima if pieno_ and tot_[d] >= 0.5 * pieno_]
+    # e dalla 2.33.4 serve anche che lo Stato pesi più del doppio del solito sul totale delle confermate: se il programma
+    # raccoglie di più (fonti nuove, giro più veloce) crescono tutti insieme e non è un picco
+    conf_tot = {d: sum((v or [0, 0])[1] for v in (G.get(d) or {}).values()) for d in pieni + [oggi]}
     nuovi = []
     for p in sorted({p for d in (oggi, ieri) for p in (G.get(d) or {})}):
         c_oggi = max(((G.get(oggi) or {}).get(p) or [0, 0])[1], 0)
         storia = sorted(((G.get(d) or {}).get(p) or [0, 0])[1] for d in pieni)
         mediana = storia[len(storia) // 2] if storia else 0
         giorni_noti = len(pieni)
-        if giorni_noti >= imp.get("giorni_minimi", 5) and c_oggi >= max(imp.get("picco_minimo", 6), 3 * max(mediana, 1)):
+        quote_ = sorted(((G.get(d) or {}).get(p) or [0, 0])[1] / conf_tot[d] for d in pieni if conf_tot.get(d))
+        quota_solita = quote_[len(quote_) // 2] if quote_ else 0
+        quota_oggi = c_oggi / conf_tot[oggi] if conf_tot.get(oggi) else 0
+        if giorni_noti >= imp.get("giorni_minimi", 5) and c_oggi >= max(imp.get("picco_minimo", 6), 3 * max(mediana, 1)) \
+                and quota_oggi >= 2 * max(quota_solita, 0.002):
+            # perché: i titoli confermati da più fonti dello Stato, oggi
+            primi_ = sorted((x for x in S_schede.values() if x.get("d") == oggi and p in (x.get("p") or [])),
+                            key=lambda x: -(x.get("nf") or 1))[:2]
             nuovi.append({"id": f"picco:{p}:{oggi}", "tipo": "picco", "stato": p, "livello": 2 if c_oggi >= 6 * max(mediana, 1) else 1,
-                          "testo": f"{p}: {c_oggi} notizie confermate oggi, di solito {mediana} al giorno."})
+                          "testo": f"{p}: {c_oggi} notizie confermate oggi, di solito {mediana} al giorno."
+                                   + (" In primo piano: " + "; ".join(x.get("t", "")[:110] for x in primi_) + "." if primi_ else "")})
     nuovi += _avvisi_fatti(S_schede, oggi, ieri, imp)
     for p, v in ((dati_cielo or {}).get("paesi") or {}).items():
         # dalla 2.31 solo i cieli che si svuotano davvero (non i cali), dove di solito volano almeno 20 aerei

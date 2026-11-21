@@ -4471,8 +4471,8 @@
   "giorni_archivi": 7,
   "cronologia": true,
   "giorni_cronologia": 180,
-  "stati_per_giro_carica": 3,
-  "stati_per_giro": 1
+  "stati_per_giro_carica": 5,
+  "stati_per_giro": 2
  },
  "articoli": {
   "attivo": true,
@@ -4772,7 +4772,7 @@
  "rapporto": {"attivo": true, "ore": [13, 1], "ore_utc": [12, 0], "ore_finestra": 12, "tieni": 60},
  "magazzino": {"attivo": true, "max_gb": 60, "min_libero_gb": 10, "maturi_giorni": 2, "giorni_per_giro": 2, "istantanee_giorni": 30, "copia_attiva": true, "copia": "~/storage/shared/PanGeo"},
  "officina": {"attivo": true, "temp_max": 37, "porta": 8091, "thread": 4, "per_giro": 40, "secondi_per_giro": 150, "prova_titoli": 24, "somiglianza_minima": 0.45, "secondi_max_a_titolo": 20, "scarica_senza_wifi": false, "scarica_senza_carica": true, "batteria_min_scarico": 30, "traduttore": false, "perche_spento": "prova del 20/11: 86 secondi a titolo e traduzioni sbagliate, il telefono è troppo lento per il modello da 4 miliardi", "lavora_senza_carica": true, "batteria_min_fuori_carica": 35, "significato": true, "porta_significato": 8092, "secondi_significato": 120, "significato_continuo": true, "secondi_significato_cuore": 150, "secondi_offline": 420, "per_giro_offline": 120},
- "avvisi": {"attivi": true, "picco_minimo": 6, "giorni_minimi": 5, "morti_minimi": 10, "livello_notifica": 1, "massimo_per_giro": 5,
+ "avvisi": {"attivi": true, "picco_minimo": 6, "giorni_minimi": 2, "morti_minimi": 10, "livello_notifica": 1, "massimo_per_giro": 5,
   "massimo_nuovi": 10, "telegram": true},
  "indice": {"attivo": true, "secondi": 45},
  "schede": {"giorni": 365},

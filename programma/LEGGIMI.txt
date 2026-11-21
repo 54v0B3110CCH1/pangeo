@@ -432,6 +432,10 @@ NOVITÀ 2.33 (20 novembre, sera) – LA STORIA DI OGNI STATO, COLLEGATA AL PRESE
   dicevano «Russia: 6 notizie confermate oggi, di solito 0», perché i giorni ricostruiti dall'archivio avevano poche
   notizie): torneranno quando ci saranno 5 giorni pieni di storico. Nelle cronologie i secoli sono in ordine (IX secolo
   a.C. prima del XIV secolo). Se una cronologia non tiene nessuna tappa, nel diario c'è l'inizio della prima riga proposta.
+- 2.33.4: i picchi usano subito i giorni pieni che ci sono (ne bastano 2, config.json › avvisi › giorni_minimi) e scattano
+  solo se lo Stato pesa almeno il doppio del solito sul totale delle notizie confermate: se il programma raccoglie di più
+  per tutti (fonti nuove, giri più veloci) non è un picco. L'avviso dice anche perché: «In primo piano:» con i due titoli
+  più confermati dello Stato. Cronologie storiche: 5 Stati a giro in carica, 2 fuori (prima 3 e 1).
 - Si regola in config.json › storia (attiva, giorni_archivi, cronologia, giorni_cronologia, stati_per_giro_carica,
   stati_per_giro). Nel diario: «storia» [cronologie scritte nel giro, Stati con cronologia, in coda, Stati negli
   archivi, conflitti, colpi di Stato].
