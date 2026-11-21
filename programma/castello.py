@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.33.7"
+VERSIONE = "2.33.8"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -5923,7 +5923,7 @@ def leggi_articoli(archivio, adesso, cfg, tel, errori):
     if not ca.get("attivo", True) or not RETE["su"]:
         return None
     sp = spinta(cfg, tel)
-    quanti = int(ca.get("per_giro_carica", 12) if sp["piena"] else ca.get("per_giro", 4))
+    quanti = regia(cfg, tel)["articoli"]  # dalla 2.33.8: lo decide la regia (rete, carica, coda)
     limite_t = (adesso - timedelta(hours=int(ca.get("ore", 48)))).isoformat()
     # le pagine già aperte stanno in un file piccolo a parte (l'archivio è grande e non si riscrive per questo)
     perc_l = os.path.join(DATI, "articoli.json")
@@ -6358,7 +6358,7 @@ def storia_studia(chiavi, cfg, adesso, tel, errori, A=None):
                 da_fare.append(st)
         elif k_.get("quando", "") < vecchia or k_.get("firma") != firma(st):
             da_fare.append(st)
-    quanti = int(imp.get("stati_per_giro_carica", 3) if spinta(cfg, tel)["piena"] else imp.get("stati_per_giro", 1))
+    quanti = regia(cfg, tel)["cronologie"]  # dalla 2.33.8: lo decide la regia (soldi del giorno, carica, coda)
     S_ = leggi_json(os.path.join(DATI, "sapere.json"), {}) or {}
     M_ = leggi_json(os.path.join(DATI, "memoria.json"), {}) or {}
     fatti, ultimo_ = 0, None
@@ -7406,6 +7406,57 @@ def _segnale(num, _quadro=None):
         pass
     raise SystemExit(0)
 
+
+
+def regia(cfg, tel=None):
+    """Dalla 2.33.8 il programma decide da solo quanto fare di ogni lavoro, in base a ciò che gli serve e a ciò che ha:
+    rete (quanto è veloce l'ultimo giro a scaricare i feed), telefono (carica e caldo: la spinta), soldi del giorno (spesa
+    del cervello rispetto alla quota di quest'ora) e lavoro arretrato (articoli e cronologie in coda). Ne escono il ritmo
+    dei giri, quanti articoli aprire e quante cronologie scrivere, ognuno con il suo perché. Scrive dati/regia.json."""
+    sp = spinta(cfg, tel)
+    D = [x for x in leggi_json(os.path.join(DATI, "diario.json"), []) if x.get("tipo") in ("leggero", "completo")][-4:]
+    z = D[-1] if D else {}
+    perche = []
+    # rete: secondi per feed nell'ultimo giro (con i download in parallelo); lenta sopra 0,5 secondi a feed
+    s_ = z.get("spinta") or []
+    sec_feed = (s_[3] / s_[2]) if len(s_) > 3 and s_[2] else None
+    rete = "lenta" if sec_feed is not None and sec_feed > ((cfg.get("spinta", {}) or {}).get("rete_lenta_sec", 0.5)) else "buona"
+    if sec_feed is not None:
+        perche.append(f"rete {rete} ({sec_feed:.2f} secondi a feed)")
+    # soldi: la spesa di oggi rispetto alla quota di quest'ora (come la «spesa a passo»)
+    ic = cfg.get("cervello", {}) or {}
+    conto = _conto_cervello()
+    ora_ = datetime.now()
+    quota = ic.get("max_usd_giorno", 1.5) * min(1.0, (ora_.hour * 60 + ora_.minute) / 1440 + 0.12)
+    libero = max(0.0, 1 - (conto.get("usd_oggi", 0) / quota)) if quota else 0
+    perche.append(f"soldi del giorno: {conto.get('usd_oggi', 0):.2f} $ su una quota di {quota:.2f} $ a quest'ora")
+    # articoli: in carica e con la rete buona il massimo; rete lenta o fuori carica meno
+    ca = cfg.get("articoli", {}) or {}
+    art = int(ca.get("per_giro_carica", 12) if sp["piena"] else ca.get("per_giro", 4))
+    coda_art = ((z.get("articoli") or [None] * 4)[3]) or 0
+    if rete == "lenta":
+        art = max(2, art // 2)
+    elif sp["piena"] and coda_art > 1000:
+        art = int(art * 1.5)
+        perche.append(f"{coda_art} articoli in coda: se ne aprono di più")
+    # cronologie: dipendono dal cervello; con soldi liberi e tanti Stati in coda se ne scrivono di più
+    imp_s = cfg.get("storia", {}) or {}
+    cro = int(imp_s.get("stati_per_giro_carica", 5) if sp["piena"] else imp_s.get("stati_per_giro", 2))
+    coda_cro = ((z.get("storia") or [None] * 3)[2]) or 0
+    if conto.get("passo") or libero < 0.1:
+        cro = min(cro, 1)
+        perche.append("soldi a passo: una cronologia a giro")
+    elif libero > 0.5 and coda_cro > 20:
+        cro = cro + 2
+        perche.append(f"{coda_cro} cronologie in coda e soldi liberi: due in più a giro")
+    passo, perche_p = passo_effettivo(cfg, spiega=True)
+    R = {"quando": datetime.now(timezone.utc).isoformat(), "passo": passo, "articoli": art, "cronologie": cro, "rete": rete,
+         "spinta": sp["piena"], "perche": [perche_p] + perche}
+    try:
+        scrivi_json(os.path.join(DATI, "regia.json"), R)
+    except OSError:
+        pass
+    return R
 
 
 def passo_effettivo(cfg, spiega=False):
@@ -8479,6 +8530,7 @@ def _aggiorna(leggero=False):
         "off": [(stato_off or {}).get("fase", ""), getattr(officina_traduci, "fatti", 0)] if stato_off else None,
         "articoli": [(esito_229.get("articoli") or {}).get(c_) for c_ in ("letti", "poco_testo", "provati", "in_coda", "totale")],
         "storia": [(esito_229.get("storia") or {}).get(c_) for c_ in ("fatti", "con_cronologia", "in_coda", "stati", "conflitti", "golpe", "ultimo")],
+        "regia": [(leggi_json(os.path.join(DATI, "regia.json"), {}) or {}).get(c_) for c_ in ("passo", "articoli", "cronologie", "rete")],
         "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
     })
@@ -9626,8 +9678,10 @@ if __name__ == "__main__":
             print("  velocità misurate: " + " · ".join(f"{k} thread {v.get('v')} vettori al secondo ({v.get('n')} misure)"
                                                       for k, v in sorted(vel_.items(), key=lambda x: int(x[0]))))
         sp_o = spinta(cfg_o)
-        pe_, pp_ = passo_effettivo(cfg_o, spiega=True)
-        print(f"Ritmo: un giro ogni {pe_} minuti · {pp_}")
+        rg_ = regia(cfg_o)
+        print(f"Regia (decide da sola): un giro ogni {rg_['passo']} minuti · {rg_['articoli']} articoli e {rg_['cronologie']} cronologie a giro")
+        for pp_ in rg_["perche"]:
+            print("  perché: " + pp_)
         print(f"Spinta: {'PIENA' if sp_o['piena'] else 'normale'} ({sp_o['perche']}) · download in parallelo: {sp_o['paralleli']}"
               + (f" · giri ogni {sp_o['ogni_minuti']} minuti · vettori anche delle notizie non confermate, con "
                  f"{_sig_thread(cfg_o.get('officina', {}))} thread" if sp_o["piena"] else " · vettori solo dei fatti confermati"))

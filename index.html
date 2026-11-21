@@ -11317,6 +11317,8 @@ function novitaHtml() {
   const nferme = giri.filter(x => x.tipo === 'fermo'); if (nferme.length) intoppi.push('si è fermato ' + (nferme.length === 1 ? 'una volta' : nferme.length + ' volte') + ' (' + nferme.reduce((t, x) => t + ((x.fermo || [])[2] || 0), 0) + ' minuti): ' + esc(nferme[nferme.length - 1].motivo || ''));
   const err = N.som('errori'); if (err) intoppi.push(num(err) + ' siti che non hanno risposto o hanno rifiutato');
   if (intoppi.length) o += '<div class="nv-riga"><span>Intoppi</span><div>' + intoppi.join(' · ') + '</div></div>';
+  const rg = z.regia; // dalla 2.33.8: che cosa ha deciso da solo, in base a rete, carica, caldo, soldi e lavoro in coda
+  if (rg && rg[0]) o += '<div class="nv-riga"><span>Come si regola da solo</span><div>un giro ogni <b>' + rg[0] + '</b> minuti · <b>' + (rg[1] || 0) + '</b> articoli e <b>' + (rg[2] || 0) + '</b> cronologie a giro · rete ' + esc(rg[3] || '') + (z.tel && z.tel[2] ? ' · in carica' : ' · non in carica') + (z.tel && z.tel[0] != null ? ' · ' + String(z.tel[0]).replace('.', ',') + ' gradi' : '') + '</div></div>';
   return o + totaliHtml(D) + '<div class="s"><a href="#live">Apri Live</a> per il diario completo e le notizie.</div></section>';
 }
 // Totali (programma 2.33.7): da sempre, questo mese, oggi, ultime 24 ore. «Da sempre» e i mesi vengono da totali.js
