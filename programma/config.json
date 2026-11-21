@@ -4473,6 +4473,13 @@
   "giorni": 30,
   "secondi": 120
  },
+ "potere": {
+  "attivo": true,
+  "perche": "chi guida istituzioni, banche centrali, fondi; ricchi, porti, aeroporti, gruppi armati: da Wikidata, una sezione a giro",
+  "per_giro_carica": 2,
+  "per_giro": 1,
+  "giorni": 7
+ },
  "storia": {
   "attiva": true,
   "perche": "dalla 2.33: il programma studia la storia di ogni Stato (conflitti armati dal 1946 dell'Università di Uppsala, colpi di Stato dal 1950 di Powell e Thyne, introduzione storica del World Factbook, Wikipedia come appoggio, fatti confermati degli ultimi mesi) e la collega al presente",

@@ -6507,7 +6507,12 @@ SIS_MISURE = [("P2043", "lunghezza"), ("P2050", "apertura alare"), ("P2048", "al
 SIS_UNITA = {"Q11573": "m", "Q174728": "cm", "Q174789": "mm", "Q3710": "ft", "Q218593": "in", "Q11570": "kg", "Q191118": "t",
              "Q100995": "lb", "Q180154": "km/h", "Q211256": "mph", "Q128822": "nodi", "Q182429": "m/s", "Q160669": "Mach",
              "Q828224": "km", "Q253276": "mi", "Q93318": "miglia nautiche", "Q25269": "kW", "Q243372": "CV", "Q115533751": "CV",
-             "Q4916": "€", "Q4917": "$", "Q25417": "£", "Q41044": "rubli", "Q39099": "yuan", "Q8146": "yen"}
+             "Q4916": "€", "Q4917": "$", "Q25417": "£", "Q41044": "rubli", "Q39099": "yuan", "Q8146": "yen",
+             "Q132643": "corone norvegesi", "Q122922": "corone svedesi", "Q25344": "franchi svizzeri", "Q1104069": "dollari canadesi",
+             "Q259502": "dollari australiani", "Q31015": "dollari di Hong Kong", "Q190951": "dollari di Singapore", "Q202040": "won",
+             "Q80524": "rupie indiane", "Q199857": "dirham", "Q131645": "riyal sauditi", "Q173117": "tenge", "Q172872": "lire turche",
+             "Q4608": "dollari del Brunei", "Q209792": "real", "Q4730": "pesos messicani", "Q1472704": "riyal del Qatar",
+             "Q193098": "dinari kuwaitiani", "Q201875": "lire israeliane"}
 SIS_METRICO = {"m", "cm", "mm", "kg", "t", "km/h", "km", "m/s", "kW", "Mach"}
 # come Wikidata scrive in italiano alcuni Stati che in PanGeo hanno un nome più corto
 SIS_STATI_WD = {"Stati Uniti d'America": "USA", "Stati Uniti": "USA", "Repubblica Popolare Cinese": "Cina",
@@ -6554,6 +6559,8 @@ def _sis_numero(x):
         f = float(x)
     except (TypeError, ValueError):
         return ""
+    if abs(f) >= 1e11:
+        return f"{f / 1e9:,.0f}".replace(",", ".") + " mld"
     if abs(f) >= 1e9:
         return f"{f / 1e9:.1f}".replace(".", ",").replace(",0", "") + " mld"
     if abs(f) >= 1e6:
@@ -6842,6 +6849,264 @@ def sistemi_passo(cfg, adesso, tel, errori, leggero):
     return r_
 
 
+# 10. Potere, istituzionale e non (dalla 2.35): chi guida le istituzioni internazionali e le banche centrali, i fondi
+#     sovrani, i grandi gestori di soldi e le grandi banche, le persone più ricche (solo persone pubbliche), chi gestisce
+#     o possiede i porti e gli aeroporti più grandi, i gruppi armati non statali e le compagnie militari private. Fonte:
+#     Wikidata (CC0), una sezione a giro con la rete buona, ogni sezione rifatta dopo potere.giorni giorni. La base
+#     costruita da Claude sta in programma/potere_base.json. Le classificazioni contestate (per esempio «terroristico»)
+#     non si scrivono: si scrive che cosa è il gruppo, dove opera, chi lo guida e da chi è sostenuto secondo Wikidata.
+POTERE_ENTI = {
+    "istituzioni": ["International Monetary Fund", "World Bank", "Bank for International Settlements", "European Central Bank",
+                    "United Nations", "NATO", "European Commission", "European Union", "OPEC", "World Trade Organization",
+                    "Asian Infrastructure Investment Bank", "New Development Bank", "World Health Organization",
+                    "Organization for Security and Co-operation in Europe", "African Union", "ASEAN", "Shanghai Cooperation Organisation",
+                    "BRICS", "G20", "Arab League", "Gulf Cooperation Council", "Collective Security Treaty Organization", "Interpol",
+                    "International Atomic Energy Agency", "OECD", "European Investment Bank", "Asian Development Bank",
+                    "Inter-American Development Bank", "African Development Bank", "Eurasian Economic Union", "Mercosur",
+                    "International Criminal Court", "International Court of Justice", "Organisation of Islamic Cooperation"],
+    "gestori": ["BlackRock", "The Vanguard Group", "State Street Corporation", "Fidelity Investments", "Capital Group Companies", "Amundi",
+                "JPMorgan Chase", "Goldman Sachs", "Morgan Stanley", "UBS", "Allianz", "PIMCO", "Invesco", "BNY", "Blackstone Inc.",
+                "KKR", "The Carlyle Group", "Apollo Global Management", "Brookfield Corporation", "HSBC", "BNP Paribas",
+                "Industrial and Commercial Bank of China", "Mitsubishi UFJ Financial Group", "Bank of America", "Citigroup",
+                "Berkshire Hathaway", "SoftBank Group", "Temasek Holdings", "China Investment Corporation", "Mubadala Investment Company",
+                "Norges Bank Investment Management", "Deutsche Bank", "Intesa Sanpaolo", "UniCredit", "Crédit Agricole", "Santander Group",
+                "Bank of China", "China Construction Bank", "Agricultural Bank of China", "Sberbank", "VTB Bank"],
+}
+POTERE_SEZIONI = ["istituzioni", "gestori", "banche", "fondi", "miliardari", "porti", "aeroporti", "armati"]
+POTERE_NOMI = {"istituzioni": "Istituzioni internazionali", "gestori": "Grandi gestori di soldi e grandi banche",
+               "banche": "Banche centrali", "fondi": "Fondi sovrani", "miliardari": "Le persone più ricche",
+               "porti": "Porti: chi li gestisce e chi li possiede", "aeroporti": "Aeroporti più grandi: chi li gestisce e chi li possiede",
+               "armati": "Gruppi armati non statali e compagnie militari private"}
+# classi di Wikidata che non si scrivono come fatto: sono accuse o designazioni contestate, che PanGeo riporta solo con la fonte
+POTERE_CLASSI_NO = {"terrorist organization", "organizzazione terroristica", "criminal organization", "organizzazione criminale",
+                    "designated terrorist group", "Islamist terrorist organization"}
+_POT_LAB = 'SERVICE wikibase:label { bd:serviceParam wikibase:language "it,en,mul". %s }'
+
+
+def _pot_gc(v):
+    return f'(GROUP_CONCAT(DISTINCT ?{v}; separator="|") AS ?{v}s)'
+
+
+def _pot_query(sezione):
+    if sezione in POTERE_ENTI:
+        vals = " ".join("<https://en.wikipedia.org/wiki/%s>" % urllib.parse.quote(t.replace(" ", "_"), safe="()_,-./")
+                        for t in POTERE_ENTI[sezione])
+        return (f"SELECT ?x ?a ?xL ?paeseL ?sedeL ?nato ?sito {_pot_gc('capoL')} {_pot_gc('capoI')} {_pot_gc('aum')} {_pot_gc('att')} "
+                f"{_pot_gc('propL')} WHERE {{ VALUES ?a {{ {vals} }} ?a schema:about ?x . "
+                "OPTIONAL { ?x wdt:P17 ?paese } OPTIONAL { ?x wdt:P159 ?sede } OPTIONAL { ?x wdt:P571 ?nato } OPTIONAL { ?x wdt:P856 ?sito } "
+                "OPTIONAL { ?x p:P488|p:P1037|p:P169 ?st . ?st ps:P488|ps:P1037|ps:P169 ?capo . FILTER NOT EXISTS { ?st pq:P582 [] } "
+                "OPTIONAL { ?st pq:P580 ?ci } BIND(STR(?ci) AS ?capoI) } "
+                "OPTIONAL { ?x p:P4103 ?s1 . ?s1 psv:P4103 ?na . ?na wikibase:quantityAmount ?va ; wikibase:quantityUnit ?ua . OPTIONAL { ?s1 pq:P585 ?qa } "
+                "BIND(CONCAT(STR(?va), ' ', STRAFTER(STR(?ua), 'entity/'), ' ', COALESCE(SUBSTR(STR(?qa), 1, 4), '')) AS ?aum) } "
+                "OPTIONAL { ?x p:P2403 ?s2 . ?s2 psv:P2403 ?nt . ?nt wikibase:quantityAmount ?vt ; wikibase:quantityUnit ?ut . OPTIONAL { ?s2 pq:P585 ?qt } "
+                "BIND(CONCAT(STR(?vt), ' ', STRAFTER(STR(?ut), 'entity/'), ' ', COALESCE(SUBSTR(STR(?qt), 1, 4), '')) AS ?att) } "
+                "OPTIONAL { ?x wdt:P127 ?prop } "
+                + _POT_LAB % "?x rdfs:label ?xL . ?paese rdfs:label ?paeseL . ?sede rdfs:label ?sedeL . ?capo rdfs:label ?capoL . ?prop rdfs:label ?propL ."
+                + " } GROUP BY ?x ?a ?xL ?paeseL ?sedeL ?nato ?sito")
+    if sezione == "banche":
+        return (f"SELECT ?x ?xL ?paeseL ?sito {_pot_gc('capoL')} {_pot_gc('capoI')} {_pot_gc('propL')} WHERE {{ "
+                "?x wdt:P31 wd:Q66344 ; wdt:P17 ?paese . FILTER NOT EXISTS { ?x wdt:P576 [] } FILTER NOT EXISTS { ?paese wdt:P576 [] } "
+                "OPTIONAL { ?x wdt:P856 ?sito } "
+                "OPTIONAL { ?x p:P488|p:P1037|p:P169 ?st . ?st ps:P488|ps:P1037|ps:P169 ?capo . FILTER NOT EXISTS { ?st pq:P582 [] } "
+                "OPTIONAL { ?st pq:P580 ?ci } BIND(STR(?ci) AS ?capoI) } OPTIONAL { ?x wdt:P127 ?prop } "
+                + _POT_LAB % "?x rdfs:label ?xL . ?paese rdfs:label ?paeseL . ?capo rdfs:label ?capoL . ?prop rdfs:label ?propL ."
+                + " } GROUP BY ?x ?xL ?paeseL ?sito")
+    if sezione == "fondi":
+        return (f"SELECT ?x ?xL ?paeseL ?nato {_pot_gc('capoL')} {_pot_gc('att')} WHERE {{ ?x wdt:P31 wd:Q1061648 . "
+                "FILTER NOT EXISTS { ?x wdt:P576 [] } OPTIONAL { ?x wdt:P17 ?paese } OPTIONAL { ?x wdt:P571 ?nato } "
+                "OPTIONAL { ?x wdt:P488|wdt:P1037|wdt:P169 ?capo } "
+                "OPTIONAL { ?x p:P2403 ?s2 . ?s2 psv:P2403 ?nt . ?nt wikibase:quantityAmount ?vt ; wikibase:quantityUnit ?ut . "
+                "OPTIONAL { ?s2 pq:P585 ?qt } BIND(CONCAT(STR(?vt), ' ', STRAFTER(STR(?ut), 'entity/'), ' ', COALESCE(SUBSTR(STR(?qt), 1, 4), '')) AS ?att) } "
+                + _POT_LAB % "?x rdfs:label ?xL . ?paese rdfs:label ?paeseL . ?capo rdfs:label ?capoL ."
+                + " } GROUP BY ?x ?xL ?paeseL ?nato")
+    if sezione == "miliardari":
+        return (f"SELECT ?x ?xL ?v ?quando {_pot_gc('citL')} {_pot_gc('azL')} WHERE {{ "
+                "?x p:P2218 ?s . ?s psv:P2218 ?n . ?n wikibase:quantityAmount ?v ; wikibase:quantityUnit wd:Q4917 . FILTER(?v >= 15000000000) "
+                "?x wdt:P31 wd:Q5 . FILTER NOT EXISTS { ?x wdt:P570 [] } OPTIONAL { ?s pq:P585 ?quando } "
+                "OPTIONAL { ?x wdt:P27 ?cit } OPTIONAL { ?x wdt:P1830 ?az } "
+                + _POT_LAB % "?x rdfs:label ?xL . ?cit rdfs:label ?citL . ?az rdfs:label ?azL ."
+                + " } GROUP BY ?x ?xL ?v ?quando")
+    if sezione == "porti":
+        return (f"SELECT ?x ?xL ?paeseL {_pot_gc('opL')} {_pot_gc('propL')} WHERE {{ VALUES ?cl {{ wd:Q44782 wd:Q15310171 }} "
+                "?x wdt:P31 ?cl ; wdt:P17 ?paese . FILTER EXISTS { ?x wdt:P137|wdt:P127 [] } "
+                "?sl schema:about ?x ; schema:isPartOf <https://en.wikipedia.org/> . "
+                "OPTIONAL { ?x wdt:P137 ?op } OPTIONAL { ?x wdt:P127 ?prop } "
+                + _POT_LAB % "?x rdfs:label ?xL . ?paese rdfs:label ?paeseL . ?op rdfs:label ?opL . ?prop rdfs:label ?propL ."
+                + " } GROUP BY ?x ?xL ?paeseL")
+    if sezione == "aeroporti":
+        return (f"SELECT ?x ?xL ?paeseL ?iata (MAX(?pax) AS ?passeggeri) {_pot_gc('opL')} {_pot_gc('propL')} WHERE {{ "
+                "?x wdt:P31 wd:Q644371 ; wdt:P17 ?paese ; wdt:P3872 ?pax ; wdt:P238 ?iata . FILTER(?pax >= 10000000) "
+                "FILTER NOT EXISTS { ?x wdt:P576 [] } OPTIONAL { ?x wdt:P137 ?op } OPTIONAL { ?x wdt:P127 ?prop } "
+                + _POT_LAB % "?x rdfs:label ?xL . ?paese rdfs:label ?paeseL . ?op rdfs:label ?opL . ?prop rdfs:label ?propL ."
+                + " } GROUP BY ?x ?xL ?paeseL ?iata")
+    if sezione == "armati":
+        return (f"SELECT ?x ?xL ?sl (MIN(?n0) AS ?nato) {_pot_gc('clL')} {_pot_gc('paeseL')} {_pot_gc('areaL')} {_pot_gc('capoL')} "
+                f"{_pot_gc('fedL')} {_pot_gc('spL')} WHERE {{ VALUES ?c0 {{ wd:Q17149090 wd:Q207320 wd:Q1057214 }} ?x wdt:P31 ?c0 . "
+                "FILTER NOT EXISTS { ?x wdt:P576 [] } ?x wikibase:sitelinks ?sl . FILTER(?sl >= 8) "
+                "OPTIONAL { ?x wdt:P31 ?cl } OPTIONAL { ?x wdt:P17 ?paese } OPTIONAL { ?x wdt:P2541 ?area } OPTIONAL { ?x wdt:P571 ?n0 } "
+                "OPTIONAL { ?x p:P1037|p:P488 ?sc . ?sc ps:P1037|ps:P488 ?capo . FILTER NOT EXISTS { ?sc pq:P582 [] } FILTER NOT EXISTS { ?capo wdt:P570 [] } } "
+                "OPTIONAL { ?x wdt:P945 ?fed } OPTIONAL { ?x wdt:P859 ?sp } "
+                + _POT_LAB % "?x rdfs:label ?xL . ?cl rdfs:label ?clL . ?paese rdfs:label ?paeseL . ?area rdfs:label ?areaL . "
+                             "?capo rdfs:label ?capoL . ?fed rdfs:label ?fedL . ?sp rdfs:label ?spL ."
+                + " } GROUP BY ?x ?xL ?sl")
+    raise ValueError(sezione)
+
+
+def _pot_v(r, k):
+    return ((r or {}).get(k) or {}).get("value", "")
+
+
+def _pot_l(r, k, n=8):
+    return [x for x in dict.fromkeys(_pot_v(r, k).split("|")) if x and not re.match(r"^Q\d+$", x)][:n]
+
+
+def _pot_soldi(testi, unita):
+    """«12345 Q4917 2024» → «12,3 mld $ (2024)»; il valore più recente per primo."""
+    out = []
+    for t in testi:
+        p = t.split()
+        if len(p) < 2:
+            continue
+        try:
+            f = float(p[0])
+        except ValueError:
+            continue
+        anno = p[2] if len(p) > 2 else ""
+        u_ = SIS_UNITA.get(p[1]) or unita.get(p[1]) or "in valuta locale"
+        out.append((anno, _sis_numero(f) + " " + u_ + (f" ({anno})" if anno else "")))
+    out.sort(reverse=True)
+    return [x[1] for x in out[:2]]
+
+
+def _pot_righe(sezione, righe, inv):
+    """Le righe di Wikidata diventano voci corte per la pagina."""
+    q = lambda r: _pot_v(r, "x").rsplit("/", 1)[-1]
+    paese = lambda n: _sis_paese(n, inv) if n else ""
+    out = []
+    if sezione in POTERE_ENTI:
+        for r in righe:
+            capi = _pot_l(r, "capoLs", 4)
+            ini = sorted(x[:10] for x in _pot_v(r, "capoIs").split("|") if x)
+            out.append({"q": q(r), "n": _pot_v(r, "xL"), "st": paese(_pot_v(r, "paeseL")), "sede": _pot_v(r, "sedeL"),
+                        "nato": _pot_v(r, "nato")[:4], "capi": capi, "dal": ini[-1] if ini else "", "sito": _pot_v(r, "sito"),
+                        "prop": _pot_l(r, "propLs", 6),
+                        "aum": _pot_soldi(_pot_v(r, "aums").split("|"), {}), "att": _pot_soldi(_pot_v(r, "atts").split("|"), {})})
+    elif sezione == "banche":
+        for r in righe:
+            ini = sorted(x[:10] for x in _pot_v(r, "capoIs").split("|") if x)
+            out.append({"q": q(r), "n": _pot_v(r, "xL"), "st": paese(_pot_v(r, "paeseL")), "capi": _pot_l(r, "capoLs", 3),
+                        "dal": ini[-1] if ini else "", "sito": _pot_v(r, "sito"), "prop": _pot_l(r, "propLs", 3)})
+    elif sezione == "fondi":
+        for r in righe:
+            out.append({"q": q(r), "n": _pot_v(r, "xL"), "st": paese(_pot_v(r, "paeseL")), "nato": _pot_v(r, "nato")[:4],
+                        "capi": _pot_l(r, "capoLs", 3), "att": _pot_soldi(_pot_v(r, "atts").split("|"), {})})
+    elif sezione == "miliardari":
+        per = {}
+        for r in righe:  # più valori per la stessa persona: vale il più recente
+            k = q(r)
+            if k not in per or _pot_v(r, "quando") > per[k][0]:
+                per[k] = (_pot_v(r, "quando"), r)
+        for k, (quando, r) in per.items():
+            out.append({"q": k, "n": _pot_v(r, "xL"), "st": [paese(x) for x in _pot_l(r, "citLs", 3)],
+                        "v": float(_pot_v(r, "v") or 0), "quando": quando[:10], "az": _pot_l(r, "azLs", 5)})
+        out.sort(key=lambda x: -x["v"])
+    elif sezione in ("porti", "aeroporti"):
+        for r in righe:
+            out.append({"q": q(r), "n": _pot_v(r, "xL"), "st": paese(_pot_v(r, "paeseL")), "op": _pot_l(r, "opLs", 4),
+                        "prop": _pot_l(r, "propLs", 4), "iata": _pot_v(r, "iata"),
+                        "pax": int(float(_pot_v(r, "passeggeri") or 0)) or None})
+        if sezione == "aeroporti":
+            out.sort(key=lambda x: -(x["pax"] or 0))
+    elif sezione == "armati":
+        for r in righe:
+            cl = [c for c in _pot_l(r, "clLs", 8) if c not in POTERE_CLASSI_NO and "terror" not in c.lower() and "criminal" not in c.lower()]
+            out.append({"q": q(r), "n": _pot_v(r, "xL"), "cl": cl[:4], "st": [paese(x) for x in _pot_l(r, "paeseLs", 4)],
+                        "area": [paese(x) for x in _pot_l(r, "areaLs", 6)], "nato": _pot_v(r, "nato")[:4], "capi": _pot_l(r, "capoLs", 3),
+                        "fed": [paese(x) for x in _pot_l(r, "fedLs", 3)], "sost": [paese(x) for x in _pot_l(r, "spLs", 4)],
+                        "sl": int(_pot_v(r, "sl") or 0)})
+        out.sort(key=lambda x: -x["sl"])
+    # la stessa voce in più righe (Wikidata ha più sedi, siti o date): una voce sola, con gli elenchi uniti
+    uniti, ordine = {}, []
+    for x in out:
+        k = x.get("q")
+        if k not in uniti:
+            uniti[k] = x
+            ordine.append(k)
+            continue
+        y = uniti[k]
+        for c, v in x.items():
+            if isinstance(v, list):
+                y[c] = list(dict.fromkeys((y.get(c) or []) + v))[:8]
+            elif not y.get(c) and v:
+                y[c] = v
+    return [uniti[k] for k in ordine if uniti[k].get("n") and not re.match(r"^Q\d+$", uniti[k]["n"])]
+
+
+def potere_sezione(sezione, inv=None):
+    """Una sezione da Wikidata (una sola richiesta)."""
+    corpo = urllib.parse.urlencode({"query": _pot_query(sezione)}).encode()
+    r = json.loads(scarica("https://query.wikidata.org/sparql", timeout=120, corpo=corpo, intestazioni=dict(
+        SIS_UA, **{"Accept": "application/sparql-results+json", "Content-Type": "application/x-www-form-urlencoded"})))
+    return _pot_righe(sezione, r["results"]["bindings"], inv if inv is not None else _sis_inverso())
+
+
+def potere_aggiorna(cfg, adesso, errori, quante=1):
+    """Una sezione a giro (la più vecchia), se è più vecchia di potere.giorni giorni. Restituisce {"fatte", "sezioni", "voci"}."""
+    imp = cfg.get("potere", {}) or {}
+    perc = MAG("potere", "potere.json")
+    os.makedirs(os.path.dirname(perc), exist_ok=True)
+    P = leggi_json(perc, None)
+    if P is None:
+        P = leggi_json(os.path.join(QUI, "potere_base.json"), {}) or {}
+    esito = {"fatte": 0, "sezioni": len(P), "voci": sum(len((v or {}).get("voci") or []) for v in P.values())}
+    if not imp.get("attivo", True) or quante <= 0:
+        return esito
+    vecchie = (adesso - timedelta(days=imp.get("giorni", 7))).isoformat()
+    da_fare = sorted((s for s in POTERE_SEZIONI if (P.get(s) or {}).get("quando", "") < vecchie), key=lambda s: (P.get(s) or {}).get("quando", ""))
+    inv = _sis_inverso()
+    for s in da_fare[:quante]:
+        try:
+            voci = potere_sezione(s, inv)
+        except SenzaRete:
+            raise
+        except Exception as e:
+            errori.append(f"Potere ({POTERE_NOMI[s]}): {str(e)[:100]}")
+            (P.setdefault(s, {}))["errore"] = adesso.isoformat()
+            continue
+        if len(voci) >= max(3, int(0.5 * len((P.get(s) or {}).get("voci") or []))):  # una risposta monca non cancella quella buona
+            P[s] = {"quando": adesso.isoformat(), "voci": voci}
+            esito["fatte"] += 1
+        else:
+            errori.append(f"Potere ({POTERE_NOMI[s]}): solo {len(voci)} voci, tengo quelle di prima")
+    scrivi_json(perc, P)
+    esito.update(sezioni=len(P), voci=sum(len((v or {}).get("voci") or []) for v in P.values()))
+    return esito
+
+
+def scrivi_potere_web(adesso):
+    P = leggi_json(MAG("potere", "potere.json"), None)
+    if P is None:
+        P = leggi_json(os.path.join(QUI, "potere_base.json"), {}) or {}
+    if not P:
+        return False
+    return _scrivi_se_cambia(os.path.join(WEB, "potere.js"), "window.POTERE=" + json.dumps(
+        {"agg": adesso.date().isoformat(), "nomi": POTERE_NOMI,
+         "sezioni": {s: {"quando": (P.get(s) or {}).get("quando", "")[:10], "voci": (P.get(s) or {}).get("voci") or []} for s in POTERE_SEZIONI}},
+        ensure_ascii=False, separators=(",", ":")) + ";")
+
+
+def potere_passo(cfg, adesso, tel, errori, leggero):
+    imp = cfg.get("potere", {}) or {}
+    if not imp.get("attivo", True):
+        return None
+    R = leggi_json(os.path.join(DATI, "regia.json"), {}) or {}
+    quante = 0 if R.get("rete") == "lenta" else (imp.get("per_giro_carica", 2) if R.get("spinta") else imp.get("per_giro", 1))
+    r_ = potere_aggiorna(cfg, adesso, errori, quante)
+    if not leggero or r_.get("fatte"):
+        scrivi_potere_web(adesso)
+    return r_
+
+
 # 8. Totali (dalla 2.33.7): quanto ha fatto il programma da quando esiste, ogni mese, ogni giorno. Il diario tiene solo gli
 #    ultimi 120 giri; qui i conti restano per sempre (giorni: gli ultimi 400). La base (programma/totali_base.json) è
 #    ricostruita da tutta la storia di diario.json su GitHub, dal primo diario del 18 novembre 2026.
@@ -6940,6 +7205,12 @@ def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, erro
         raise
     except Exception as e:
         errori.append(f"Sistemi d'arma: {str(e)[:100]}")
+    try:  # dalla 2.35: il potere istituzionale e non (Wikidata), una sezione a giro
+        esito["potere"] = potere_passo(cfg, adesso, tel, errori, leggero)
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Potere: {str(e)[:100]}")
     try:
         esito["indice"] = indice_aggiorna(archivio, adesso, cfg, secondi=cfg.get("indice", {}).get("secondi", 45))
     except Exception as e:
@@ -9024,6 +9295,7 @@ def _aggiorna(leggero=False):
         "articoli": [(esito_229.get("articoli") or {}).get(c_) for c_ in ("letti", "poco_testo", "provati", "in_coda", "totale")],
         "storia": [(esito_229.get("storia") or {}).get(c_) for c_ in ("fatti", "con_cronologia", "in_coda", "stati", "conflitti", "golpe", "ultimo")],
         "sistemi": [(esito_229.get("sistemi") or {}).get(c_) for c_ in ("fatte", "schede", "in_coda")],
+        "potere": [(esito_229.get("potere") or {}).get(c_) for c_ in ("fatte", "sezioni", "voci")],
         "regia": [(leggi_json(os.path.join(DATI, "regia.json"), {}) or {}).get(c_) for c_ in ("passo", "articoli", "cronologie", "rete")],
         "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
@@ -9646,7 +9918,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         cambiati = []
         avvisato = False
         for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json", "totali_base.json",
-                     "sistemi.json", "sistemi_base.json") + tuple(sorted(SCRIPT)):
+                     "sistemi.json", "sistemi_base.json", "potere_base.json") + tuple(sorted(SCRIPT)):
             src = os.path.join(cartella, "programma", nome)
             dst = os.path.join(QUI, nome)
             if os.path.exists(src) and (not os.path.exists(dst) or open(src, "rb").read() != open(dst, "rb").read()):
@@ -9739,7 +10011,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         for nome in (("diario.json", "rapporto.json", "rapporti.json", "avvisi.json", "totali.js") if solo_diario else
                      ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json",
                       "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js", "economia.js", "storia.js", "totali.js",
-                      "sistemi.js")):
+                      "sistemi.js", "potere.js")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -10238,6 +10510,23 @@ if __name__ == "__main__":
                 if x_w.get("st"):
                     print("  " + x_w["st"][:400])
                 print(f"  Aggiornata il {x_w.get('agg', '?')} · fonti: Wikidata, Wikipedia")
+    elif comando == "potere":  # dalla 2.35: python castello.py potere [sezione o Stato]
+        P_p = leggi_json(MAG("potere", "potere.json"), None) or leggi_json(os.path.join(QUI, "potere_base.json"), {}) or {}
+        cosa_p = " ".join(a[1:]).strip()
+        if not cosa_p:
+            for s_p in POTERE_SEZIONI:
+                x_p = P_p.get(s_p) or {}
+                print(f"  {POTERE_NOMI[s_p]}: {len(x_p.get('voci') or [])} voci, aggiornate il {(x_p.get('quando') or 'mai')[:10]}")
+            print("Per una sezione:  python castello.py potere banche    · per uno Stato:  python castello.py potere Italia")
+        elif cosa_p in POTERE_SEZIONI:
+            for v_p in (P_p.get(cosa_p) or {}).get("voci", [])[:40]:
+                print("  " + " · ".join(str(x) for x in (v_p.get("n"), v_p.get("st"), ", ".join(v_p.get("capi") or v_p.get("op") or v_p.get("az") or [])) if x))
+        else:
+            for s_p in POTERE_SEZIONI:
+                l_p = [v_p for v_p in (P_p.get(s_p) or {}).get("voci", [])
+                       if cosa_p in ([v_p.get("st")] if isinstance(v_p.get("st"), str) else (v_p.get("st") or [])) + (v_p.get("area") or [])]
+                if l_p:
+                    print(f"{POTERE_NOMI[s_p]}: " + "; ".join(v_p["n"] + (f" ({', '.join(v_p.get('capi') or [])})" if v_p.get("capi") else "") for v_p in l_p[:12]))
     elif comando == "avvisi":  # dalla 2.29: gli avvisi delle ultime 48 ore
         V_ = leggi_json(os.path.join(DATI, "avvisi.json"), {}) or {}
         da_ = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
