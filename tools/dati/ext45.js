@@ -32,10 +32,14 @@ function potQuote(nome) {
 function potWd(q, n) { return q ? '<a href="https://www.wikidata.org/wiki/' + esc(q) + '" target="_blank" rel="noopener">' + esc(n) + '</a>' : esc(n); }
 function potStati(l) { return (Array.isArray(l) ? l : [l]).filter(Boolean).map(n => stLink(n)).join(', '); }
 function potData(d) { return d ? String(d).slice(0, 10).split('-').reverse().join('/') : ''; }
+function potGuida(x) {
+  if ((x.cr || []).length) return 'guida: ' + x.cr.map(c => esc(c[0]) + ' <span class="s">(' + esc(c[1]) + (c[2] ? ', dal ' + potData(c[2]) : '') + ')</span>').join(', ');
+  return (x.capi || []).length ? 'guida: ' + esc(x.capi.join(', ')) + (x.dal ? ' (dal ' + potData(x.dal) + ')' : '') : '';
+}
 function potVoce(s, x) {
   const m = [];
   if (s === 'istituzioni' || s === 'gestori') {
-    if (x.capi && x.capi.length) m.push('guida: ' + esc(x.capi.join(', ')) + (x.dal ? ' (dal ' + potData(x.dal) + ')' : ''));
+    if (potGuida(x)) m.push(potGuida(x));
     if (x.sede || x.st) m.push('sede: ' + esc(x.sede || '') + (x.st ? (x.sede ? ', ' : '') + potStati(x.st) : ''));
     if (x.nato) m.push('dal ' + esc(x.nato));
     if ((x.aum || []).length) m.push('gestisce ' + esc(x.aum[0]));
@@ -50,7 +54,7 @@ function potVoce(s, x) {
     return h + '</div>';
   }
   if (s === 'banche') return '<div class="item"><div class="t">' + potWd(x.q, x.n) + ' · ' + potStati(x.st) + '</div><div class="m">' +
-    [x.capi && x.capi.length ? 'guida: ' + esc(x.capi.join(', ')) + (x.dal ? ' (dal ' + potData(x.dal) + ')' : '') : 'chi la guida: non registrato su Wikidata',
+    [potGuida(x) || 'chi la guida: non registrato su Wikidata',
       (x.prop || []).length ? 'proprietà: ' + esc(x.prop.join(', ')) : '', x.sito ? '<a href="' + safeU(x.sito) + '" target="_blank" rel="noopener">sito</a>' : ''].filter(Boolean).join(' · ') + '</div></div>';
   if (s === 'fondi') return '<div class="item"><div class="t">' + potWd(x.q, x.n) + (x.st ? ' · ' + potStati(x.st) : '') + '</div><div class="m">' +
     [x.nato ? 'dal ' + esc(x.nato) : '', (x.att || []).length ? 'attivi ' + esc(x.att[0]) : '', (x.capi || []).length ? 'guida: ' + esc(x.capi.join(', ')) : ''].filter(Boolean).join(' · ') + '</div></div>';
@@ -94,7 +98,7 @@ function potereStatoHtml(n) {
   const pezzi = [];
   const sez = s => ((P.sezioni[s] || {}).voci || []);
   const banche = sez('banche').filter(x => di(x, 'st'));
-  if (banche.length) pezzi.push(['Banca centrale', banche.map(x => potWd(x.q, x.n) + (x.capi && x.capi.length ? ': ' + esc(x.capi.join(', ')) + (x.dal ? ' (dal ' + potData(x.dal) + ')' : '') : '')).join('; ')]);
+  if (banche.length) pezzi.push(['Banca centrale', banche.map(x => potWd(x.q, x.n) + (potGuida(x) ? ' · ' + potGuida(x) : '')).join('; ')]);
   const fondi = sez('fondi').filter(x => di(x, 'st'));
   if (fondi.length) pezzi.push(['Fondi sovrani', fondi.map(x => potWd(x.q, x.n) + ((x.att || []).length ? ' (' + esc(x.att[0]) + ')' : '')).join('; ')]);
   const ist = sez('istituzioni').filter(x => di(x, 'st'));

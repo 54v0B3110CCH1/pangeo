@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.35"
+VERSIONE = "2.35.1"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -6613,14 +6613,64 @@ def sistemi_elenco():
     return leggi_json(os.path.join(QUI, "sistemi.json"), []) or []
 
 
-def _sis_simili(titolo_en):
-    """Su Wikipedia in inglese le voci degli aerei finiscono con «aerei di ruolo, configurazione ed epoca simili» (il
-    modello aircontent); per gli altri sistemi si guarda la sezione «See also» se dice «comparable» o «similar»."""
-    if not titolo_en:
-        return []
+# i codici delle bandiere di Wikipedia (di solito quelli olimpici; anche UK, ROC, PRC, SIN, SWI) → codice ISO a 3 lettere
+SIS_IOC = {'AFG': 'AFG', 'ALB': 'ALB', 'ALG': 'DZA', 'AND': 'AND', 'ANG': 'AGO', 'ANT': 'ATG', 'ARG': 'ARG', 'ARM': 'ARM', 'AUS': 'AUS', 'AUT': 'AUT', 'AZE': 'AZE', 'BAH': 'BHS', 'BRN': 'BHR', 'BAN': 'BGD', 'BAR': 'BRB', 'BLR': 'BLR', 'BEL': 'BEL', 'BIZ': 'BLZ', 'BEN': 'BEN', 'BHU': 'BTN', 'BOL': 'BOL', 'BIH': 'BIH', 'BOT': 'BWA', 'BRA': 'BRA', 'BRU': 'BRN', 'BUL': 'BGR', 'BUR': 'BFA', 'BDI': 'BDI', 'CAM': 'KHM', 'CMR': 'CMR', 'CAN': 'CAN', 'CPV': 'CPV', 'CAF': 'CAF', 'CHA': 'TCD', 'CHI': 'CHL', 'CHN': 'CHN', 'COL': 'COL', 'COM': 'COM', 'CGO': 'COG', 'COD': 'COD', 'CRC': 'CRI', 'CIV': 'CIV', 'CRO': 'HRV', 'CUB': 'CUB', 'CYP': 'CYP', 'CZE': 'CZE', 'DEN': 'DNK', 'DJI': 'DJI', 'DMA': 'DMA', 'DOM': 'DOM', 'ECU': 'ECU', 'EGY': 'EGY', 'ESA': 'SLV', 'GEQ': 'GNQ', 'ERI': 'ERI', 'EST': 'EST', 'SWZ': 'SWZ', 'ETH': 'ETH', 'FIJ': 'FJI', 'FIN': 'FIN', 'FRA': 'FRA', 'GAB': 'GAB', 'GAM': 'GMB', 'GEO': 'GEO', 'GER': 'DEU', 'GHA': 'GHA', 'GRE': 'GRC', 'GRN': 'GRD', 'GUA': 'GTM', 'GUI': 'GIN', 'GBS': 'GNB', 'GUY': 'GUY', 'HAI': 'HTI', 'HON': 'HND', 'HUN': 'HUN', 'ISL': 'ISL', 'IND': 'IND', 'INA': 'IDN', 'IRI': 'IRN', 'IRQ': 'IRQ', 'IRL': 'IRL', 'ISR': 'ISR', 'ITA': 'ITA', 'JAM': 'JAM', 'JPN': 'JPN', 'JOR': 'JOR', 'KAZ': 'KAZ', 'KEN': 'KEN', 'KIR': 'KIR', 'PRK': 'PRK', 'KOR': 'KOR', 'KOS': 'XKS', 'KUW': 'KWT', 'KGZ': 'KGZ', 'LAO': 'LAO', 'LAT': 'LVA', 'LBN': 'LBN', 'LES': 'LSO', 'LBR': 'LBR', 'LBA': 'LBY', 'LIE': 'LIE', 'LTU': 'LTU', 'LUX': 'LUX', 'MAD': 'MDG', 'MAW': 'MWI', 'MAS': 'MYS', 'MDV': 'MDV', 'MLI': 'MLI', 'MLT': 'MLT', 'MHL': 'MHL', 'MTN': 'MRT', 'MRI': 'MUS', 'MEX': 'MEX', 'FSM': 'FSM', 'MDA': 'MDA', 'MON': 'MCO', 'MGL': 'MNG', 'MNE': 'MNE', 'MAR': 'MAR', 'MOZ': 'MOZ', 'MYA': 'MMR', 'NAM': 'NAM', 'NRU': 'NRU', 'NEP': 'NPL', 'NED': 'NLD', 'NZL': 'NZL', 'NCA': 'NIC', 'NIG': 'NER', 'NGR': 'NGA', 'MKD': 'MKD', 'NOR': 'NOR', 'OMA': 'OMN', 'PAK': 'PAK', 'PLW': 'PLW', 'PLE': 'PSE', 'PAN': 'PAN', 'PNG': 'PNG', 'PAR': 'PRY', 'PER': 'PER', 'PHI': 'PHL', 'POL': 'POL', 'POR': 'PRT', 'QAT': 'QAT', 'ROU': 'ROU', 'RUS': 'RUS', 'RWA': 'RWA', 'SKN': 'KNA', 'LCA': 'LCA', 'VIN': 'VCT', 'SAM': 'WSM', 'SMR': 'SMR', 'STP': 'STP', 'KSA': 'SAU', 'SEN': 'SEN', 'SRB': 'SRB', 'SEY': 'SYC', 'SLE': 'SLE', 'SGP': 'SGP', 'SIN': 'SGP', 'SVK': 'SVK', 'SLO': 'SVN', 'SOL': 'SLB', 'SOM': 'SOM', 'RSA': 'ZAF', 'ESP': 'ESP', 'SRI': 'LKA', 'SUD': 'SDN', 'SSD': 'SSD', 'SUR': 'SUR', 'SWE': 'SWE', 'SUI': 'CHE', 'SWI': 'CHE', 'SYR': 'SYR', 'TPE': 'TWN', 'ROC': 'TWN', 'PRC': 'CHN', 'TJK': 'TJK', 'TAN': 'TZA', 'THA': 'THA', 'TLS': 'TLS', 'TOG': 'TGO', 'TGA': 'TON', 'TTO': 'TTO', 'TUN': 'TUN', 'TUR': 'TUR', 'TKM': 'TKM', 'TUV': 'TUV', 'UGA': 'UGA', 'UKR': 'UKR', 'UAE': 'ARE', 'GBR': 'GBR', 'UK': 'GBR', 'USA': 'USA', 'URU': 'URY', 'UZB': 'UZB', 'VAN': 'VUT', 'VAT': 'VAT', 'VEN': 'VEN', 'VIE': 'VNM', 'YEM': 'YEM', 'ZAM': 'ZMB', 'ZIM': 'ZWE'}
+
+
+def _sis_operatori_wiki(testo, inv):
+    """Dalla 2.35.1: la sezione «Operators» della voce di Wikipedia in inglese, di solito più completa di Wikidata. Righe
+    come «;{{AUS}}», «* {{flag|Austria}}», «; [[Greece]]»; sotto i titoli «Former», «Retired», «Cancelled» gli Stati che non
+    lo usano più, sotto «Future», «Potential», «Order» quelli che lo hanno ordinato o lo valutano."""
+    m = re.search(r"\n==\s*(?:Current\s+)?Operators?\s*==(.*?)(?=\n==[^=]|\Z)", testo, re.S | re.I)
+    if not m:
+        return {}
+    iso3 = {}
+    for st_, c_ in ((leggi_json(os.path.join(QUI, "config.json"), {}) or {}).get("codici") or {}).items():
+        if c_ and c_[0]:
+            iso3[c_[0].upper()] = st_
+    for k_, v_ in SIS_IOC.items():  # prima i codici olimpici: {{BRN}} su Wikipedia è il Bahrein, non il Brunei
+        if v_ in iso3:
+            iso3[k_] = iso3[v_]
+    out = {"attuali": [], "passati": [], "futuri": [], "annullati": []}
+    gruppo = "attuali"
+    for riga in m.group(1).splitlines():
+        r_ = riga.strip()
+        h_ = re.match(r"^=+\s*(.*?)\s*=+$", r_)
+        if h_:
+            t_ = h_.group(1).lower()
+            gruppo = ("annullati" if re.search(r"cancel|failed|declin|rejected|abandon", t_) else
+                      "passati" if re.search(r"former|retired|past|withdrawn|decommission", t_) else
+                      "futuri" if re.search(r"future|potential|order|evaluat|prospect|bid|planned|candidate|interest", t_) else "attuali")
+            continue
+        if not r_[:1] in (";", "*", ":", "|") and not r_.startswith("{{flag"):
+            continue
+        cand = re.findall(r"\{\{\s*([A-Z]{2,3})\s*(?:\|[^}]*)?\}\}", r_)
+        cand += [x.strip() for x in re.findall(r"\{\{\s*flag(?:country|u|deco|icon|list)?\s*\|\s*([^}|]+)", r_, re.I)]
+        if not cand and r_[:1] == ";":
+            l_ = re.search(r"\[\[([^\]|#]+)", r_)
+            cand = [l_.group(1)] if l_ else []
+        for c in cand[:1]:
+            st_ = iso3.get(c.upper()) if re.fullmatch(r"[A-Z]{2,3}", c) else _sis_paese(c, inv)
+            if gruppo != "annullati" and st_ and st_ in inv.values() and st_ not in out[gruppo]:
+                out[gruppo].append(st_)
+    for g in ("passati", "futuri"):
+        out[g] = [x for x in out[g] if x not in out["attuali"]]
+    return {k: v for k, v in out.items() if v and k != "annullati"}
+
+
+def _sis_wikitesto(titolo_en):
     u = ("https://en.wikipedia.org/w/api.php?action=parse&format=json&prop=wikitext&redirects=1&page=" +
          urllib.parse.quote(titolo_en.replace(" ", "_")))
-    testo = ((json.loads(scarica(u, timeout=40, intestazioni=SIS_UA)) or {}).get("parse") or {}).get("wikitext", {}).get("*", "")
+    return ((json.loads(scarica(u, timeout=40, intestazioni=SIS_UA)) or {}).get("parse") or {}).get("wikitext", {}).get("*", "")
+
+
+def _sis_simili(titolo_en, testo=None):
+    """Su Wikipedia in inglese le voci degli aerei finiscono con «aerei di ruolo, configurazione ed epoca simili» (il
+    modello aircontent); per gli altri sistemi si guarda la sezione «See also» se dice «comparable» o «similar»."""
+    if not titolo_en and testo is None:
+        return []
+    if testo is None:
+        testo = _sis_wikitesto(titolo_en)
     pezzi = re.findall(r"\|\s*similar aircraft\s*=(.*?)(?=\n\s*\||\}\})", testo, re.S | re.I)
     m = re.search(r"==\s*See also\s*==(.*?)(?:\n==[^=]|\Z)", testo, re.S | re.I)
     if m:
@@ -6672,7 +6722,8 @@ def sistemi_aggiorna(cfg, adesso, errori, quanti=6, secondi=120):
         K = leggi_json(os.path.join(QUI, "sistemi_base.json"), {}) or {}
     E = [s for s in sistemi_elenco() if s.get("q")]
     vecchie = (adesso - timedelta(days=imp.get("giorni", 30))).date().isoformat()
-    coda = sorted((s for s in E if (K.get(s["id"]) or {}).get("agg", "") < vecchie or not (K.get(s["id"]) or {}).get("st")),
+    coda = sorted((s for s in E if (K.get(s["id"]) or {}).get("agg", "") < vecchie or not (K.get(s["id"]) or {}).get("st")
+                   or "opw" not in (K.get(s["id"]) or {})),
                   key=lambda s: (bool(K.get(s["id"])), (K.get(s["id"]) or {}).get("agg", "")))
     esito = {"fatte": 0, "schede": len(K), "in_coda": len(coda)}
     if not imp.get("attivo", True) or not coda or quanti <= 0:
@@ -6806,13 +6857,15 @@ def sistemi_aggiorna(cfg, adesso, errori, quanti=6, secondi=120):
         x["var"] = sorted(var, key=lambda z: (z[1] or "9999", z[0]))[:30] or x.get("var", [])
         st_ = storie_it.get(tit_it.get(s["id"]) or "") or ""
         x["st"], x["stl"] = (st_, "it") if st_ else (storie_en.get(tit_en.get(s["id"]) or "") or x.get("st", ""), "en")
-        if time.time() - t0 < secondi:
+        if time.time() - t0 < secondi and x["we"]:
             try:
-                x["sim"] = _sis_simili(x["we"]) or x.get("sim", [])
+                wt_ = _sis_wikitesto(x["we"])
+                x["sim"] = _sis_simili(x["we"], wt_) or x.get("sim", [])
+                x["opw"] = _sis_operatori_wiki(wt_, inv) or x.get("opw", {})
             except SenzaRete:
                 raise
             except Exception as e_:
-                errori.append(f"Sistemi d'arma (simili): {str(e_)[:80]}")
+                errori.append(f"Sistemi d'arma (Wikipedia): {str(e_)[:80]}")
         x["agg"] = adesso.date().isoformat()
         K[s["id"]] = x
         esito["fatte"] += 1
@@ -6881,6 +6934,35 @@ POTERE_NOMI = {"istituzioni": "Istituzioni internazionali", "gestori": "Grandi g
 POTERE_CLASSI_NO = {"terrorist organization", "organizzazione terroristica", "criminal organization", "organizzazione criminale",
                     "designated terrorist group", "Islamist terrorist organization"}
 _POT_LAB = 'SERVICE wikibase:label { bd:serviceParam wikibase:language "it,en,mul". %s }'
+# chi guida, con il ruolo e la data d'inizio insieme (dalla 2.35.1): così per ogni ruolo resta solo l'ultimo nominato,
+# anche quando Wikidata non ha chiuso il mandato di chi c'era prima
+_POT_CAPI = ("OPTIONAL { { VALUES (?pp ?ps) { (p:P488 ps:P488) (p:P1037 ps:P1037) (p:P169 ps:P169) } ?x ?pp ?st . ?st ?ps ?capo . } "
+             "UNION { ?x wdt:P2388 ?pos_ . ?pos_ p:P1308 ?st . ?st ps:P1308 ?capo . BIND(p:P1308 AS ?pp) } "
+             "FILTER NOT EXISTS { ?st pq:P582 [] } FILTER NOT EXISTS { ?capo wdt:P570 [] } OPTIONAL { ?st pq:P580 ?ci } "
+             "OPTIONAL { ?capo rdfs:label ?c1 FILTER(lang(?c1)='it') } OPTIONAL { ?capo rdfs:label ?c2 FILTER(lang(?c2)='en') } "
+             "OPTIONAL { ?capo rdfs:label ?c3 FILTER(lang(?c3)='mul') } "
+             "BIND(CONCAT(COALESCE(?c1, ?c2, ?c3, ''), '@', COALESCE(SUBSTR(STR(?ci), 1, 10), ''), '@', STRAFTER(STR(?pp), 'prop/')) AS ?capoX) } ")
+POT_RUOLI = {"P1308": "alla guida", "P488": "presidente", "P1037": "direttore", "P169": "amministratore delegato"}
+
+
+def _pot_capi(testo):
+    """«Nome@2023-11-01@P488|…» → [[nome, ruolo, dal]]: per ogni ruolo l'ultimo nominato (quelli senza data solo se
+    nessuno del ruolo ha la data)."""
+    per = {}
+    for pz in (testo or "").split("|"):
+        p = pz.split("@")
+        if len(p) < 3 or not p[0] or re.match(r"^Q\d+$", p[0]):
+            continue
+        per.setdefault(p[2], []).append((p[1], p[0]))
+    out = []
+    for ruolo in ("P1308", "P1037", "P169", "P488"):
+        l_ = per.get(ruolo) or []
+        datati = sorted((x for x in l_ if x[0]), reverse=True)
+        scelti = [datati[0]] if datati else l_[:2]
+        for d, n in scelti:
+            if n not in [o[0] for o in out]:
+                out.append([n, POT_RUOLI[ruolo], d])
+    return out[:4]
 
 
 def _pot_gc(v):
@@ -6891,25 +6973,23 @@ def _pot_query(sezione):
     if sezione in POTERE_ENTI:
         vals = " ".join("<https://en.wikipedia.org/wiki/%s>" % urllib.parse.quote(t.replace(" ", "_"), safe="()_,-./")
                         for t in POTERE_ENTI[sezione])
-        return (f"SELECT ?x ?a ?xL ?paeseL ?sedeL ?nato ?sito {_pot_gc('capoL')} {_pot_gc('capoI')} {_pot_gc('aum')} {_pot_gc('att')} "
+        return (f"SELECT ?x ?a ?xL ?paeseL ?sedeL ?nato ?sito {_pot_gc('capoX')} {_pot_gc('aum')} {_pot_gc('att')} "
                 f"{_pot_gc('propL')} WHERE {{ VALUES ?a {{ {vals} }} ?a schema:about ?x . "
                 "OPTIONAL { ?x wdt:P17 ?paese } OPTIONAL { ?x wdt:P159 ?sede } OPTIONAL { ?x wdt:P571 ?nato } OPTIONAL { ?x wdt:P856 ?sito } "
-                "OPTIONAL { ?x p:P488|p:P1037|p:P169 ?st . ?st ps:P488|ps:P1037|ps:P169 ?capo . FILTER NOT EXISTS { ?st pq:P582 [] } "
-                "OPTIONAL { ?st pq:P580 ?ci } BIND(STR(?ci) AS ?capoI) } "
+                + _POT_CAPI +
                 "OPTIONAL { ?x p:P4103 ?s1 . ?s1 psv:P4103 ?na . ?na wikibase:quantityAmount ?va ; wikibase:quantityUnit ?ua . OPTIONAL { ?s1 pq:P585 ?qa } "
                 "BIND(CONCAT(STR(?va), ' ', STRAFTER(STR(?ua), 'entity/'), ' ', COALESCE(SUBSTR(STR(?qa), 1, 4), '')) AS ?aum) } "
                 "OPTIONAL { ?x p:P2403 ?s2 . ?s2 psv:P2403 ?nt . ?nt wikibase:quantityAmount ?vt ; wikibase:quantityUnit ?ut . OPTIONAL { ?s2 pq:P585 ?qt } "
                 "BIND(CONCAT(STR(?vt), ' ', STRAFTER(STR(?ut), 'entity/'), ' ', COALESCE(SUBSTR(STR(?qt), 1, 4), '')) AS ?att) } "
                 "OPTIONAL { ?x wdt:P127 ?prop } "
-                + _POT_LAB % "?x rdfs:label ?xL . ?paese rdfs:label ?paeseL . ?sede rdfs:label ?sedeL . ?capo rdfs:label ?capoL . ?prop rdfs:label ?propL ."
+                + _POT_LAB % "?x rdfs:label ?xL . ?paese rdfs:label ?paeseL . ?sede rdfs:label ?sedeL . ?prop rdfs:label ?propL ."
                 + " } GROUP BY ?x ?a ?xL ?paeseL ?sedeL ?nato ?sito")
     if sezione == "banche":
-        return (f"SELECT ?x ?xL ?paeseL ?sito {_pot_gc('capoL')} {_pot_gc('capoI')} {_pot_gc('propL')} WHERE {{ "
+        return (f"SELECT ?x ?xL ?paeseL ?sito {_pot_gc('capoX')} {_pot_gc('propL')} WHERE {{ "
                 "?x wdt:P31 wd:Q66344 ; wdt:P17 ?paese . FILTER NOT EXISTS { ?x wdt:P576 [] } FILTER NOT EXISTS { ?paese wdt:P576 [] } "
                 "OPTIONAL { ?x wdt:P856 ?sito } "
-                "OPTIONAL { ?x p:P488|p:P1037|p:P169 ?st . ?st ps:P488|ps:P1037|ps:P169 ?capo . FILTER NOT EXISTS { ?st pq:P582 [] } "
-                "OPTIONAL { ?st pq:P580 ?ci } BIND(STR(?ci) AS ?capoI) } OPTIONAL { ?x wdt:P127 ?prop } "
-                + _POT_LAB % "?x rdfs:label ?xL . ?paese rdfs:label ?paeseL . ?capo rdfs:label ?capoL . ?prop rdfs:label ?propL ."
+                + _POT_CAPI + "OPTIONAL { ?x wdt:P127 ?prop } "
+                + _POT_LAB % "?x rdfs:label ?xL . ?paese rdfs:label ?paeseL . ?prop rdfs:label ?propL ."
                 + " } GROUP BY ?x ?xL ?paeseL ?sito")
     if sezione == "fondi":
         return (f"SELECT ?x ?xL ?paeseL ?nato {_pot_gc('capoL')} {_pot_gc('att')} WHERE {{ ?x wdt:P31 wd:Q1061648 . "
@@ -6985,17 +7065,16 @@ def _pot_righe(sezione, righe, inv):
     out = []
     if sezione in POTERE_ENTI:
         for r in righe:
-            capi = _pot_l(r, "capoLs", 4)
-            ini = sorted(x[:10] for x in _pot_v(r, "capoIs").split("|") if x)
+            cr = _pot_capi(_pot_v(r, "capoXs"))
             out.append({"q": q(r), "n": _pot_v(r, "xL"), "st": paese(_pot_v(r, "paeseL")), "sede": _pot_v(r, "sedeL"),
-                        "nato": _pot_v(r, "nato")[:4], "capi": capi, "dal": ini[-1] if ini else "", "sito": _pot_v(r, "sito"),
+                        "nato": _pot_v(r, "nato")[:4], "capi": [c[0] for c in cr], "cr": cr, "dal": "", "sito": _pot_v(r, "sito"),
                         "prop": _pot_l(r, "propLs", 6),
                         "aum": _pot_soldi(_pot_v(r, "aums").split("|"), {}), "att": _pot_soldi(_pot_v(r, "atts").split("|"), {})})
     elif sezione == "banche":
         for r in righe:
-            ini = sorted(x[:10] for x in _pot_v(r, "capoIs").split("|") if x)
-            out.append({"q": q(r), "n": _pot_v(r, "xL"), "st": paese(_pot_v(r, "paeseL")), "capi": _pot_l(r, "capoLs", 3),
-                        "dal": ini[-1] if ini else "", "sito": _pot_v(r, "sito"), "prop": _pot_l(r, "propLs", 3)})
+            cr = _pot_capi(_pot_v(r, "capoXs"))
+            out.append({"q": q(r), "n": _pot_v(r, "xL"), "st": paese(_pot_v(r, "paeseL")), "capi": [c[0] for c in cr], "cr": cr,
+                        "dal": "", "sito": _pot_v(r, "sito"), "prop": _pot_l(r, "propLs", 3)})
     elif sezione == "fondi":
         for r in righe:
             out.append({"q": q(r), "n": _pot_v(r, "xL"), "st": paese(_pot_v(r, "paeseL")), "nato": _pot_v(r, "nato")[:4],
@@ -7036,7 +7115,9 @@ def _pot_righe(sezione, righe, inv):
         y = uniti[k]
         for c, v in x.items():
             if isinstance(v, list):
-                y[c] = list(dict.fromkeys((y.get(c) or []) + v))[:8]
+                visti_ = [json.dumps(z, ensure_ascii=False) for z in (y.get(c) or [])]
+                y[c] = (y.get(c) or []) + [z for z in v if json.dumps(z, ensure_ascii=False) not in visti_]
+                y[c] = y[c][:8]
             elif not y.get(c) and v:
                 y[c] = v
     return [uniti[k] for k in ordine if uniti[k].get("n") and not re.match(r"^Q\d+$", uniti[k]["n"])]
@@ -7198,6 +7279,8 @@ def _bib_scarica(L):
         f = L["slug"].replace("/", "_")
         return _bib_da_epub(scarica(f"https://standardebooks.org/ebooks/{L['slug']}/downloads/{f}.epub?source=download", timeout=180))
     t = scarica(f"https://www.gutenberg.org/cache/epub/{L['slug']}/pg{L['slug']}.txt", timeout=180).decode("utf-8", "replace")
+    if t.lstrip()[:15].lower().startswith(("<!doctype", "<html")):
+        raise ConnectionError("Project Gutenberg non disponibile (pagina di manutenzione o blocco)")
     return _bib_da_testo(t, L.get("controllo", ""))
 
 
@@ -7276,8 +7359,12 @@ def biblioteca_aggiorna(chiavi, cfg, adesso, tel, errori, quanti_lezioni=1, scar
             except SenzaRete:
                 raise
             except Exception as e:
-                E[L["id"]] = {"errore": str(e)[:120], "riprova": (adesso + timedelta(days=3)).isoformat()}
+                # sito giù o rifiuto: si riprova domani e si passa al libro dopo; libro sbagliato: tra 3 giorni
+                giorni_ = 1 if isinstance(e, (ConnectionError, OSError)) else 3
+                E[L["id"]] = {"errore": str(e)[:120], "riprova": (adesso + timedelta(days=giorni_)).isoformat()}
                 errori.append(f"Biblioteca ({L['titolo']}): {str(e)[:100]}")
+                if giorni_ == 1:
+                    continue
             break
         scrivi_json(perc_e, E)
     # 2. le lezioni del cervello: i capitoli nell'ordine dei libri

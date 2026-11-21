@@ -2191,5 +2191,28 @@
 "siluro Poseidon"
 ],
 "q": "Q21467398"
+},
+{
+"id": "puma",
+"nome": "Puma",
+"tipo": "veicolo da combattimento",
+"chi": "PSM (Rheinmetall, KNDS)",
+"alias": [
+"SPz Puma",
+"blindati Puma",
+"Puma IFV"
+],
+"q": "Q819119"
+},
+{
+"id": "ariete",
+"nome": "Ariete",
+"tipo": "carro armato",
+"chi": "Iveco, Oto Melara",
+"alias": [
+"carro Ariete",
+"C1 Ariete"
+],
+"q": "Q660378"
 }
 ]

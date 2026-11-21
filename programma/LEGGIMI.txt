@@ -405,6 +405,19 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.35.1 (21 novembre, mezzogiorno) – DEBOLEZZE RAFFORZATE
+- Sistemi d'arma: «chi lo usa» anche dalla sezione «Operators» di Wikipedia in inglese (di solito più completa di
+  Wikidata): in uso, ordinati o valutati, usati in passato; gli ordini annullati no. Per il Leopard 2 Wikidata dava 17
+  Stati, per l'F-35 10 su 15. Le schede già fatte si rifanno una volta per prenderlo. Aggiunti Puma e Ariete (206 sistemi).
+- Potere: chi guida ora porta il ruolo e la data di nomina, e per ogni ruolo resta solo l'ultimo nominato (prima
+  restavano anche i capi passati senza data di fine). Presa anche la carica di vertice (per esempio la NATO: Mark Rutte).
+- Biblioteca: tolti tre libri che Standard Ebooks non fa ancora scaricare (Tocqueville, Mill, Plutarco); entrano
+  Keynes da Standard Ebooks, Angell («La grande illusione»), T. E. Lawrence, Svetonio, Procopio, Burke, Grant, Henry
+  George (22 libri). Se Project Gutenberg è giù (oggi era in manutenzione) si riprova il giorno dopo e intanto si
+  scarica il libro successivo.
+- Stati riconosciuti meglio nei titoli: Rohingya, Burma e Birmania → Myanmar; Ivory Coast → Costa d'Avorio; Gaza, West
+  Bank → Palestina; altri nomi inglesi.
+
 NOVITÀ 2.35 (21 novembre) – SISTEMI D'ARMA, POTERE, BIBLIOTECA E STUDI
 - Sistemi d'arma: 204 sistemi (prima 110), ognuno con una scheda come il riquadro a lato di Wikipedia: foto (Wikimedia
   Commons), che cos'è, costruttore e progettista, origine, date (progetto, primo volo, entrata in servizio, ritiro),

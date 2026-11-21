@@ -65,10 +65,13 @@ function sistemaSchedaHtml(id) {
   if (da.length) h += '<h3>Da dove deriva</h3><div class="item">' + da.map(p => '<div>' + esc(p[0]) + ' ' + sisNome(p[1]) + '</div>').join('') + '</div>';
   const poi = [].concat((x.var || []).map(v => [v[0], v[1]]), (x.deriv || []).map(n => [n, '']), (x.dopo || []).map(n => [n, 'successore']));
   if (poi.length) h += '<h3>Evoluzioni e varianti</h3><div class="members">' + poi.map(v => '<span class="sis-v">' + sisNome(v[0]) + (v[1] ? ' <span class="s">' + esc(v[1]) + '</span>' : '') + '</span>').join('') + '</div>';
-  const op = Object.keys(x.op || {}).filter(n => n !== '?').sort((a, b) => a.localeCompare(b, 'it'));
+  const w = x.opw || {}, att = new Set([].concat(Object.keys(x.op || {}).filter(n => n !== '?'), w.attuali || []));
+  const op = [...att].filter(n => !(w.passati || []).includes(n) || (w.attuali || []).includes(n)).sort((a, b) => a.localeCompare(b, 'it'));
   if (op.length) h += '<h3>Chi lo usa <span class="s">(' + op.length + ')</span></h3><div class="members">' + op.map(n => '<span class="sis-v">' + stLink(n) +
-    ((x.op[n] || []).length ? ' <span class="s">' + esc(x.op[n].slice(0, 2).join(', ')) + '</span>' : '') + '</span>').join('') +
-    '</div><p class="note">Secondo Wikidata: l’elenco può essere incompleto o non aggiornato (ordini in corso, consegne, ritiri). I fatti recenti sono più sotto.</p>';
+    (((x.op || {})[n] || []).length ? ' <span class="s">' + esc(x.op[n].slice(0, 2).join(', ')) + '</span>' : '') + '</span>').join('') + '</div>';
+  if ((w.futuri || []).length) h += '<div class="item"><div class="m">Ordinato, in consegna o valutato (secondo Wikipedia)</div><div class="members">' + w.futuri.map(n => '<span class="sis-v">' + stLink(n) + '</span>').join('') + '</div></div>';
+  if ((w.passati || []).length) h += '<div class="item"><div class="m">Lo usavano (secondo Wikipedia)</div><div class="members">' + w.passati.map(n => '<span class="sis-v">' + stLink(n) + '</span>').join('') + '</div></div>';
+  if (op.length || (w.futuri || []).length) h += '<p class="note">Da Wikidata e dalla sezione «Operators» di Wikipedia in inglese: fonti di appoggio, da incrociare con i fatti recenti più sotto.</p>';
   const ep = sisStessaEpoca(id);
   if ((x.sim || []).length || ep.length) {
     h += '<h3>Concorrenti</h3>';
@@ -89,7 +92,7 @@ function sistemiStatoHtml(n) {
   caricaSistemi();
   const X = window.SISTEMI_SCHEDE, sk = (X && X.schede) || {};
   const chip = s => '<a class="cl-w" href="#sistemi/' + s[0] + '">' + esc(s[1]) + ' <span class="s">' + esc(s[2]) + '</span></a>';
-  const usa = SISTEMI.filter(s => ((sk[s[0]] || {}).op || {})[n]);
+  const usa = SISTEMI.filter(s => ((sk[s[0]] || {}).op || {})[n] || (((sk[s[0]] || {}).opw || {}).attuali || []).includes(n));
   const I = sistemiIndice().I;
   const nei = SISTEMI.filter(s => (I[s[0]] || []).some(v => v.st === n)).map(s => [s, (I[s[0]] || []).filter(v => v.st === n).length]).sort((a, b) => b[1] - a[1]);
   const qui = SISTEMI.filter(s => ((sk[s[0]] || {}).orig || []).includes(n));

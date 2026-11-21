@@ -56,7 +56,8 @@ NOMI = {"Q100": {"labels": lab(None, "Krauss-Maffei Wegmann")}, "Q183": {"labels
         "Q300": {"labels": lab("Leopard 2A7", "Leopard 2A7"), "claims": {"P729": [cl("P729", TEMPO("+2014-00-00T00:00:00Z", 9))]}},
         "Q301": {"labels": lab(None, "Stridsvagn 122"), "claims": {"P729": [cl("P729", TEMPO("+1997-00-00T00:00:00Z", 9))]}},
         "Q999": {"labels": lab("Stato finto", "Fake")}}
-WIKITEXT = ("Il testo...\n== See also ==\n{{Portal|Tanks}}\n'''Comparable tanks'''\n* [[M1 Abrams]]\n* [[K2 Black Panther|K2]]\n"
+WIKITEXT = ("Il testo...\n== Operators ==\n;{{AUT}}\n* [[Austrian Army]] – 56\n;{{GER}}\n=== Former operators ===\n;{{flag|Netherlands}}\n"
+            "=== Future operators ===\n;{{flaglist|Lithuania}}\n=== Cancelled orders ===\n;{{flag|Peru}}\n== See also ==\n{{Portal|Tanks}}\n'''Comparable tanks'''\n* [[M1 Abrams]]\n* [[K2 Black Panther|K2]]\n"
             "* [[Leclerc (tank)|Leclerc]]\n\n'''Related lists'''\n* [[List of main battle tanks by country]]\n== References ==\n")
 richieste = []
 
@@ -99,6 +100,7 @@ ok(x["var"] == [["Stridsvagn 122", "1997"], ["Leopard 2A7", "2014"]], "varianti 
 ok(x["st"].startswith("Il Leopard 2 è il principale") and x["stl"] == "it", "storia in breve da Wikipedia in italiano")
 ok(x["sim"] == ["M1 Abrams", "K2", "Leclerc"], "concorrenti dalla sezione See also, senza le liste")
 ok(x["img"] == "Leopard 2 A5.jpg" and x["w"] == "Leopard 2", "foto e voce")
+ok(x["opw"] == {"attuali": ["Austria", "Germania"], "passati": ["Paesi Bassi"], "futuri": ["Lituania"]}, "chi lo usa secondo Wikipedia (codici olimpici, ex, futuri; gli ordini annullati no)")
 C.scrivi_sistemi_web(datetime.now(timezone.utc))
 t = open(os.path.join(C.WEB, "sistemi.js")).read()
 ok(t.startswith("window.SISTEMI_SCHEDE=") and '"leopard-2"' in t, "sistemi.js scritto")
