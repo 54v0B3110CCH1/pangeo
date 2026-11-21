@@ -39,6 +39,10 @@ for g in range(15):
     for i in range(2):  # Polonia: 2 confermate al giorno, poi oggi 20
         arch["notizie"][f"pl{g}_{i}"] = {"t": f"Polish news {g} {i}", "it": f"Notizia polacca {g} {i} sulla difesa", "paesi": ["Polonia"],
                                          "conf": True, "data_iso": iso(g, 1), "fonte": "Notes from Poland", "u": f"https://x/pl{g}{i}"}
+for g in range(15):  # dalla 2.33.4: uno Stato di sfondo stabile (il picco si misura anche sul totale)
+    for i in range(10):
+        arch["notizie"][f"de{g}_{i}"] = {"t": f"German news {g} {i}", "it": f"Notizia tedesca {g} {i} sulla difesa", "paesi": ["Germania"],
+                                         "conf": True, "data_iso": iso(g, 1), "fonte": "Tagesschau", "u": f"https://x/de{g}{i}"}
 for i in range(20):
     arch["notizie"][f"plh{i}"] = {"t": f"Poland today {i}", "it": f"Oggi in Polonia fatto {i}: missili russi caduti vicino al confine", "paesi": ["Polonia"],
                                   "conf": True, "data_iso": iso(0, 0), "fonte": "TVN24", "u": f"https://x/plh{i}"}
