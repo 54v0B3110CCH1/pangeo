@@ -442,6 +442,18 @@ NOVITÀ 2.33 (20 novembre, sera) – LA STORIA DI OGNI STATO, COLLEGATA AL PRESE
 - 2.33.6: la soglia è 20 dollari (config.json › avvisi › spesa_usd; spesa_eur resta possibile). Il programma tiene la
   memoria della spesa nel tempo: ogni mese («mesi») e gli ultimi 400 giorni («giorni») in dati/cervello.json, oltre al
   totale di sempre. L'avviso e «officina» mostrano la spesa mese per mese.
+- 2.33.7: al primo giro toglie una volta gli avvisi «molte più notizie del solito» scritti prima della correzione (erano
+  falsi). Pagina, estensione 42: il riquadro delle novità è diviso in «Ha scoperto» (fonti, canali e Stati nuovi, avvisi,
+  intelligence, collegamenti), «Ha aggiunto» (voci, titoli tradotti, articoli letti, schede, cronologie, accordi e
+  appalti), «Ha aggiornato» (memoria, verifiche, Stati ristudiati, indice, storia, versione) e «Intoppi».
+- Totali per sempre: il programma tiene i conti da quando esiste (dal primo diario, 18 novembre 2026), mese per mese e
+  giorno per giorno (dati/totali.json, sul sito totali.js a ogni giro). La base è ricostruita da tutta la storia di
+  diario.json su GitHub (programma/totali_base.json). Nella pagina, nel riquadro delle novità, la tabella «In numeri»:
+  da sempre, questo mese, oggi, ultime 24 ore, con la spesa e, quando i mesi sono più di uno, mese per mese.
+- Ritmo che si regola da solo (config.json › spinta › ritmo): base 10 minuti in carica e al fresco, altrimenti il passo
+  normale; tra un giro e l'altro resta libero almeno quanto è durato l'ultimo giro (metà rete, metà lavoro sul telefono
+  e riposo); se i giri portano poco (meno di 60 voci) si allunga di 5 minuti, se portano tanto (più di 200) si accorcia;
+  tra 10 e 30 minuti. «officina» mostra il ritmo e il perché.
 - Si regola in config.json › storia (attiva, giorni_archivi, cronologia, giorni_cronologia, stati_per_giro_carica,
   stati_per_giro). Nel diario: «storia» [cronologie scritte nel giro, Stati con cronologia, in coda, Stati negli
   archivi, conflitti, colpi di Stato].

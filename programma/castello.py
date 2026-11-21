@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.33.6"
+VERSIONE = "2.33.7"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -4993,6 +4993,9 @@ def avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg, chiavi):
         elenco = avvisi_ripulisci(elenco)
         V["ripulito"] = "2.33"
         visti |= {a["id"] for a in elenco}
+    if V.get("ripulito_picchi") != "2.33.7":  # una volta: via i picchi falsi scritti con lo storico scarso (notte 20–21/11)
+        elenco = [a for a in elenco if a.get("tipo") != "picco"]
+        V["ripulito_picchi"] = "2.33.7"
     calcolati_ = calcola_avvisi(A, S_schede, dati_cielo, dati_calore, adesso, cfg)
     try:
         calcolati_ += avvisi_economia(cfg, adesso)  # dalla 2.30: monete e titoli di Stato
@@ -6441,6 +6444,69 @@ def storia_passo(chiavi, cfg, adesso, tel, errori, leggero):
     return r_
 
 
+# 8. Totali (dalla 2.33.7): quanto ha fatto il programma da quando esiste, ogni mese, ogni giorno. Il diario tiene solo gli
+#    ultimi 120 giri; qui i conti restano per sempre (giorni: gli ultimi 400). La base (programma/totali_base.json) è
+#    ricostruita da tutta la storia di diario.json su GitHub, dal primo diario del 18 novembre 2026.
+TOTALI_VOCI = [("voci", "voci nuove raccolte"), ("tradotti", "titoli di testate locali tradotti"), ("articoli", "articoli letti"),
+               ("schede", "fatti messi in schede"), ("memoria", "fatti confermati messi in memoria"), ("avvisi", "avvisi"),
+               ("fonti", "fonti trovate da solo"), ("verifiche", "notizie verificate"), ("accordi", "accordi trovati"),
+               ("appalti", "appalti trovati"), ("intel", "fatti sui servizi segreti"), ("cronologie", "cronologie storiche scritte"),
+               ("giri", "giri del programma"), ("mb", "MB scaricati")]
+
+
+def _totali_di(r):
+    """I conti di un giro del diario (le pause e le fermate contano solo come tali)."""
+    if r.get("tipo") in ("pausa", "fermo"):
+        return {r["tipo"]: 1}
+
+    def g(k, i):
+        v = r.get(k)
+        return (v[i] or 0) if isinstance(v, list) and len(v) > i and isinstance(v[i], (int, float)) else 0
+    return {"voci": r.get("nuove") or 0, "tradotti": g("attesa", 0), "articoli": g("articoli", 0), "schede": g("x229", 0),
+            "memoria": g("memoria", 0), "avvisi": g("x229", 1), "fonti": len(r.get("fonti_nuove") or []), "verifiche": g("verifiche", 0),
+            "accordi": g("piano", 1), "appalti": g("piano", 2), "intel": g("intel", 0), "cronologie": g("storia", 0), "giri": 1,
+            "mb": round(r.get("mb") or 0, 1)}
+
+
+def _totali_somma(T, r):
+    try:
+        quando = datetime.fromisoformat(r["iso"]).astimezone()
+    except (KeyError, ValueError):
+        return
+    d_, m_ = quando.date().isoformat(), quando.strftime("%Y-%m")
+    for chiave, cont in (("sempre", T.setdefault("sempre", {})), ("mesi", T.setdefault("mesi", {}).setdefault(m_, {})),
+                         ("giorni", T.setdefault("giorni", {}).setdefault(d_, {}))):
+        for k, v in _totali_di(r).items():
+            cont[k] = round(cont.get(k, 0) + v, 1)
+    T["fino"] = r["iso"]
+    T.setdefault("da", r["iso"])
+
+
+def totali_aggiorna(adesso):
+    """Aggiunge ai totali i giri del diario non ancora contati e scrive web/totali.js (va su GitHub a ogni giro)."""
+    perc = os.path.join(DATI, "totali.json")
+    T = leggi_json(perc, None) or leggi_json(os.path.join(QUI, "totali_base.json"), None) or {}
+    diario = leggi_json(os.path.join(DATI, "diario.json"), [])
+    for r in diario:
+        if r.get("iso", "") > T.get("fino", ""):
+            _totali_somma(T, r)
+    if len(T.get("giorni") or {}) > 400:
+        T["giorni"] = dict(sorted(T["giorni"].items())[-400:])
+    z = next((r for r in reversed(diario) if r.get("tipo") in ("leggero", "completo")), {}) or {}
+    T["ora"] = {"notizie": z.get("live"), "memoria": (z.get("memoria") or [None, None])[1], "indice": (z.get("x229") or [None] * 3)[2],
+                "cronologie": (z.get("storia") or [None, None])[1], "fonti": (z.get("fonti") or [None])[0],
+                "stati_coperti": len(leggi_json(os.path.join(QUI, "paesi.json"), {}) or {}) - len(z.get("senza") or [])
+                if z.get("senza") is not None else None, "v": VERSIONE}
+    c_ = leggi_json(os.path.join(DATI, "cervello.json"), {}) or {}
+    T["spesa"] = {"totale": c_.get("usd_totale", c_.get("usd_mese")), "mesi": c_.get("mesi") or {}, "giorni": c_.get("giorni") or {},
+                  "oggi": c_.get("usd_oggi"), "mese": c_.get("usd_mese")}
+    T["agg"] = adesso.isoformat()
+    scrivi_json(perc, T)
+    _scrivi_se_cambia(os.path.join(WEB, "totali.js"), "window.TOTALI=" + json.dumps(
+        {k: v for k, v in T.items() if k != "visti"}, ensure_ascii=False, separators=(",", ":")) + ";")
+    return T
+
+
 def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, errori, leggero):
     """Il lavoro della 2.29 dentro il giro: schede, andamento, avvisi, indice e vettori. Nulla di questo ferma il giro."""
     esito = {}
@@ -6888,10 +6954,7 @@ def _riserva_cron():
         time.sleep(60)
         try:
             cfg_r = leggi_json(os.path.join(QUI, "config.json"), {})
-            passo_ = passo_minuti(cfg_r)
-            sp_r = spinta(cfg_r)  # dalla 2.32: in carica e al fresco i giri sono più fitti (spinta › ogni_minuti_carica)
-            if sp_r["ogni_minuti"]:
-                passo_ = min(passo_, sp_r["ogni_minuti"])
+            passo_ = passo_effettivo(cfg_r)  # dalla 2.33.7: ritmo che si regola da solo (spinta, resa, durata dei giri)
             ultimo = (leggi_json(os.path.join(DATI, "diario.json"), []) or [{}])[-1].get("iso", "")  # conta anche il lavoro senza rete
             try:
                 eta = (datetime.now(timezone.utc) - datetime.fromisoformat(ultimo)).total_seconds() / 60 if ultimo else 1e9
@@ -7345,6 +7408,38 @@ def _segnale(num, _quadro=None):
 
 
 
+def passo_effettivo(cfg, spiega=False):
+    """Dalla 2.33.7 il ritmo dei giri si regola da solo, per il miglior equilibrio tra lavoro in rete (scaricare) e lavoro
+    sul telefono (significati, indice, storia) e per non scaldare. Base: 10 minuti con la spinta piena (in carica e
+    fresco), altrimenti il passo di config. Poi: (1) tra un giro e l'altro resta libero almeno quanto è durato l'ultimo giro
+    leggero (passo ≥ 2 × durata): metà rete, metà lavoro locale e riposo; (2) se gli ultimi giri leggeri portano poco
+    (mediana sotto «resa_bassa» voci nuove) il passo si allunga di 5 minuti, se portano molto (sopra «resa_alta») si
+    accorcia fino al «minimo»; (3) mai oltre «massimo». Si regola in config.json › spinta › ritmo, senza «approva»."""
+    rc = ((cfg.get("spinta", {}) or {}).get("ritmo") or {})
+    base = passo_minuti(cfg)
+    sp = spinta(cfg)
+    if sp["ogni_minuti"]:
+        base = min(base, sp["ogni_minuti"])
+    perche = f"base {base} minuti ({sp['perche']})"
+    if not rc.get("automatico", True):
+        return (base, perche) if spiega else base
+    D = [x for x in leggi_json(os.path.join(DATI, "diario.json"), []) if x.get("tipo") == "leggero"][-6:]
+    m = base
+    if D:
+        resa = sorted(x.get("nuove") or 0 for x in D)[len(D) // 2]
+        durata_ = (D[-1].get("durata") or 0) / 60
+        if resa < rc.get("resa_bassa", 60):
+            m, perche = base + 5, perche + f"; resa bassa ({resa} voci a giro): +5"
+        elif resa > rc.get("resa_alta", 200):
+            m, perche = max(int(rc.get("minimo", 10)), base - 5), perche + f"; resa alta ({resa} voci a giro): −5"
+        else:
+            perche += f"; resa {resa} voci a giro"
+        if 2 * durata_ > m:
+            m, perche = int(2 * durata_ + 0.999), perche + f"; l'ultimo giro è durato {round(durata_)} minuti: metà del tempo resta libera"
+    m = int(min(max(m, int(rc.get("minimo", 10))), int(rc.get("massimo", 30))))
+    return (m, perche) if spiega else m
+
+
 def passo_minuti(cfg):
     """Ogni quanti minuti parte un giro: 180 senza giro leggero, altrimenti giro_leggero.ogni_minuti (10, 15, 20, 30 o 60).
     Sta in config.json, che il telefono prende da solo a ogni giro: per cambiare ritmo non serve «approva»."""
@@ -7539,7 +7634,7 @@ def aggiorna(tipo=""):
         veri_ = [x for x in diario_ if x.get("tipo") != "senza rete"]
         if tipo == "auto":
             ultimo_ = (veri_ or [{}])[-1].get("iso", "")
-            passo_ = max(6, passo_minuti(cfg_) - 10)
+            passo_ = max(6, passo_effettivo(cfg_) - 2)
             if ultimo_ >= (datetime.now(timezone.utc) - timedelta(minutes=passo_)).isoformat():
                 return  # un giro c'è appena stato (l'ha fatto cron o l'hai lanciato tu): l'orologio interno non raddoppia
         # giro completo ogni 3 ore; nelle ore in mezzo un giro leggero (solo feed, Telegram, YouTube, cielo): lo decide il
@@ -8388,6 +8483,10 @@ def _aggiorna(leggero=False):
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
     })
     scrivi_json(os.path.join(DATI, "diario.json"), diario[-120:])
+    try:  # dalla 2.33.7: i totali da quando esiste, del mese e del giorno (web/totali.js)
+        totali_aggiorna(adesso)
+    except Exception as e:
+        errori.append(f"Totali: {str(e)[:80]}")
     live["diario"] = [{k: v for k, v in x.items() if k not in ("ricerche", "siti")} for x in diario[-60:]]  # per la pagina
     try:
         shutil.copyfile(os.path.join(DATI, "diario.json"), os.path.join(WEB, "diario.json"))
@@ -9000,7 +9099,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         # nuove versioni del programma, se Claude le ha messe nel repository (cartella programma/)
         cambiati = []
         avvisato = False
-        for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json") + tuple(sorted(SCRIPT)):
+        for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json", "totali_base.json") + tuple(sorted(SCRIPT)):
             src = os.path.join(cartella, "programma", nome)
             dst = os.path.join(QUI, nome)
             if os.path.exists(src) and (not os.path.exists(dst) or open(src, "rb").read() != open(dst, "rb").read()):
@@ -9090,9 +9189,9 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
                 print("Copia di riserva non riuscita (il resto va avanti):", str(e)[:80])
         # dopo un giro leggero su GitHub va solo il diario (pochi KB): i dati grossi ci vanno ogni 3 ore, così il
         # repository non cresce tre volte più in fretta
-        for nome in (("diario.json", "rapporto.json", "rapporti.json", "avvisi.json") if solo_diario else
+        for nome in (("diario.json", "rapporto.json", "rapporti.json", "avvisi.json", "totali.js") if solo_diario else
                      ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json",
-                      "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js", "economia.js", "storia.js")):
+                      "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js", "economia.js", "storia.js", "totali.js")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -9527,6 +9626,8 @@ if __name__ == "__main__":
             print("  velocità misurate: " + " · ".join(f"{k} thread {v.get('v')} vettori al secondo ({v.get('n')} misure)"
                                                       for k, v in sorted(vel_.items(), key=lambda x: int(x[0]))))
         sp_o = spinta(cfg_o)
+        pe_, pp_ = passo_effettivo(cfg_o, spiega=True)
+        print(f"Ritmo: un giro ogni {pe_} minuti · {pp_}")
         print(f"Spinta: {'PIENA' if sp_o['piena'] else 'normale'} ({sp_o['perche']}) · download in parallelo: {sp_o['paralleli']}"
               + (f" · giri ogni {sp_o['ogni_minuti']} minuti · vettori anche delle notizie non confermate, con "
                  f"{_sig_thread(cfg_o.get('officina', {}))} thread" if sp_o["piena"] else " · vettori solo dei fatti confermati"))

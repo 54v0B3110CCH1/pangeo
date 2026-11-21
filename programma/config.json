@@ -4494,7 +4494,8 @@
   "ogni_minuti_carica": 10,
   "prove_thread": [4, 6],
   "recenti_fuori_carica": false,
-  "pausa_fuori_carica": 60
+  "pausa_fuori_carica": 60,
+  "ritmo": {"automatico": true, "minimo": 10, "massimo": 30, "resa_bassa": 60, "resa_alta": 200}
  },
  "piano": {
   "attivo": true,
