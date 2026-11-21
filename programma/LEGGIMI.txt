@@ -405,6 +405,18 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.37 (21 novembre) – DOCUMENTI DESECRETATI E TRAPELATI
+- Per 2 Stati a giro (prima quelli con avvisi recenti, poi l'ordine del piano; ogni Stato rifatto dopo 60 giorni) il
+  telefono cerca: nei FRUS (Foreign Relations of the United States: i documenti diplomatici desecretati che il
+  Dipartimento di Stato pubblica) e in WikiLeaks (solo cablogrammi diplomatici e poche raccolte di documenti di Stato;
+  escluse le raccolte di email e quelle con dati di persone private). Si tengono titolo, data, raccolta e link: i testi si
+  leggono alla fonte. I documenti di WikiLeaks sono trapelati, non verificati e senza la replica di chi è citato.
+- Base di 60 Stati costruita da Claude (programma/archivi_base.json). Nella pagina di ogni Stato «Documenti desecretati e
+  trapelati» con i link per cercare anche nella CIA Reading Room (CREST), nel National Security Archive, nel Wilson
+  Center Digital Archive, negli archivi nazionali USA e britannici. Il programma non legge la CIA Reading Room (dal cloud
+  rimanda alla pagina iniziale) né il National Security Archive (ricerca fatta in JavaScript): restano i link.
+- Studi: in più The Black Vault (documenti FOIA appena desecretati) e Unredacted (blog del National Security Archive).
+
 NOVITÀ 2.36 (21 novembre) – CHI CONTROLLA CHI E IL PESO NEL FONDO MONETARIO
 - Chi controlla chi: per 110 delle 172 aziende della difesa (quelle con il codice LEI trovato da Claude nel registro
   mondiale GLEIF, programma/aziende_lei.json) la capogruppo ultima e quella diretta, oppure il motivo dichiarato se non

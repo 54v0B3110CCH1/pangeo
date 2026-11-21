@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.36"
+VERSIONE = "2.37"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -7545,7 +7545,10 @@ def scrivi_biblioteca_web(cfg, adesso):
                 lezioni.append([L["id"], int(i), c.get("cap", ""), d[0], d[1], d[2], (c.get("quando") or "")[:10]])
     return _scrivi_se_cambia(os.path.join(WEB, "biblioteca.js"), "window.BIBLIOTECA=" + json.dumps(
         {"agg": adesso.date().isoformat(), "temi": BIB_TEMI, "libri": libri, "lezioni": lezioni[-4000:],
-         "studi": (S.get("voci") or [])[:400], "fonti_studi": [[n, u, p] for n, u, p in imp.get("studi", [])]},
+         "studi": (S.get("voci") or [])[:400], "fonti_studi": [[n, u, p] for n, u, p in imp.get("studi", [])],
+         "archivi": {st_: {k: v for k, v in x.items() if k in ("frus", "wl", "en")} | {"d": (x.get("quando") or "")[:10]}
+                     for st_, x in (leggi_json(MAG("biblioteca", "archivi.json"), None)
+                                    or leggi_json(os.path.join(QUI, "archivi_base.json"), {}) or {}).items()}},
         ensure_ascii=False, separators=(",", ":")) + ";")
 
 
@@ -7558,7 +7561,14 @@ def biblioteca_passo(chiavi, cfg, adesso, tel, errori, leggero):
     if (R.get("perche") and any("soldi a passo" in p for p in R.get("perche") or [])):
         lez = min(lez, 1)
     r_ = biblioteca_aggiorna(chiavi, cfg, adesso, tel, errori, lez, scarica_libro=(R.get("rete") != "lenta"))
-    if not leggero or r_.get("lezioni") or r_.get("scaricato") or r_.get("studi_nuovi"):
+    try:  # dalla 2.37: documenti desecretati (FRUS) e trapelati (WikiLeaks), pochi Stati a giro
+        a_ = archivi_aggiorna(cfg, adesso, errori, 0 if R.get("rete") == "lenta" else imp.get("archivi_per_giro", 2))
+        r_["archivi"] = a_.get("fatti", 0)
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Archivi: {str(e)[:100]}")
+    if not leggero or r_.get("lezioni") or r_.get("scaricato") or r_.get("studi_nuovi") or r_.get("archivi"):
         scrivi_biblioteca_web(cfg, adesso)
     return r_
 
@@ -7636,6 +7646,90 @@ def gruppi_aggiorna(cfg, adesso, errori, quante=10):
     scrivi_json(perc, G)
     esito.update(aziende=len(G), in_coda=max(0, len(coda) - esito["fatte"]))
     return esito
+
+
+# 13. Documenti desecretati e trapelati (dalla 2.37): per pochi Stati a giro il telefono cerca nei FRUS (Foreign
+#     Relations of the United States, i documenti diplomatici desecretati pubblicati dal Dipartimento di Stato USA) e in
+#     WikiLeaks (cablogrammi diplomatici e poche altre raccolte di documenti di Stato). Si tengono titolo, data, raccolta e
+#     link: i testi si leggono alla fonte. WikiLeaks: documenti trapelati, non verificati, senza la replica dei citati;
+#     si escludono le raccolte di email e quelle con dati di persone private.
+ARC_WL_SI = ("plusd", "cablegate", "saudi cables", "spy files", "trade", "tpp", "tisa", "ttip", "kissinger", "carter", "secret documents")
+
+
+def _arc_frus(nome_en):
+    t = scarica("https://history.state.gov/search?q=" + urllib.parse.quote(nome_en) + "&within=documents", timeout=60).decode("utf-8", "replace")
+    out = []
+    for u, tit in re.findall(r'<a href="(/historicaldocuments/frus[0-9][^"#]*/d\d+)"[^>]*>(.*?)</a>', t, re.S):
+        out.append(_arc_frus_voce(" ".join(html.unescape(re.sub(r"<[^>]+>", " ", tit)).split()), "https://history.state.gov" + u))
+    return _arc_frus_pulisci(out)
+
+
+def _arc_frus_voce(tit, u):
+    tit = re.sub(r"^(No\.\s*\d+)(?=[A-Z])", r"\1. ", tit)
+    anni = re.findall(r"\b(1[789]\d\d|20[0-2]\d)\b", tit)
+    return [anni[0] if anni else "", pulisci(tit, 220), u, "FRUS"]
+
+
+def _arc_frus_pulisci(out):
+    """Senza doppioni (stesso titolo) e dal più recente."""
+    visti, tenuti = set(), []
+    for o in out:
+        if o[1] and o[1] not in visti and o[2] not in [x[2] for x in tenuti]:
+            visti.add(o[1])
+            tenuti.append(o)
+    return sorted(tenuti, key=lambda o: o[0] or "0", reverse=True)[:10]
+
+
+def _arc_wikileaks(nome_en):
+    t = scarica("https://search.wikileaks.org/?q=" + urllib.parse.quote(nome_en + " military"), timeout=60).decode("utf-8", "replace")
+    out = []
+    for b in re.split(r'<div class="result">', t)[1:]:
+        m = re.search(r'<h4><a href="([^"]+)"[^>]*>(.*?)</a></h4>', b, re.S)
+        if not m:
+            continue
+        racc = re.search(r'<div class="leak-label">\s*<div><b>(.*?)</b>', b, re.S)
+        racc = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", racc.group(1))).split()) if racc else ""
+        if not any(k in racc.lower() for k in ARC_WL_SI):
+            continue
+        d = re.search(r"Created<br/>\s*<span>([\d-]+)</span>", b)
+        tit = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", m.group(2))).split())
+        out.append([d.group(1) if d else "", pulisci(tit, 200), html.unescape(m.group(1)), racc])
+    return out[:10]
+
+
+def archivi_aggiorna(cfg, adesso, errori, quanti=2):
+    imp = cfg.get("biblioteca", {}) or {}
+    perc = MAG("biblioteca", "archivi.json")
+    os.makedirs(os.path.dirname(perc), exist_ok=True)
+    A = leggi_json(perc, None)
+    if A is None:
+        A = leggi_json(os.path.join(QUI, "archivi_base.json"), {}) or {}
+    if not imp.get("archivi", True) or quanti <= 0:
+        return {"stati": len(A), "fatti": 0}
+    paesi = leggi_json(os.path.join(QUI, "paesi.json"), {}) or {}
+    ordine = [s for _, l in (cfg.get("piano", {}).get("blocchi") or []) for s in l] or sorted(paesi)
+    V_ = leggi_json(os.path.join(DATI, "avvisi.json"), {}) or {}
+    caldi = [a.get("stato") for a in reversed(V_.get("elenco", [])[-60:]) if a.get("stato")]
+    vecchia = (adesso - timedelta(days=imp.get("giorni_archivi", 60))).isoformat()
+    da_fare = [s for s in dict.fromkeys(caldi + ordine) if s in paesi and (A.get(s) or {}).get("quando", "") < vecchia][:quanti]
+    fatti = 0
+    for st_ in da_fare:
+        al_ = paesi.get(st_) or []
+        nome_en = al_[1] if len(al_) > 1 and re.fullmatch(r"[A-Za-z .'-]+", al_[1]) else st_
+        x = {"quando": adesso.isoformat(), "en": nome_en}
+        for chiave, fn in (("frus", _arc_frus), ("wl", _arc_wikileaks)):
+            try:
+                x[chiave] = fn(nome_en)
+            except SenzaRete:
+                raise
+            except Exception as e:
+                errori.append(f"Archivi ({'FRUS' if chiave == 'frus' else 'WikiLeaks'}, {st_}): {str(e)[:80]}")
+                x[chiave] = (A.get(st_) or {}).get(chiave, [])
+        A[st_] = x
+        fatti += 1
+    if fatti:
+        scrivi_json(perc, A)
+    return {"stati": len(A), "fatti": fatti}
 
 
 # 8. Totali (dalla 2.33.7): quanto ha fatto il programma da quando esiste, ogni mese, ogni giorno. Il diario tiene solo gli
@@ -9834,7 +9928,7 @@ def _aggiorna(leggero=False):
         "sistemi": [(esito_229.get("sistemi") or {}).get(c_) for c_ in ("fatte", "schede", "in_coda")],
         "potere": [(esito_229.get("potere") or {}).get(c_) for c_ in ("fatte", "sezioni", "voci", "gruppi")],
         "biblioteca": [(esito_229.get("biblioteca") or {}).get(c_) for c_ in ("libri", "capitoli", "lezioni", "dinamiche", "lezioni_totali",
-                                                                                "dinamiche_totali", "studi_nuovi", "scaricato", "scartate")],
+                                                                                "dinamiche_totali", "studi_nuovi", "scaricato", "scartate", "archivi")],
         "regia": [(leggi_json(os.path.join(DATI, "regia.json"), {}) or {}).get(c_) for c_ in ("passo", "articoli", "cronologie", "rete")],
         "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
@@ -10457,7 +10551,8 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         cambiati = []
         avvisato = False
         for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json", "totali_base.json",
-                     "sistemi.json", "sistemi_base.json", "potere_base.json", "aziende_lei.json", "gruppi_base.json") + tuple(sorted(SCRIPT)):
+                     "sistemi.json", "sistemi_base.json", "potere_base.json", "aziende_lei.json", "gruppi_base.json",
+                     "archivi_base.json") + tuple(sorted(SCRIPT)):
             src = os.path.join(cartella, "programma", nome)
             dst = os.path.join(QUI, nome)
             if os.path.exists(src) and (not os.path.exists(dst) or open(src, "rb").read() != open(dst, "rb").read()):

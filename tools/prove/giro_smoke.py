@@ -2,7 +2,7 @@ import json, os, shutil, sys, tempfile, importlib.util, time
 from datetime import datetime, timezone, timedelta
 src = sys.argv[1]
 T = tempfile.mkdtemp(prefix="giro229_")
-for n in ("castello.py", "config.json", "paesi.json", "piano_base.json", "mappa.json", "sistemi.json", "sistemi_base.json", "potere_base.json", "aziende_lei.json", "gruppi_base.json"):
+for n in ("castello.py", "config.json", "paesi.json", "piano_base.json", "mappa.json", "sistemi.json", "sistemi_base.json", "potere_base.json", "aziende_lei.json", "gruppi_base.json", "archivi_base.json"):
     shutil.copy(os.path.join(src, n), T)
 cfg = json.load(open(os.path.join(T, "config.json")))
 cfg["repo_pubblico"] = ""; cfg["repo_git"] = ""   # MAI verso il repository vero

@@ -17,6 +17,7 @@ if (!h.includes('function viewBiblioteca(')) {
   const st = h.indexOf('</style>'); h = h.slice(0, st) + '.bib-cit { font-style: italic; color: var(--muted); margin: 4px 0; }\n' + h.slice(st);
   sost("  else if (parts[0] === 'potere') html = viewPotere(parts[1]);", "  else if (parts[0] === 'potere') html = viewPotere(parts[1]);\n  else if (parts[0] === 'biblioteca') html = viewBiblioteca(parts[1], parts[2]);");
   sost("  ['Potere e soldi', ['#potere']],", "  ['Potere e soldi', ['#potere']],\n  ['Studi', ['#biblioteca']],");
+  sost('statoFattoHtml(n) + sistemiStatoHtml(n) + potereStatoHtml(n) + schedeStatoHtml(n);', 'statoFattoHtml(n) + sistemiStatoHtml(n) + potereStatoHtml(n) + schedeStatoHtml(n) + archiviStatoHtml(n);');
   sost("  tess['#potere'] = ", "  tess['#biblioteca'] = '<a class=\"folder big\" href=\"#biblioteca\"><b>Biblioteca e studi</b><small>I classici su potere, guerra, denaro e storia letti capitolo per capitolo, con le dinamiche e le citazioni; gli studi recenti dei centri di ricerca</small></a>';\n  tess['#potere'] = ");
 }
 const s0 = h.indexOf('<script>') + 8, s1 = h.indexOf('</script>', s0);

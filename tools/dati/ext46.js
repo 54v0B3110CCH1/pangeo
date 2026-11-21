@@ -48,3 +48,18 @@ function viewBiblioteca(a, b) {
     '<p class="note"><a href="#biblioteca/studi">Tutti gli studi, per centro di ricerca</a>. I video non si trascrivono: restano titolo e link nella sezione Live.</p>';
   return h;
 }
+// documenti desecretati (FRUS) e trapelati (WikiLeaks) di ogni Stato, con le ricerche negli archivi (dalla 2.37)
+function archiviStatoHtml(n) {
+  caricaBiblioteca();
+  const B = window.BIBLIOTECA, A = B && B.archivi ? B.archivi[n] : null;
+  const en = encodeURIComponent((A && A.en) || n);
+  const cerca = [['CIA Reading Room (CREST)', 'https://www.cia.gov/readingroom/search/site/' + en], ['National Security Archive', 'https://nsarchive.gwu.edu/search?search_api_fulltext=' + en],
+    ['FRUS, Dipartimento di Stato', 'https://history.state.gov/search?q=' + en + '&within=documents'], ['Wilson Center Digital Archive', 'https://digitalarchive.wilsoncenter.org/search?q=' + en],
+    ['Archivi nazionali USA (NARA)', 'https://catalog.archives.gov/search?q=' + en], ['Archivi nazionali britannici', 'https://discovery.nationalarchives.gov.uk/results/r?_q=' + en],
+    ['WikiLeaks', 'https://search.wikileaks.org/?q=' + en]];
+  let h = '<h3 id="st-archivi"><span class="dot" style="background:var(--muted)"></span>Documenti desecretati e trapelati</h3>';
+  const riga = r => '<div class="item"><div class="t"><a href="' + safeU(r[2]) + '" target="_blank" rel="noopener">' + esc(r[1]) + '</a></div><div class="m">' + esc(r[0] || '') + ' · ' + esc(r[3] || '') + '</div></div>';
+  if (A && (A.frus || []).length) h += '<div class="m">Desecretati: documenti diplomatici degli Stati Uniti (FRUS), letti il ' + esc(String(A.d).split('-').reverse().join('/')) + '</div>' + A.frus.map(riga).join('');
+  if (A && (A.wl || []).length) h += '<div class="m">Trapelati (WikiLeaks): cablogrammi e documenti di Stato. Non verificati e senza la replica di chi è citato: da leggere con cautela, alla fonte.</div>' + A.wl.map(riga).join('');
+  return h + '<p class="note">Cerca negli archivi: ' + cerca.map(c => '<a href="' + c[1] + '" target="_blank" rel="noopener">' + esc(c[0]) + '</a>').join(' · ') + '. Il programma legge pochi Stati a giro; gli altri archivi si consultano dai link.</p>';
+}
