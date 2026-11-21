@@ -29,6 +29,9 @@ Comandi:
   python castello.py istantanea index.html [origine] [--brief file.txt]
                                            mette i dati live (e un riassunto) dentro un file del Castello
   python castello.py ripristina index.html  riprende lo storico del cielo da un file del Castello
+  python castello.py capi [Stato o ente]    chi guida, controllato su Wikidata, Wikipedia e notizie (dalla 2.38)
+  python castello.py armi [Stato]           armi comprate e vendute secondo SIPRI (dalla 2.38)
+  python castello.py fatti [Stato]          i fatti tirati fuori dagli articoli letti, con la frase che li dice (dalla 2.38)
 Usa solo la libreria standard di Python: nessun pacchetto da installare.
 """
 import concurrent.futures
@@ -58,7 +61,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.37"
+VERSIONE = "2.38"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -3916,7 +3919,8 @@ def scrivi_piano_web(P, cfg, totale):
 LAVORI_CERVELLO = (("Traduci in italiano questi titoli", "traduzioni"), ("Traduci in italiano questi testi", "traduzioni del sapere"),
                    ("Sono titoli di giornali", "sala d'attesa"), ("Sei il redattore", "da sapere adesso"),
                    ("Lavori a un archivio", "lavoro a piano"), ("Ecco i fatti", "sintesi"), ("Domanda", "domande e risposte"),
-                   ("Sei il revisore", "revisore"), ("Sei lo storico", "storia"), ("Sei lo studioso", "biblioteca"))
+                   ("Sei il revisore", "revisore"), ("Sei lo storico", "storia"), ("Sei lo studioso", "biblioteca"),
+                   ("Sei l'estrattore", "fatti dagli articoli"))
 
 
 def lavoro_di(testo):
@@ -6032,6 +6036,10 @@ def leggi_articoli(archivio, adesso, cfg, tel, errori):
                 poco += 1
                 continue
             letti += 1
+            try:  # dalla 2.38: l'articolo va nella coda dei fatti (chi, che cosa, quanti, dove, quando)
+                fatti_in_coda(k, v, t_)
+            except Exception:
+                pass
             if db is not None:
                 kk = "a:" + k
                 if not db.execute("SELECT 1 FROM visti WHERE k=?", (kk,)).fetchone():
@@ -6720,6 +6728,9 @@ def sistemi_aggiorna(cfg, adesso, errori, quanti=6, secondi=120):
     K = leggi_json(perc, None)
     if K is None:
         K = leggi_json(os.path.join(QUI, "sistemi_base.json"), {}) or {}
+    elif _unisci_base(K, leggi_json(os.path.join(QUI, "sistemi_base.json"), {}) or {}, chiave="agg",
+                      accetta=lambda n_, v_: bool(n_.get("st")) or not v_.get("st")):
+        scrivi_json(perc, K)
     E = [s for s in sistemi_elenco() if s.get("q")]
     vecchie = (adesso - timedelta(days=imp.get("giorni", 30))).date().isoformat()
     coda = sorted((s for s in E if (K.get(s["id"]) or {}).get("agg", "") < vecchie or not (K.get(s["id"]) or {}).get("st")
@@ -6942,7 +6953,8 @@ _POT_CAPI = ("OPTIONAL { { VALUES (?pp ?ps) { (p:P488 ps:P488) (p:P1037 ps:P1037
              "FILTER NOT EXISTS { ?st pq:P582 [] } FILTER NOT EXISTS { ?capo wdt:P570 [] } OPTIONAL { ?st pq:P580 ?ci } "
              "OPTIONAL { ?capo rdfs:label ?c1 FILTER(lang(?c1)='it') } OPTIONAL { ?capo rdfs:label ?c2 FILTER(lang(?c2)='en') } "
              "OPTIONAL { ?capo rdfs:label ?c3 FILTER(lang(?c3)='mul') } "
-             "BIND(CONCAT(COALESCE(?c1, ?c2, ?c3, ''), '@', COALESCE(SUBSTR(STR(?ci), 1, 10), ''), '@', STRAFTER(STR(?pp), 'prop/')) AS ?capoX) } ")
+             "BIND(CONCAT(COALESCE(?c1, ?c2, ?c3, ''), '@', COALESCE(SUBSTR(STR(?ci), 1, 10), ''), '@', STRAFTER(STR(?pp), 'prop/'), '@', "
+             "COALESCE(?c2, ?c3, '')) AS ?capoX) } ")
 POT_RUOLI = {"P1308": "alla guida", "P488": "presidente", "P1037": "direttore", "P169": "amministratore delegato"}
 
 
@@ -6954,15 +6966,16 @@ def _pot_capi(testo):
         p = pz.split("@")
         if len(p) < 3 or not p[0] or re.match(r"^Q\d+$", p[0]):
             continue
-        per.setdefault(p[2], []).append((p[1], p[0]))
+        per.setdefault(p[2], []).append((p[1], p[0], p[3] if len(p) > 3 else ""))
     out = []
     for ruolo in ("P1308", "P1037", "P169", "P488"):
         l_ = per.get(ruolo) or []
         datati = sorted((x for x in l_ if x[0]), reverse=True)
         scelti = [datati[0]] if datati else l_[:2]
-        for d, n in scelti:
+        for d, n, en in scelti:
             if n not in [o[0] for o in out]:
-                out.append([n, POT_RUOLI[ruolo], d])
+                # dalla 2.38 anche il nome inglese, se è diverso: serve a riconoscere la persona su Wikipedia
+                out.append([n, POT_RUOLI[ruolo], d] + ([en] if en and en != n and not re.match(r"^Q\d+$", en) else []))
     return out[:4]
 
 
@@ -7206,6 +7219,9 @@ def potere_aggiorna(cfg, adesso, errori, quante=1):
     P = leggi_json(perc, None)
     if P is None:
         P = leggi_json(os.path.join(QUI, "potere_base.json"), {}) or {}
+    else:  # dalla 2.38: le sezioni rifatte dal motore nel cloud, se sono più nuove e non più povere
+        _unisci_base(P, leggi_json(os.path.join(QUI, "potere_base.json"), {}) or {},
+                     accetta=lambda n_, v_: len(n_.get("voci") or []) >= 0.5 * len(v_.get("voci") or []))
     esito = {"fatte": 0, "sezioni": len(P), "voci": sum(len((v or {}).get("voci") or []) for v in P.values())}
     if not imp.get("attivo", True) or quante <= 0:
         return esito
@@ -7607,6 +7623,8 @@ def gruppi_aggiorna(cfg, adesso, errori, quante=10):
     G = leggi_json(perc, None)
     if G is None:
         G = leggi_json(os.path.join(QUI, "gruppi_base.json"), {}) or {}
+    else:
+        _unisci_base(G, leggi_json(os.path.join(QUI, "gruppi_base.json"), {}) or {}, accetta=lambda n_, v_: not n_.get("errore"))
     L = leggi_json(os.path.join(QUI, "aziende_lei.json"), {}) or {}
     vecchie = (adesso - timedelta(days=imp.get("giorni_gruppi", 30))).isoformat()
     coda = sorted((n for n in L if (G.get(n) or {}).get("quando", "") < vecchie), key=lambda n: (G.get(n) or {}).get("quando", ""))
@@ -7704,6 +7722,9 @@ def archivi_aggiorna(cfg, adesso, errori, quanti=2):
     A = leggi_json(perc, None)
     if A is None:
         A = leggi_json(os.path.join(QUI, "archivi_base.json"), {}) or {}
+    elif _unisci_base(A, leggi_json(os.path.join(QUI, "archivi_base.json"), {}) or {},
+                      accetta=lambda n_, v_: len(n_.get("frus") or []) + len(n_.get("wl") or []) >= len(v_.get("frus") or []) + len(v_.get("wl") or []) // 2):
+        scrivi_json(perc, A)
     if not imp.get("archivi", True) or quanti <= 0:
         return {"stati": len(A), "fatti": 0}
     paesi = leggi_json(os.path.join(QUI, "paesi.json"), {}) or {}
@@ -7712,24 +7733,1080 @@ def archivi_aggiorna(cfg, adesso, errori, quanti=2):
     caldi = [a.get("stato") for a in reversed(V_.get("elenco", [])[-60:]) if a.get("stato")]
     vecchia = (adesso - timedelta(days=imp.get("giorni_archivi", 60))).isoformat()
     da_fare = [s for s in dict.fromkeys(caldi + ordine) if s in paesi and (A.get(s) or {}).get("quando", "") < vecchia][:quanti]
-    fatti = 0
+    fatti = falliti = 0
     for st_ in da_fare:
         al_ = paesi.get(st_) or []
         nome_en = al_[1] if len(al_) > 1 and re.fullmatch(r"[A-Za-z .'-]+", al_[1]) else st_
         x = {"quando": adesso.isoformat(), "en": nome_en}
+        andati = 0
         for chiave, fn in (("frus", _arc_frus), ("wl", _arc_wikileaks)):
             try:
                 x[chiave] = fn(nome_en)
+                andati += 1
             except SenzaRete:
                 raise
             except Exception as e:
                 errori.append(f"Archivi ({'FRUS' if chiave == 'frus' else 'WikiLeaks'}, {st_}): {str(e)[:80]}")
                 x[chiave] = (A.get(st_) or {}).get(chiave, [])
+        if not andati:  # dalla 2.38: se nessun archivio risponde lo Stato non si segna come fatto (si riprova)
+            falliti += 1
+            if falliti >= 3:
+                break
+            continue
+        falliti = 0
         A[st_] = x
         fatti += 1
     if fatti:
         scrivi_json(perc, A)
     return {"stati": len(A), "fatti": fatti}
+
+
+# 14. Chi guida, controllato (dalla 2.38). Il modello di PanGeo per i dati che cambiano, cominciando da chi guida gli
+#     Stati, le istituzioni internazionali, le banche centrali, le grandi banche e i fondi. Sette regole:
+#     1. ogni dato è un'affermazione con la sua fonte, la data della fonte e la data del controllo (provenienza, come nel
+#        modello PROV del W3C: che cosa, da chi, quando, con quale lavoro);
+#     2. due voti separati, come nel codice dell'Ammiragliato della NATO (AJP-2.1): la fonte da A (ufficiale) a F (non
+#        giudicabile) e l'informazione da 1 (confermata da fonti indipendenti) a 6 (non giudicabile). Wikidata e Wikipedia
+#        valgono C (affidabilità media); il sito ufficiale A;
+#     3. due fonti che copiano l'una dall'altra contano come una: Wikidata e Wikipedia insieme danno al massimo 2
+#        («probabilmente vero»); per l'1 serve una fonte indipendente (le notizie lette dal programma o il sito ufficiale);
+#     4. ogni dato ha una scadenza: dopo capi.giorni giorni si ricontrolla, prima quelli in disaccordo (capi.giorni_dubbi);
+#     5. quando le fonti non sono d'accordo non si sceglie in silenzio: la pagina mostra tutte e due, con la data;
+#     6. quando manca, si scrive che manca e perché, e il dato va in testa alla coda;
+#     7. il voto di una fonte vale per una affermazione, non per sempre: si rifà a ogni controllo.
+#     Fonti: Wikidata (chi guida, con la data d'inizio), il riquadro iniziale della voce di Wikipedia in inglese (spesso più
+#     fresco), le notizie già lette dal telefono (indice istantaneo) e, quando la voce cita il sito ufficiale, quel sito.
+#     dati/magazzino/potere/capi.json; base costruita dal motore nel cloud in programma/capi_base.json.
+CAPI_SEZIONI = ("istituzioni", "banche", "gestori", "fondi")
+CAPI_RUOLI = [(r"president of the european council", "presidente del Consiglio europeo"),
+              (r"general assembly", "presidente dell'Assemblea generale"), (r"economic and social council", "presidente del Consiglio economico e sociale"),
+              (r"security council", "presidenza del Consiglio di sicurezza"), (r"military committee", "presidente del Comitato militare"),
+              (r"president of the senate|senate president", "presidente del Senato"),
+              (r"(president|speaker) of the (chamber of deputies|house of representatives|national assembly|house of commons|lok sabha|state duma|duma)",
+               "presidente della Camera"),
+              (r"commission chair", "presidente della Commissione"),
+              (r"president of the european commission", "presidente della Commissione europea"),
+              (r"president of the european parliament", "presidente del Parlamento europeo"),
+              (r"presidency of the council", "presidenza a turno del Consiglio"),
+              (r"supreme leader", "Guida suprema"), (r"crown prince", "principe ereditario"),
+              (r"first vice|first deputy", "primo vice"), (r"vice[- ]?chair|vice[- ]?president|deputy", "vice"),
+              (r"secretar(y|ies)[- ]general", "segretario generale"), (r"director[- ]general|managing director|general manager", "direttore generale"),
+              (r"chief executive|\bceo\b", "amministratore delegato"), (r"governor", "governatore"),
+              (r"prime minister|premier|chancellor of (germany|austria)|taoiseach", "primo ministro"),
+              (r"pro tempore", "presidenza a turno"), (r"chair(man|woman|person)?\b|president", "presidente"),
+              (r"\b(king|queen|emperor|emir|sultan|monarch|grand duke|prince)\b", "sovrano"),
+              (r"chief justice", "presidente della Corte suprema"), (r"speaker", "presidente del parlamento"),
+              (r"prosecutor", "procuratore"), (r"registrar", "cancelliere"), (r"chief economist", "capo economista"),
+              (r"director", "direttore"), (r"head of state", "capo di Stato"), (r"head of government", "capo del governo")]
+CAPI_NON_NOMI = {"vacant", "vacante", "none", "tba", "tbd", "n/a", "position abolished", "rotating", "various", "see list"}
+CAPI_PAROLE_RUOLO = re.compile(r"(?i)\b(president|presidency|governor|chair|chairman|chairperson|secretary|director|minister|chief|"
+                               r"executive|officer|ceo|king|queen|monarch|leader|council|committee|commission|party|prime|deputy|"
+                               r"speaker|parliament|assembly|cabinet|government|board|office|court|judge|justice|list of|cfo|coo|cto|cio|md)\b")
+CAPI_GENERICHE = {"bank", "banca", "group", "gruppo", "corporation", "company", "the", "of", "and", "for", "national", "nazionale",
+                  "central", "centrale", "international", "internazionale", "organization", "organisation", "organizzazione",
+                  "fund", "fondo", "investment", "investimento", "holdings", "inc", "plc", "sa", "se", "ag", "spa", "di", "del",
+                  "della", "dei", "per", "la", "le", "il", "de", "des", "du", "co", "management", "asset", "financial", "bancaria"}
+
+
+def _capi_testo(t):
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(t or "")).translate({0x2010: 45, 0x2011: 45, 0x2012: 45, 0x2013: 45, 0x2014: 45, 0x2019: 39})
+    return "".join(c for c in t if not unicodedata.combining(c)).lower()
+
+
+def _capi_parole(nome):
+    """Le parole di un nome che contano per riconoscerlo (senza titoli, articoli e particelle)."""
+    t = re.sub(r"\(.*?\)", " ", _capi_testo(nome)).replace("'", "")
+    return [w for w in re.findall(r"[a-z]+", t) if w not in ("jr", "sr", "of", "bin", "ibn", "al", "el", "de", "da", "di", "van", "von",
+                                                        "der", "la", "le", "dos", "das", "del", "the", "sir", "dr", "mr", "mrs",
+                                                        "ms", "prof", "sheikh", "king", "queen", "prince", "emir", "sultan")
+            and not re.fullmatch(r"[ivxlcdm]{1,5}", w)]
+
+
+def _capi_fon(w):
+    """La stessa parola traslitterata in modi diversi (Lukašenko, Lukashenko; Zelens'kij, Zelenskyy) → una forma sola."""
+    for a, b in (("sch", "s"), ("sh", "s"), ("ch", "c"), ("kh", "h"), ("zh", "z"), ("ts", "c"), ("ks", "x"), ("dj", "g"),
+                 ("y", "i"), ("j", "i"), ("w", "v"), ("ph", "f"), ("ck", "k"), ("q", "k")):
+        w = w.replace(a, b)
+    return re.sub(r"(.)\1+", r"\1", w)
+
+
+def _capi_simili(a, b):
+    import difflib
+    for x, y in ((a, b), (_capi_fon(a), _capi_fon(b))):
+        if x == y:
+            return True
+        if len(x) >= 3 and len(y) >= 3 and (x.startswith(y) or y.startswith(x)):
+            return True
+        if len(x) >= 4 and len(y) >= 4 and difflib.SequenceMatcher(None, x, y).ratio() >= 0.8:
+            return True
+    return False
+
+
+def stessa_persona(a, b):
+    """Vero se due nomi indicano (con ogni probabilità) la stessa persona: stesso cognome e stesso nome (o iniziale), oppure
+    almeno due parole in comune. «Ali Khamenei» e «Mojtaba Khamenei» NON sono la stessa persona; «Ajay Banga» e «Ajaypal
+    Singh Banga» sì; «Nabil Fahmi» e «Nabil Fahmy» sì (traslitterazioni)."""
+    ta, tb = _capi_parole(a), _capi_parole(b)
+    if not ta or not tb:
+        return False
+    if len(ta) == 1 or len(tb) == 1:
+        corto, lungo = (ta, tb) if len(ta) == 1 else (tb, ta)
+        return any(_capi_simili(corto[0], w) for w in lungo)
+    comuni = sum(1 for x in ta if any(_capi_simili(x, y) for y in tb))
+    if comuni >= 2:
+        return True
+    if not _capi_simili(ta[-1], tb[-1]):
+        return False
+    if ta[0][0] != tb[0][0]:
+        return False
+    if len(ta[0]) == 1 or len(tb[0]) == 1 or _capi_simili(ta[0], tb[0]):
+        return True
+    import difflib  # Aleksandr e Alexander: stesso cognome traslitterato, nome molto simile
+    return _capi_fon(ta[-1]) == _capi_fon(tb[-1]) and difflib.SequenceMatcher(None, _capi_fon(ta[0]), _capi_fon(tb[0])).ratio() >= 0.7
+
+
+def _capi_wd_uguale(w, nome):
+    """Una voce di Wikidata [nome, ruolo, dal, nome inglese] è la stessa persona di «nome»?"""
+    return any(stessa_persona(x, nome) for x in ([w[0]] + ([w[3]] if len(w) > 3 and w[3] else [])))
+
+
+def _capi_ruolo(t):
+    t_ = _capi_testo(t)
+    for pat, it in CAPI_RUOLI:
+        if re.search(pat, t_):
+            return it
+    return re.sub(r"\s+", " ", str(t or "")).strip()[:60]
+
+
+def _ibx_blocco(wt):
+    """Il primo riquadro {{Infobox …}} della voce, con le graffe annidate."""
+    m = re.search(r"\{\{\s*Infobox", wt or "", re.I)
+    if not m:
+        return ""
+    i, prof = m.start(), 0
+    while i < len(wt) - 1:
+        if wt.startswith("{{", i):
+            prof += 1
+            i += 2
+        elif wt.startswith("}}", i):
+            prof -= 1
+            i += 2
+            if prof == 0:
+                return wt[m.start():i]
+        else:
+            i += 1
+    return wt[m.start():]
+
+
+def _ibx_parametri(blocco):
+    """«| nome = valore» del riquadro, solo al primo livello (fuori da {{…}} e da [[…]])."""
+    s = re.sub(r"(?s)<!--.*?-->", "", blocco)
+    s = s[2:-2] if s.endswith("}}") else s[2:]
+    pezzi, buf, pg, pq, i = [], [], 0, 0, 0
+    while i < len(s):
+        due = s[i:i + 2]
+        if due in ("{{", "}}", "[[", "]]"):
+            pg += (due == "{{") - (due == "}}")
+            pq += (due == "[[") - (due == "]]")
+            buf.append(due)
+            i += 2
+            continue
+        if s[i] == "|" and pg == 0 and pq == 0:
+            pezzi.append("".join(buf))
+            buf = []
+        else:
+            buf.append(s[i])
+        i += 1
+    pezzi.append("".join(buf))
+    out = {}
+    for p in pezzi[1:]:
+        if "=" in p:
+            k, v = p.split("=", 1)
+            out[k.strip().lower()] = v.strip()
+    return out
+
+
+def _ibx_righe(v):
+    """Un valore del riquadro → righe di testo, una per persona; i collegamenti restano come ⟦destinazione¦testo⟧."""
+    ref = ""
+    m = re.search(r"(?is)<ref[^>]*>.*?\burl\s*=\s*([^|}\s<]+)", v)
+    if m:
+        ref = m.group(1)
+    v = re.sub(r"(?is)<ref[^>]*/>", "", v)
+    v = re.sub(r"(?is)<ref[^>]*>.*?</ref>", "", v)
+    v = re.sub(r"\[\[(?:File|Image|Immagine):[^\]]*\]\]", "", v, flags=re.I)
+    v = re.sub(r"\[\[([^\]|]*)\|([^\]]*)\]\]", lambda m: "⟦" + m.group(1) + "¦" + m.group(2) + "⟧", v)
+    v = re.sub(r"\[\[([^\]|]*)\]\]", lambda m: "⟦" + m.group(1) + "¦" + m.group(1) + "⟧", v)
+    v = re.sub(r"\{\{\s*(?:flagicon|flagdeco|flag icon|efn|refn|sfn|cn|citation needed|increase|decrease|steady|sfnp|r|nbsp|snd|·|dot)\b[^{}]*\}\}",
+               "", v, flags=re.I)
+    for _ in range(5):
+        v2 = re.sub(r"\{\{\s*(?:nowrap|nobr|small|big|smaller|larger|nowrap begin|ill|interlanguage link|flagcountry|flag|lang-[a-z]+|transl)\s*\|\s*([^{}|]*)(?:\|[^{}]*)?\}\}",
+                    r"\1", v, flags=re.I)
+        v2 = re.sub(r"\{\{\s*lang\s*\|\s*[a-z-]+\s*\|\s*([^{}|]*)(?:\|[^{}]*)?\}\}", r"\1", v2, flags=re.I)
+        v2 = re.sub(r"\{\{\s*(?:ubl|unbulleted list|plainlist|plain list|hlist|flatlist|bulleted list|collapsible list|ublist|indented plainlist)\s*\|?([^{}]*)\}\}",
+                    lambda m: "\n".join(x for x in m.group(1).split("|") if not re.match(r"\s*(title|class|style|frame_style|list_style|item_style|framestyle|titlestyle|liststyle)\s*=", x, re.I)),
+                    v2, flags=re.I)
+        if v2 == v:
+            break
+        v = v2
+    v = re.sub(r"\{\{[^{}]*\}\}", "", v)
+    v = re.sub(r"(?i)<br\s*/?>", "\n", v)
+    v = re.sub(r"<[^>]+>", " ", v).replace("'''", "").replace("''", "").replace("&nbsp;", " ")
+    righe = []
+    for r in v.split("\n"):
+        r = re.sub(r"^\s*[*#:;]+\s*", "", r).strip()
+        if not r:
+            continue
+        if r.startswith("(") and righe:  # {{ubl|[[Larry Fink]]|(chairman and CEO)}}: il ruolo va con il nome di prima
+            righe[-1] += " " + r
+        else:
+            righe.append(r)
+    return righe, ref
+
+
+def _ibx_persona(riga, stati):
+    """Una riga → (nome, ruolo letto nella riga, destinazione del collegamento) oppure None se non è una persona."""
+    links = re.findall(r"⟦([^¦⟧]*)¦([^⟧]*)⟧", riga)
+    piano = re.sub(r"⟦([^¦⟧]*)¦([^⟧]*)⟧", r"\2", riga)
+    ruolo = ""
+    m = re.search(r"\(([^)]*)\)", piano)
+    if m:
+        ruolo = m.group(1)
+    nome, dest = "", ""
+    for d, t in links:
+        dl = _capi_testo(d)
+        if CAPI_PAROLE_RUOLO.search(d) or dl in stati or _capi_testo(t) in stati or ":" in d:
+            if not ruolo and CAPI_PAROLE_RUOLO.search(d):
+                ruolo = t
+            continue
+        nome, dest = t, d
+        break
+    if not nome:
+        testo = re.sub(r"\(.*?\)", "", piano).split(",")[0].strip()
+        if CAPI_PAROLE_RUOLO.search(testo) or _capi_testo(testo) in stati:
+            return None
+        nome = testo
+    nome = re.sub(r"\s+", " ", re.sub(r"\(.*?\)", "", nome)).strip(" ,;–-")
+    if len(nome.split()) == 1 and dest and 2 <= len(dest.split()) <= 6 and not CAPI_PAROLE_RUOLO.search(dest):
+        nome = re.sub(r"\s*\(.*?\)", "", dest)  # [[Salman of Saudi Arabia|Salman]]: il nome intero
+    if not ruolo and "," in piano:
+        ruolo = piano.split(",", 1)[1].strip()
+    if re.search(r"(?i)\b(since|from|until|dal|dal|acting|interim)\b|\d{4}", ruolo or ""):
+        ruolo = ""  # «(since 2021)» non è un ruolo
+    if (not nome or _capi_testo(nome) in CAPI_NON_NOMI or re.search(r"\d", nome) or len(nome) > 60
+            or len(nome.split()) > 7 or _capi_testo(nome) in stati):
+        return None
+    return nome, ruolo.strip(" ,;"), dest
+
+
+def capi_dal_riquadro(wikitesto, stati=None):
+    """Dalla voce di Wikipedia in inglese: chi guida secondo il riquadro iniziale. [[nome, ruolo in italiano, fonte citata,
+    destinazione del collegamento]], al massimo 6, nell'ordine del riquadro. Legge leader_title/leader_name (anche
+    numerati), chief1_name/chief1_position, president/governor delle banche centrali e key_people delle aziende."""
+    stati = stati if stati is not None else set()
+    P = _ibx_parametri(_ibx_blocco(wikitesto))
+    if not P:
+        return []
+    coppie = []  # (ordine, campo del nome, campo del ruolo, ruolo di riserva)
+    for k in P:
+        m = (re.fullmatch(r"leader_name(\d*)", k) or re.fullmatch(r"leader(\d+)_name", k) or re.fullmatch(r"chief(\d+)_name", k)
+             or re.fullmatch(r"chiefjudgename(\d*)", k) or re.fullmatch(r"president(\d*)", k) or re.fullmatch(r"(governor)", k)
+             or re.fullmatch(r"(ceo|chairman|chairperson|secretary_general|director|general_manager|managing_director)", k))
+        if not m:
+            continue
+        n = m.group(1)
+        if k.startswith("leader_name"):
+            tit = "leader_title" + n
+        elif k.startswith("leader"):
+            tit = f"leader{n}_title"
+        elif k.startswith("chiefjudge"):
+            tit = "chiefjudgetitle" + n
+        elif k.startswith("chief"):
+            tit = f"chief{n}_position"
+        elif k.startswith("president"):
+            tit = ("leader_title" if not n else f"leader{n}_title")
+        else:
+            tit = ""
+        ordine = int(n) if n.isdigit() else (1 if not n or not n.isdigit() else 9)
+        coppie.append((ordine, k, tit, {"governor": "governor", "ceo": "CEO", "chairman": "chairman", "chairperson": "chairman",
+                                         "secretary_general": "secretary general", "director": "director",
+                                         "general_manager": "general manager", "managing_director": "managing director"}.get(k, "")))
+    coppie.sort()
+    out = []
+    piano_ = lambda r: re.sub(r"⟦([^¦⟧]*)¦([^⟧]*)⟧", r"\2", r)
+    for _, k, tit, riserva in coppie:
+        righe, ref = _ibx_righe(P.get(k, ""))
+        titolo = piano_(" ".join(_ibx_righe(P.get(tit, ""))[0])) if tit else ""
+        if not titolo and k.startswith("president"):
+            titolo = "president"
+        in_attesa = ""  # «Director General<br />[[Rafael Grossi]]»: la riga del ruolo vale per il nome che segue
+        for r in righe:
+            p = _ibx_persona(r, stati)
+            if not p:
+                if CAPI_PAROLE_RUOLO.search(piano_(r)):
+                    in_attesa = piano_(r)
+                continue
+            ruolo = _capi_ruolo(p[1] or in_attesa or titolo or riserva)
+            in_attesa = ""
+            if not any(stessa_persona(p[0], o[0]) for o in out):
+                out.append([p[0], ruolo, ref, p[2]])
+    righe, ref = _ibx_righe(P.get("key_people", ""))
+    for r in righe:
+        p = _ibx_persona(r, stati)
+        if p and not any(stessa_persona(p[0], o[0]) for o in out):
+            out.append([p[0], _capi_ruolo(p[1]), ref, p[2]])
+    return out[:6]
+
+
+def _capi_wikitesti(titoli):
+    """L'inizio (sezione 0, con il riquadro) di fino a 20 voci di Wikipedia in inglese in una sola richiesta.
+    {titolo chiesto: (testo, data dell'ultima modifica)}; segue i rinvii (redirect) e i titoli scritti in modo diverso."""
+    u = "https://en.wikipedia.org/w/api.php?" + urllib.parse.urlencode({"action": "query", "prop": "revisions", "rvprop": "content|timestamp",
+                                                                          "rvslots": "main", "rvsection": 0, "titles": "|".join(titoli[:20]),
+                                                                          "redirects": 1, "format": "json", "formatversion": 2, "maxlag": 5})
+    for prova in range(2):
+        try:
+            d = json.loads(scarica(u, timeout=60, intestazioni=SIS_UA))
+            break
+        except urllib.error.HTTPError as e:
+            if e.code != 429 or prova:
+                raise
+            ra = (e.headers or {}).get("Retry-After") or "10"  # Wikipedia chiede di rallentare: si aspetta quanto dice, una volta
+            time.sleep(min(int(ra) if str(ra).isdigit() else 10, 30))
+    if "error" in d:
+        raise ValueError(str(d["error"].get("info") or d["error"])[:100])
+    q = d.get("query") or {}
+    verso = {}
+    for campo in ("normalized", "redirects"):
+        for x in q.get(campo) or []:
+            verso[x.get("from")] = x.get("to")
+    pagine = {}
+    for pg in q.get("pages") or []:
+        r = (pg.get("revisions") or [{}])[0]
+        pagine[pg.get("title")] = ((((r.get("slots") or {}).get("main") or {}).get("content")) or "", r.get("timestamp") or "")
+    out = {}
+    for t in titoli[:20]:
+        f = t
+        for _ in range(3):
+            f = verso.get(f, f)
+        out[t] = pagine.get(f) or ("", "")
+    return out
+
+
+CAPI_MODELLI_VIVI = re.compile(r"\{\{\s*(?:Current leader|Incumbent[^{}|]*|Current [^{}|]*holder)[^{}]*\}\}", re.I)
+
+
+def _capi_espandi(testi):
+    """Dalla 2.38: alcune voci (Stati Uniti, Svezia…) non scrivono il nome nel riquadro ma un modello che Wikipedia
+    riempie da sola ({{Current leader|Sweden|Prime Minister}}): si chiede a Wikipedia di espanderli, tutti insieme in una
+    sola richiesta, e si rimette il nome al loro posto. testi: {titolo: (testo, data)}, cambiato sul posto."""
+    modelli = []
+    for t, (w, _) in testi.items():
+        for m in CAPI_MODELLI_VIVI.findall(_ibx_blocco(w or "")):
+            if m not in modelli:
+                modelli.append(m)
+    if not modelli:
+        return 0
+    sep = "\n@@@PANGEO@@@\n"
+    corpo = urllib.parse.urlencode({"action": "expandtemplates", "prop": "wikitext", "format": "json", "formatversion": 2,
+                                    "text": sep.join(modelli[:40])}).encode()
+    d = json.loads(scarica("https://en.wikipedia.org/w/api.php", timeout=60, corpo=corpo,
+                           intestazioni=dict(SIS_UA, **{"Content-Type": "application/x-www-form-urlencoded"})))
+    pezzi = ((d.get("expandtemplates") or {}).get("wikitext") or "").split("@@@PANGEO@@@")
+    if len(pezzi) != len(modelli[:40]):
+        return 0
+    fatti = dict(zip(modelli, (re.sub(r"<[^>]+>", "", x).strip() for x in pezzi)))
+    for t, (w, v) in list(testi.items()):
+        if w and any(m in w for m in fatti):
+            for m, x in fatti.items():
+                w = w.replace(m, x)
+            testi[t] = (w, v)
+    return len(fatti)
+
+
+def _capi_sparql(q):
+    return json.loads(scarica("https://query.wikidata.org/sparql", timeout=120, corpo=urllib.parse.urlencode({"query": q}).encode(),
+                              intestazioni=dict(SIS_UA, **{"Accept": "application/sparql-results+json",
+                                                           "Content-Type": "application/x-www-form-urlencoded"})))
+
+
+def _capi_titoli(qs):
+    """Q → titolo della voce di Wikipedia in inglese ("" se non c'è), con una domanda SPARQL ogni 300 voci."""
+    out = {}
+    for i in range(0, len(qs), 300):
+        vals = " ".join("wd:" + q for q in qs[i:i + 300] if re.fullmatch(r"Q\d+", q))
+        r = _capi_sparql("SELECT ?x ?t WHERE { VALUES ?x { " + vals + " } OPTIONAL { ?a schema:about ?x ; "
+                         "schema:isPartOf <https://en.wikipedia.org/> ; schema:name ?t } }")
+        for b in r["results"]["bindings"]:
+            out[_pot_v(b, "x").rsplit("/", 1)[-1]] = _pot_v(b, "t")
+    return out
+
+
+def _capi_stati_wd(codici):
+    """Una sola domanda a Wikidata per tutti gli Stati: capo di Stato (P35) e capo del governo (P6) in carica, con la data
+    d'inizio, e il titolo della voce di Wikipedia in inglese. codici: {Stato: ISO3}."""
+    inv = {v: k for k, v in codici.items()}
+    vals = " ".join('"%s"' % c for c in sorted(inv))
+    q = ("SELECT ?iso ?x ?t ?pr ?capoL ?capoE ?ci WHERE { VALUES ?iso { " + vals + " } ?x wdt:P298 ?iso . "
+         "OPTIONAL { ?a schema:about ?x ; schema:isPartOf <https://en.wikipedia.org/> ; schema:name ?t } "
+         "{ ?x p:P35 ?st . ?st ps:P35 ?capo . BIND('P35' AS ?pr) } UNION { ?x p:P6 ?st . ?st ps:P6 ?capo . BIND('P6' AS ?pr) } "
+         "FILTER NOT EXISTS { ?st pq:P582 [] } FILTER NOT EXISTS { ?capo wdt:P570 [] } "
+         "FILTER NOT EXISTS { ?st wikibase:rank wikibase:DeprecatedRank } OPTIONAL { ?st pq:P580 ?ci } "
+         "OPTIONAL { ?capo rdfs:label ?capoE FILTER(lang(?capoE) = 'en') } "
+         + _POT_LAB % "?capo rdfs:label ?capoL ." + " }")
+    r = _capi_sparql(q)
+    per = {}
+    for b in r["results"]["bindings"]:
+        st_ = inv.get(_pot_v(b, "iso"))
+        if not st_:
+            continue
+        x = per.setdefault(st_, {"q": _pot_v(b, "x").rsplit("/", 1)[-1], "titolo": _pot_v(b, "t"), "tutti": []})
+        if _pot_v(b, "x").rsplit("/", 1)[-1] != x["q"]:
+            continue  # due voci con lo stesso codice: si tiene la prima
+        n = _pot_v(b, "capoL")
+        # un organo collegiale (il Consiglio federale svizzero) non è una persona: lo dice già il testo dello Stato
+        if n and not re.match(r"^Q\d+$", n) and not re.search(r"(?i)\b(consiglio|council|governo|government|presidenza|presidency|giunta|cabinet|direttorio|comitato)\b", n):
+            x["tutti"].append((_pot_v(b, "pr"), (_pot_v(b, "ci") or "")[:10], n, _pot_v(b, "capoE")))
+    out = {}
+    for st_, x in per.items():
+        wd = []
+        for pr, nome_r in (("P35", "capo di Stato"), ("P6", "capo del governo")):
+            l_ = sorted({(d, n, en) for p, d, n, en in x["tutti"] if p == pr}, reverse=True)
+            datati = [z for z in l_ if z[0]]
+            for d, n, en in (datati[:1] if datati else l_[:2]):
+                if not any(stessa_persona(n, w[0]) for w in wd):
+                    wd.append([n, nome_r, d] + ([en] if en and en != n else []))
+                else:  # la stessa persona è capo di Stato e del governo (repubbliche presidenziali)
+                    for w in wd:
+                        if stessa_persona(n, w[0]) and nome_r not in w[1]:
+                            w[1] += " e " + nome_r
+        out[st_] = {"q": x["q"], "titolo": x["titolo"], "wd": wd}
+    return out
+
+
+def _capi_chiavi_ente(nome, titolo, sezione, stato, paesi):
+    """Le parole che una notizia deve contenere perché parli di quell'ente (sigla, nome inglese, nome italiano)."""
+    chiavi = []
+    for n_ in (titolo, nome):
+        t = _capi_testo(n_).replace("’", "'")
+        if len(t) >= 5:
+            chiavi.append(t)
+        parole = [w for w in re.findall(r"[A-Za-z][A-Za-z'-]*", str(n_ or "")) if w.lower() not in ("of", "for", "and", "the", "in", "on", "d", "per", "le", "la", "di", "del", "della", "e", "des", "de")]
+        sigla = "".join(w[0] for w in parole if w[0].isupper()).lower()
+        if len(sigla) >= 3:
+            chiavi.append(" " + sigla + " ")
+        distinte = [w.lower() for w in parole if w.lower() not in CAPI_GENERICHE and len(w) >= 5]
+        if len(distinte) == 1 and sezione in ("gestori", "fondi"):
+            chiavi.append(_capi_testo(distinte[0]))
+    if sezione == "banche" and stato:
+        for a in [stato] + list(paesi.get(stato) or [])[:3]:
+            chiavi.append(("banca centrale", "central bank", "governor", "governatore", _capi_testo(a)))
+    return chiavi
+
+
+def _capi_chiavi(tipo, k, voci, paesi, titoli):
+    if tipo == "e":
+        s, x = voci[k]
+        return _capi_chiavi_ente(x.get("n"), titoli.get(k, ""), s, x.get("st") if isinstance(x.get("st"), str) else "", paesi)
+    return [" " + _capi_testo(a) + " " for a in [k] + list(paesi.get(k) or [])[:4]]
+
+
+def _capi_nelle_notizie(db, nome, chiavi, dal):
+    """Quante notizie lette dal telefono dopo «dal» nominano la persona insieme all'ente (o allo Stato), e la più recente."""
+    parole = [w for w in _capi_parole(nome) if len(w) >= 3][:3]
+    if not parole or db is None:
+        return [0, ""]
+    try:
+        righe = db.execute("SELECT testo, d FROM testi WHERE testi MATCH ? AND d >= ? LIMIT 80",
+                           (" ".join('"' + w + '"' for w in parole), dal)).fetchall()
+    except Exception:
+        return [0, ""]
+    n, ultima = 0, ""
+    for testo, d in righe:
+        t = " " + re.sub(r"[^a-z0-9' ]+", " ", _capi_testo(testo)) + " "
+        ok = not chiavi
+        for c in chiavi:
+            if isinstance(c, tuple):  # banca centrale: una parola del mestiere e il nome dello Stato
+                ok = any(w in t for w in c[:4]) and c[4] in t
+            else:
+                ok = c in t
+            if ok:
+                break
+        if ok:
+            n += 1
+            ultima = max(ultima, d or "")
+    return [n, ultima]
+
+
+def capi_valuta(wd, wp, notizie_wp=None, notizie_wd=None, ufficiale=""):
+    """Le due fonti a confronto → (esito, voto, perché). Esiti: concorde, diversi, solo_wp, solo_wd, manca.
+    Voto alla NATO: lettera della fonte migliore (A sito ufficiale, C Wikipedia/Wikidata, F nessuna) e numero
+    dell'informazione (1 confermata da una fonte indipendente, 2 probabile, 3 una sola fonte, 4 fonti in disaccordo, 6 manca)."""
+    notizie_wp, notizie_wd = notizie_wp or [0, ""], notizie_wd or [0, ""]
+    perche = []
+    if not wd and not wp:
+        return "manca", "F6", ["né Wikidata né Wikipedia dicono chi guida"]
+    lettera = "A" if ufficiale else "C"
+    if ufficiale:
+        perche.append("il nome si legge sul sito ufficiale citato da Wikipedia (" + ufficiale + ")")
+    if wd and wp:
+        if any(_capi_wd_uguale(a, b[0]) for a in wd for b in wp):
+            n = 1 if (notizie_wp[0] or ufficiale) else 2
+            perche.insert(0, "Wikidata e Wikipedia concordano" + ("" if n == 1 else " (non sono indipendenti: Wikipedia spesso si appoggia a Wikidata)"))
+            if notizie_wp[0]:
+                perche.append(f"{notizie_wp[0]} notizie lette dal programma lo nominano (l'ultima del {notizie_wp[1]})")
+            return "concorde", lettera + str(n), perche
+        if notizie_wp[0] and not notizie_wd[0]:
+            perche.insert(0, f"le fonti non concordano: Wikipedia dice {wp[0][0]}, Wikidata {wd[0][0]}; le notizie recenti "
+                             f"({notizie_wp[0]}, l'ultima del {notizie_wp[1]}) parlano di {wp[0][0]}: Wikidata è probabilmente vecchio")
+            return "diversi", lettera + "2", perche
+        if notizie_wd[0] and not notizie_wp[0]:
+            perche.insert(0, f"le fonti non concordano: Wikipedia dice {wp[0][0]}, Wikidata {wd[0][0]}; le notizie recenti "
+                             f"({notizie_wd[0]}) parlano di {wd[0][0]}")
+            return "diversi", lettera + "3", perche
+        perche.insert(0, f"le fonti non concordano: Wikipedia dice {wp[0][0]}, Wikidata {wd[0][0]} (forse ruoli diversi, forse un dato vecchio): da ricontrollare")
+        return "diversi", lettera + "4", perche
+    if wp:
+        perche.insert(0, "solo Wikipedia lo dice (Wikidata non ha chi guida)")
+        n = 2 if (notizie_wp[0] or ufficiale) else 3
+        if notizie_wp[0]:
+            perche.append(f"{notizie_wp[0]} notizie lette dal programma lo nominano (l'ultima del {notizie_wp[1]})")
+        return "solo_wp", lettera + str(n), perche
+    perche.insert(0, "solo Wikidata lo dice (la voce di Wikipedia non ha il riquadro o non lo scrive)")
+    n = 2 if notizie_wd[0] else 3
+    if notizie_wd[0]:
+        perche.append(f"{notizie_wd[0]} notizie lette dal programma lo nominano (l'ultima del {notizie_wd[1]})")
+    return "solo_wd", "C" + str(n), perche
+
+
+def _capi_ufficiale(wp, sito):
+    """Se Wikipedia cita come fonte del primo nome una pagina dello stesso sito dell'ente, la si apre e si guarda se il
+    cognome c'è davvero. Restituisce il dominio se c'è, "" altrimenti."""
+    if not wp or not sito or not wp[0][2]:
+        return ""
+    dom = lambda u: re.sub(r"^www\.", "", urllib.parse.urlparse(u).netloc.lower())
+    d_ref, d_sito = dom(wp[0][2]), dom(sito)
+    if not d_ref or not d_sito or not (d_ref == d_sito or d_ref.endswith("." + d_sito) or d_sito.endswith("." + d_ref)):
+        return ""
+    try:
+        h_ = scarica(wp[0][2], timeout=25).decode("utf-8", "replace")
+    except SenzaRete:
+        raise
+    except Exception:
+        return ""
+    h_ = re.sub(r"(?is)<(script|style|noscript|svg)\b.*?</\1>", " ", h_)
+    t = _capi_testo(html.unescape(re.sub(r"(?s)<[^>]+>", " ", h_)))
+    cognome = (_capi_parole(wp[0][0]) or [""])[-1]
+    return d_ref if cognome and cognome in t else ""
+
+
+def _unisci_base(locale, base, chiave="quando", accetta=None):
+    """Dalla 2.38: il motore nel cloud (GitHub Actions) rifà ogni settimana le basi in programma/. Il telefono prende dalla
+    base le voci più nuove delle sue (le sue più nuove restano). accetta(nuova, vecchia) può rifiutare una voce povera.
+    Restituisce quante voci ha preso."""
+    n = 0
+    for k, v in (base or {}).items():
+        if not isinstance(v, dict):
+            continue
+        l_ = locale.get(k)
+        if not isinstance(l_, dict) or str(v.get(chiave) or "") > str(l_.get(chiave) or ""):
+            if accetta is not None and isinstance(l_, dict) and not accetta(v, l_):
+                continue
+            locale[k] = v
+            n += 1
+    return n
+
+
+def _capi_carica():
+    perc = MAG("potere", "capi.json")
+    C = leggi_json(perc, None) or {}
+    B = leggi_json(os.path.join(QUI, "capi_base.json"), {}) or {}
+    for parte in ("enti", "stati"):
+        D = C.setdefault(parte, {})
+        for k, v in (B.get(parte) or {}).items():  # dal motore nel cloud: più nuove, ma senza le notizie del telefono
+            if isinstance(v, dict) and str(v.get("quando") or "") > str((D.get(k) or {}).get("quando") or ""):
+                D[k] = dict(v, ricalcola=True)
+    for k, v in (B.get("titoli") or {}).items():
+        C.setdefault("titoli", {}).setdefault(k, v)
+    if str((B.get("stati_wd") or {}).get("quando") or "") > str((C.get("stati_wd") or {}).get("quando") or ""):
+        C["stati_wd"] = B["stati_wd"]
+    return C
+
+
+def capi_aggiorna(cfg, adesso, errori, quanti=10, ufficiali=1, db=None, pausa=0):
+    """Pochi controlli a giro: prima ciò che non è mai stato controllato, poi i dubbi (disaccordo o mancante) dopo
+    capi.giorni_dubbi giorni, poi il resto dopo capi.giorni giorni. Una domanda a Wikidata per tutti gli Stati ogni
+    capi.giorni_stati giorni. Restituisce {"fatti", "enti", "stati", "diversi", "mancano", "in_coda"}."""
+    imp = cfg.get("capi", {}) or {}
+    perc = MAG("potere", "capi.json")
+    os.makedirs(os.path.dirname(perc), exist_ok=True)
+    C = _capi_carica()
+    E, S = C.setdefault("enti", {}), C.setdefault("stati", {})
+    P = leggi_json(MAG("potere", "potere.json"), None)
+    if P is None:
+        P = leggi_json(os.path.join(QUI, "potere_base.json"), {}) or {}
+    paesi = leggi_json(os.path.join(QUI, "paesi.json"), {}) or {}
+    stati_nomi = {_capi_testo(s) for s in paesi} | {_capi_testo(a) for l in paesi.values() for a in (l or [])[:3]}
+    esito = lambda: {"fatti": fatti, "enti": len(E), "stati": len(S),
+                     "diversi": sum(1 for x in list(E.values()) + list(S.values()) if x.get("esito") == "diversi"),
+                     "mancano": sum(1 for x in list(E.values()) + list(S.values()) if x.get("esito") == "manca"), "in_coda": len(coda)}
+    fatti, coda = 0, []
+    if not imp.get("attivo", True) or quanti <= 0:
+        return esito()
+    # 1. Wikidata per tutti gli Stati, una volta ogni tanto
+    W = C.get("stati_wd") or {}
+    if str(W.get("quando") or "") < (adesso - timedelta(days=imp.get("giorni_stati", 7))).isoformat():
+        try:
+            codici = {st_: c_[0] for st_, c_ in (cfg.get("codici") or {}).items() if c_ and c_[0] and st_ in paesi}
+            C["stati_wd"] = W = {"quando": adesso.isoformat(), "dati": _capi_stati_wd(codici)}
+        except SenzaRete:
+            raise
+        except Exception as e:
+            errori.append(f"Chi guida (Wikidata, Stati): {str(e)[:100]}")
+    WD = W.get("dati") or {}
+    # 2. la coda: enti delle sezioni del potere e Stati
+    voci = {}
+    for s in CAPI_SEZIONI:
+        for x in ((P.get(s) or {}).get("voci") or []):
+            if x.get("q"):
+                voci[x["q"]] = (s, x)
+    manca_titolo = [q for q in voci if q not in (C.get("titoli") or {})]
+    if manca_titolo:
+        try:
+            C.setdefault("titoli", {}).update(_capi_titoli(manca_titolo[:900]))
+        except SenzaRete:
+            raise
+        except Exception as e:
+            errori.append(f"Chi guida (titoli di Wikipedia): {str(e)[:100]}")
+    T = C.get("titoli") or {}
+    lim = (adesso - timedelta(days=imp.get("giorni", 14))).isoformat()
+    lim_d = (adesso - timedelta(days=imp.get("giorni_dubbi", 3))).isoformat()
+    def scaduto(r):
+        if not r:
+            return True
+        return str(r.get("quando") or "") < (lim_d if str(r.get("voto", "")).endswith(("4", "6")) else lim)
+    prio = {"istituzioni": 0, "banche": 1, "gestori": 2, "fondi": 3}
+    for q, (s, x) in voci.items():
+        if scaduto(E.get(q)):
+            coda.append((q in E, prio.get(s, 3), str((E.get(q) or {}).get("quando") or ""), "e", q))
+    for st_ in paesi:
+        if scaduto(S.get(st_)):
+            coda.append((st_ in S, 0, str((S.get(st_) or {}).get("quando") or ""), "s", st_))
+    coda.sort()
+    aperto_qui = False
+    if db is None and imp.get("notizie", True):
+        try:
+            db = _indice_apri() if os.path.exists(MAG("indice.sqlite")) else None
+            aperto_qui = db is not None
+        except Exception:
+            db = None
+    dal = (adesso - timedelta(days=imp.get("giorni_notizie", 120))).date().isoformat()
+    usati_uff = 0
+    # i controlli arrivati dal motore nel cloud: il voto si rifà qui con le notizie lette dal telefono (senza rete)
+    rifatti = 0
+    for tipo_r, D in (("e", E), ("s", S)):
+        for k, r in D.items():
+            if not r.get("ricalcola"):
+                continue
+            if db is not None and rifatti < 400 and (tipo_r == "s" or k in voci):
+                ch_ = _capi_chiavi(tipo_r, k, voci, paesi, T)
+                wd_, wp_ = r.get("wd") or [], r.get("wp") or []
+                n_wp = _capi_nelle_notizie(db, wp_[0][0], ch_, dal) if wp_ else [0, ""]
+                n_wd = _capi_nelle_notizie(db, wd_[0][0], ch_, dal) if wd_ and not (wp_ and _capi_wd_uguale(wd_[0], wp_[0][0])) else (n_wp if wd_ else [0, ""])
+                es_, vo_, pe_ = capi_valuta(wd_, wp_, n_wp, n_wd, r.get("uff", ""))
+                r.update(esito=es_, voto=vo_, perche=pe_, **{"not": [n_wp, n_wd]})
+                rifatti += 1
+            r.pop("ricalcola", None)
+    # 3. i controlli: prima i dati di ciascuno (Wikidata, titolo della voce), poi le voci di Wikipedia a gruppi di 20 in
+    #    una sola richiesta, poi il confronto
+    scelti = []
+    for _, _, _, tipo, k in [c_ for c_ in coda if c_[3] == "s" or c_[4] in T][:quanti]:
+        if tipo == "e":
+            s, x = voci[k]
+            scelti.append((tipo, k, T.get(k, ""), [list(c) for c in (x.get("cr") or [[n, "", ""] for n in (x.get("capi") or [])])],
+                           x.get("sito") or ""))
+        else:
+            w_ = WD.get(k) or {}
+            titolo = w_.get("titolo") or ((paesi.get(k) or [k, k])[1] if len(paesi.get(k) or []) > 1 else k)
+            scelti.append((tipo, k, titolo, [list(c) for c in (w_.get("wd") or [])], ""))
+    testi, fermo = {}, False
+    titoli_ = list(dict.fromkeys(t for _, _, t, _, _ in scelti if t))
+    for i_ in range(0, len(titoli_), 20):
+        if i_ and pausa:
+            time.sleep(pausa)
+        try:
+            testi.update(_capi_wikitesti(titoli_[i_:i_ + 20]))
+        except SenzaRete:
+            raise
+        except urllib.error.HTTPError as e:
+            if e.code == 429:  # Wikipedia chiede di rallentare: si smette per questo giro
+                errori.append("Chi guida: Wikipedia chiede di rallentare, riprendo al prossimo giro")
+            else:
+                errori.append(f"Chi guida (Wikipedia): HTTP {e.code}")
+            fermo = True
+            break
+        except Exception as e:
+            errori.append(f"Chi guida (Wikipedia): {str(e)[:80]}")
+            fermo = True
+            break
+    try:
+        _capi_espandi(testi)
+    except SenzaRete:
+        raise
+    except Exception as e:  # senza l'espansione restano i nomi scritti: il confronto si fa lo stesso
+        errori.append(f"Chi guida (modelli di Wikipedia): {str(e)[:80]}")
+    try:
+        for tipo, k, titolo, wd, sito in scelti:
+            if titolo and titolo not in testi:
+                if fermo:
+                    continue  # la sua voce non è arrivata: si controlla al prossimo giro
+                testi[titolo] = ("", "")
+            wikitesto, versione = testi.get(titolo) or ("", "")
+            wp = capi_dal_riquadro(wikitesto, stati_nomi) if wikitesto else []
+            chiavi = _capi_chiavi(tipo, k, voci, paesi, T)
+            uff = ""
+            if tipo == "e" and usati_uff < ufficiali and wp and (not wd or not any(_capi_wd_uguale(a, b[0]) for a in wd for b in wp)):
+                usati_uff += 1
+                uff = _capi_ufficiale(wp, sito)
+            n_wp = _capi_nelle_notizie(db, wp[0][0], chiavi, dal) if wp else [0, ""]
+            n_wd = (_capi_nelle_notizie(db, wd[0][0], chiavi, dal) if wd and not (wp and _capi_wd_uguale(wd[0], wp[0][0]))
+                    else n_wp if wd else [0, ""])
+            es, voto, perche = capi_valuta(wd, wp, n_wp, n_wd, uff)
+            if not titolo:
+                perche.append("non c'è una voce di Wikipedia in inglese")
+            elif not wikitesto:
+                perche.append("la voce di Wikipedia non si è aperta")
+            rec = {"quando": adesso.isoformat(), "titolo": titolo, "wd": wd, "wp": [[a, b, c] for a, b, c, _ in wp],
+                   "esito": es, "voto": voto, "perche": perche, "not": [n_wp, n_wd]}
+            if versione:
+                rec["wpv"] = versione[:10]  # la data dell'ultima modifica della voce: anche la fonte ha la sua data
+            if uff:
+                rec["uff"] = uff
+            (E if tipo == "e" else S)[k] = rec
+            fatti += 1
+    finally:
+        if aperto_qui:
+            try:
+                db.close()
+            except Exception:
+                pass
+    coda = coda[fatti:]
+    scrivi_json(perc, C)
+    return esito()
+
+
+def scrivi_capi_web(adesso):
+    C = _capi_carica()
+    if not (C.get("enti") or C.get("stati")):
+        return False
+    corto = lambda r: {"d": str(r.get("quando") or "")[:10], "t": r.get("titolo", ""), "wd": r.get("wd") or [], "wp": r.get("wp") or [],
+                       "e": r.get("esito", ""), "v": r.get("voto", ""), "p": r.get("perche") or [], "u": r.get("uff", ""),
+                       "wv": r.get("wpv", "")}
+    tutti = list((C.get("enti") or {}).values()) + list((C.get("stati") or {}).values())
+    conta = {}
+    for r in tutti:
+        conta[r.get("esito", "")] = conta.get(r.get("esito", ""), 0) + 1
+    vecchi = sum(1 for r in tutti if str(r.get("quando") or "") < (adesso - timedelta(days=30)).isoformat())
+    return _scrivi_se_cambia(os.path.join(WEB, "capi.js"), "window.CAPI=" + json.dumps(
+        {"agg": adesso.date().isoformat(), "enti": {k: corto(r) for k, r in (C.get("enti") or {}).items()},
+         "stati": {k: corto(r) for k, r in (C.get("stati") or {}).items()},
+         "salute": {"esiti": conta, "vecchi": vecchi, "totale": len(tutti)}},
+        ensure_ascii=False, separators=(",", ":")) + ";")
+
+
+# 15. Armi vendute e comprate (dalla 2.38): il registro dei trasferimenti di armi convenzionali maggiori dell'istituto
+#     SIPRI di Stoccolma (aerei, navi, carri, missili, artiglieria, radar, motori; non armi leggere né munizioni). Una
+#     sola richiesta porta tutti gli affari attivi negli ultimi armi.anni anni, compresi gli ordini non ancora consegnati.
+#     SIPRI aggiorna i dati una volta l'anno (a marzo): il telefono li rilegge ogni armi.giorni giorni. Uso consentito
+#     senza fini commerciali e citando la fonte (termini SIPRI): PanGeo li mostra Stato per Stato con la citazione.
+#     I TIV di SIPRI misurano il volume delle armi, non il prezzo pagato.
+SIPRI_API = "https://atbackend.sipri.org/api/p"
+SIPRI_STATO = {"N": "nuovo", "U": "usato", "M": "usato e ammodernato"}
+# SIPRI usa codici suoi (FRG, CHI, UK…), non quelli ISO: gli Stati si riconoscono dal nome inglese
+SIPRI_NOMI = {"Viet Nam": "Vietnam", "Turkiye": "Turchia", "Bosnia-Herzegovina": "Bosnia ed Erzegovina", "Cabo Verde": "Capo Verde",
+              "House of Representatives (Libya)": "Libia (Camera dei rappresentanti, est)", "unknown supplier(s)": "venditore sconosciuto",
+              "unknown recipient(s)": "compratore sconosciuto", "Houthi rebels (Yemen)": "Houthi (Yemen)", "Hezbollah (Lebanon)": "Hezbollah (Libano)",
+              "RSF (Sudan)": "RSF (Sudan)", "Syria rebels": "ribelli siriani", "Darfur rebels (Sudan)": "ribelli del Darfur (Sudan)",
+              "African Union": "Unione africana", "European Union": "Unione europea", "United Nations": "ONU", "Western Sahara": "Sahara occidentale"}
+
+
+def _sipri(percorso, corpo=None):
+    h = dict(SIS_UA, **{"Content-Type": "application/json", "Accept": "application/json", "Authorization": ""})
+    return json.loads(scarica(SIPRI_API + percorso, timeout=240, intestazioni=h, corpo=corpo))
+
+
+def _sipri_anni(t):
+    """«2023; 2024; 2025» → «2023-2025»."""
+    anni = sorted({int(x) for x in re.findall(r"\d{4}", t or "")})
+    if not anni:
+        return ""
+    if len(anni) > 2 and anni[-1] - anni[0] == len(anni) - 1:
+        return f"{anni[0]}-{anni[-1]}"
+    return ", ".join(str(a) for a in anni)
+
+
+def sipri_righe(testo, inv):
+    """Il registro in CSV → affari corti: [compratore, venditore, anno dell'ordine, quanti ordinati, nome dell'arma,
+    tipo, quanti consegnati nel periodo, anni di consegna, N/U/M, nota (corta), TIV dell'ordine, TIV consegnato].
+    inv: nome (anche inglese) → Stato di PanGeo; i gruppi non statali restano con il nome di SIPRI."""
+    import csv
+    import io
+    righe = testo.splitlines()
+    i0 = next((i for i, r in enumerate(righe) if r.startswith("Recipient,Supplier")), None)
+    if i0 is None:
+        raise ValueError("registro SIPRI senza intestazione")
+    stato = lambda n: inv.get(n.strip().lower()) or SIPRI_NOMI.get(n.replace("*", "").strip()) or n.replace("*", "").strip()
+    out = []
+    for r in csv.reader(io.StringIO("\n".join(righe[i0 + 1:]))):
+        if len(r) < 16 or not r[0]:
+            continue
+        num = lambda x: float(x) if re.fullmatch(r"\d+(\.\d+)?", (x or "").strip()) else None
+        st_ = {"New": "N", "Second hand": "U", "Second hand but modernized": "M"}.get(r[11].strip(), "")
+        out.append([stato(r[0]), stato(r[1]), int(r[2]) if r[2].isdigit() else None, (r[4] or "") + ("?" if r[5].strip() == "?" else ""),
+                    r[6].strip(), r[7].strip(), (r[8] or "") + ("?" if r[9].strip() == "?" else ""), _sipri_anni(r[10]), st_,
+                    re.sub(r"\s+", " ", r[12]).strip()[:140], num(r[14]), num(r[15])])
+    return out
+
+
+def armi_aggiorna(cfg, adesso, errori):
+    """Il registro SIPRI, una volta ogni armi.giorni giorni (e ogni 3 giorni ad aprile, quando arrivano i dati dell'anno
+    prima). dati/magazzino/armi/sipri.json; base del motore nel cloud in programma/armi_base.json."""
+    imp = cfg.get("armi", {}) or {}
+    perc = MAG("armi", "sipri.json")
+    os.makedirs(os.path.dirname(perc), exist_ok=True)
+    A = leggi_json(perc, None) or {}
+    B = leggi_json(os.path.join(QUI, "armi_base.json"), {}) or {}
+    if str(B.get("quando") or "") > str(A.get("quando") or "") and len(B.get("affari") or []) >= 1000:
+        A = B
+        scrivi_json(perc, A)
+    esito = {"fatti": 0, "affari": len(A.get("affari") or []), "anno": A.get("anno")}
+    if not imp.get("attivo", True):
+        return esito
+    giorni = 3 if adesso.month in (3, 4) and int(A.get("anno") or 0) < adesso.year - 1 else imp.get("giorni", 30)
+    if str(A.get("quando") or "") >= (adesso - timedelta(days=giorni)).isoformat() or \
+            str(A.get("errore") or "") >= (adesso - timedelta(days=1)).isoformat():
+        return esito
+    try:
+        anno = int(_sipri("/trades/getMaxYear"))
+        if anno == A.get("anno") and str(A.get("quando") or "") >= (adesso - timedelta(days=imp.get("giorni_stesso_anno", 90))).isoformat():
+            A["quando"] = adesso.isoformat()  # stessi dati dell'anno: si ricontrolla più avanti
+            scrivi_json(perc, A)
+            return esito
+        anni = int(imp.get("anni", 10))
+        filtri = [{"field": "activePrograms", "oldField": "", "condition": "contains", "value1": anno - anni + 1, "value2": anno, "listData": []},
+                  {"field": "opendeals", "oldField": "", "condition": "", "value1": "", "value2": "", "listData": []}]
+        import base64
+        d = _sipri("/trades/trade-register-csv/?output=csv", json.dumps({"filters": filtri, "logic": "AND"}).encode())
+        affari = sipri_righe(base64.b64decode(d.get("bytes") or "").decode("utf-8", "replace"), _sis_inverso())
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Armi (SIPRI): {str(e)[:100]}")
+        A["errore"] = adesso.isoformat()
+        scrivi_json(perc, A)
+        return esito
+    if len(affari) < max(1000, int(0.6 * len(A.get("affari") or []))):
+        errori.append(f"Armi (SIPRI): solo {len(affari)} affari, tengo quelli di prima")
+        A["errore"] = adesso.isoformat()
+        scrivi_json(perc, A)
+        return esito
+    A = {"quando": adesso.isoformat(), "anno": anno, "da": anno - anni + 1, "affari": affari}
+    scrivi_json(perc, A)
+    esito.update(fatti=1, affari=len(affari), anno=anno)
+    return esito
+
+
+def scrivi_armi_web(adesso):
+    A = leggi_json(MAG("armi", "sipri.json"), None) or leggi_json(os.path.join(QUI, "armi_base.json"), {}) or {}
+    if not A.get("affari"):
+        return False
+    return _scrivi_se_cambia(os.path.join(WEB, "armi.js"), "window.ARMI=" + json.dumps(
+        {"agg": str(A.get("quando") or "")[:10], "anno": A.get("anno"), "da": A.get("da"), "affari": A["affari"],
+         "fonte": "SIPRI Arms Transfers Database", "link": "https://armstransfers.sipri.org"},
+        ensure_ascii=False, separators=(",", ":")) + ";")
+
+
+# 16. I fatti dentro gli articoli (dalla 2.38): degli articoli che il telefono ha letto (le notizie confermate più
+#     importanti) il cervello tira fuori i fatti concreti: chi, che cosa, quanti, dove, quando. Ogni fatto porta la frase
+#     esatta dell'articolo che lo dice; il programma la cerca parola per parola nel testo e scarta il fatto se non c'è, o
+#     se un numero del fatto non compare nell'articolo. Spesa con un tetto (fatti.al_giorno articoli al giorno). La frase
+#     resta sul telefono; sul sito vanno il fatto, la fonte e il link.
+FATTI_CODA = 60
+
+
+def fatti_in_coda(k, v, testo):
+    """Chiamata da leggi_articoli: l'articolo appena letto va nella coda dei fatti (dati/fatti_coda.json)."""
+    perc = os.path.join(DATI, "fatti_coda.json")
+    Q = leggi_json(perc, []) or []
+    if any(x.get("k") == k for x in Q):
+        return
+    Q.append({"k": k, "t": v.get("it") or v.get("t") or "", "d": (v.get("data_iso") or "")[:10], "p": v.get("paesi") or [],
+              "f": v.get("fonte") or "", "u": v.get("u") or "", "nf": v.get("nf") or 1, "testo": testo})
+    scrivi_json(perc, Q[-FATTI_CODA:])
+
+
+def _fatti_domanda(x, testo):
+    return ("Sei l'estrattore di fatti di PanGeo, un archivio di geopolitica e difesa. Dal testo dell'articolo qui sotto "
+            "tira fuori al massimo 4 fatti concreti: chi ha fatto che cosa, con i numeri, i luoghi e le date quando ci sono. "
+            "Solo fatti scritti nel testo: niente opinioni, previsioni o commenti, niente fatti di contorno.\n"
+            "Una riga per fatto, esattamente così:\n"
+            "F | chi | che cosa (in italiano, al massimo 20 parole) | quanti (numeri con l'unità, oppure -) | dove (oppure -) | "
+            "quando (data, oppure -) | la frase dell'articolo che lo dice, copiata parola per parola nella sua lingua (al massimo 30 parole)\n"
+            "Se nel testo non ci sono fatti concreti scrivi solo: NIENTE\n\n"
+            f"Titolo: {x.get('t', '')}\nFonte: {x.get('f', '')}, {x.get('d', '')}\n\nTESTO:\n{testo}")
+
+
+def _fatti_norm(t):
+    return re.sub(r"\s+", " ", re.sub(r"[\"“”«»„'’‘`´]", "", _capi_testo(t))).strip()
+
+
+def fatto_verificato(citazione, testo):
+    """Vero se la frase sta nel testo (a meno di virgolette, maiuscole e spazi), o se ne sta un pezzo continuo di almeno
+    il 90%."""
+    import difflib
+    c, t = _fatti_norm(citazione), _fatti_norm(testo)
+    if len(c) < 20:
+        return False
+    if c in t:
+        return True
+    m = difflib.SequenceMatcher(None, t, c, autojunk=False).find_longest_match(0, len(t), 0, len(c))
+    return m.size >= 0.9 * len(c)
+
+
+def _fatti_numeri_ok(quanti, testo):
+    """Ogni numero del fatto deve stare nel testo (si confrontano le cifre senza separatori)."""
+    t = re.sub(r"(?<=\d)[.,' ](?=\d{3}\b)", "", testo or "")
+    for n in re.findall(r"\d+(?:[.,]\d+)?", re.sub(r"(?<=\d)[.,' ](?=\d{3}\b)", "", quanti or "")):
+        if n not in t and n.replace(",", ".") not in t and n.replace(".", ",") not in t:
+            return False
+    return True
+
+
+def fatti_leggi_risposta(risposta, testo):
+    """Le righe «F | …» del cervello → (fatti tenuti, scartati)."""
+    tenuti, scartati = [], 0
+    for r in (risposta or "").splitlines():
+        p = [x.strip() for x in r.strip().split("|")]
+        if len(p) < 7 or p[0].upper() != "F":
+            continue
+        chi, cosa, quanti, dove, quando, cit = p[1], p[2], p[3], p[4], p[5], " | ".join(p[6:]).strip(" \"«»")
+        quanti = "" if quanti in ("-", "—", "") else quanti
+        if not chi or not cosa or not fatto_verificato(cit, testo) or not _fatti_numeri_ok(quanti, testo):
+            scartati += 1
+            continue
+        tenuti.append({"chi": chi[:80], "cosa": cosa[:200], "quanti": quanti[:80], "dove": "" if dove in ("-", "—") else dove[:60],
+                       "quando": "" if quando in ("-", "—") else quando[:40], "cit": cit[:300]})
+    return tenuti[:4], scartati
+
+
+def fatti_aggiorna(chiavi, cfg, adesso, errori, quanti=3):
+    imp = cfg.get("fatti", {}) or {}
+    perc_q = os.path.join(DATI, "fatti_coda.json")
+    perc = MAG("fatti", "fatti.json")
+    os.makedirs(os.path.dirname(perc), exist_ok=True)
+    F = leggi_json(perc, {}) or {}
+    oggi = adesso.date().isoformat()
+    if F.get("giorno") != oggi:
+        F["giorno"], F["oggi"] = oggi, 0
+    esito = {"articoli": 0, "fatti": 0, "scartati": 0, "totale": len(F.get("fatti") or {}), "in_coda": 0}
+    Q = leggi_json(perc_q, []) or []
+    vecchi_ = (adesso - timedelta(days=3)).date().isoformat()
+    Q = [x for x in Q if x.get("d", "") >= vecchi_ and x.get("k") not in (F.get("fatti") or {})]
+    esito["in_coda"] = len(Q)
+    ic = cfg.get("cervello", {}) or {}
+    if (not imp.get("attivo", True) or quanti <= 0 or not chiavi.get("anthropic_key") or not ic.get("attivo", True)
+            or F["oggi"] >= imp.get("al_giorno", 40) or not Q):
+        scrivi_json(perc_q, Q)
+        return esito
+    conto = _conto_cervello()
+    Q.sort(key=lambda x: (x.get("nf") or 1, x.get("d", "")), reverse=True)
+    fatti = F.setdefault("fatti", {})
+    for x in list(Q[:quanti]):
+        if not _cervello_libero(conto, ic) or conto.get("passo") or F["oggi"] >= imp.get("al_giorno", 40):
+            break
+        testo = (x.get("testo") or "")[:int(imp.get("caratteri", 4000))]
+        try:
+            risposta = chiedi_claude(chiavi, cfg, _fatti_domanda(x, testo), 700, conto)
+            conto["chiamate"] = conto.get("chiamate", 0) + 1
+        except Exception as e:
+            errori.append("Fatti dagli articoli (cervello): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:120])
+            break
+        tenuti, scartati = fatti_leggi_risposta(risposta, testo)
+        fatti[x["k"]] = {"quando": adesso.isoformat(), "d": x.get("d"), "t": x.get("t"), "p": x.get("p"), "f": x.get("f"), "u": x.get("u"),
+                         "fatti": tenuti, "scartati": scartati}
+        Q = [y for y in Q if y.get("k") != x["k"]]
+        F["oggi"] += 1
+        esito["articoli"] += 1
+        esito["fatti"] += len(tenuti)
+        esito["scartati"] += scartati
+    limite = (adesso - timedelta(days=imp.get("giorni", 90))).date().isoformat()
+    F["fatti"] = {k: v for k, v in fatti.items() if str(v.get("d") or "") >= limite}
+    F["totale_articoli"] = F.get("totale_articoli", 0) + esito["articoli"]
+    F["totale_fatti"] = F.get("totale_fatti", 0) + esito["fatti"]
+    scrivi_json(os.path.join(DATI, "cervello.json"), conto)
+    scrivi_json(perc, F)
+    scrivi_json(perc_q, Q)
+    esito.update(totale=len(F["fatti"]), in_coda=len(Q))
+    return esito
+
+
+def scrivi_fatti_web(adesso):
+    """Sul sito il fatto, la fonte e il link (non la frase dell'articolo): per ogni Stato gli ultimi 40."""
+    F = leggi_json(MAG("fatti", "fatti.json"), {}) or {}
+    per = {}
+    for k, a in sorted((F.get("fatti") or {}).items(), key=lambda kv: str(kv[1].get("d") or ""), reverse=True):
+        for f in a.get("fatti") or []:
+            riga = [a.get("d"), f.get("chi"), f.get("cosa"), f.get("quanti"), f.get("dove"), f.get("quando"), a.get("f"), a.get("u"), a.get("t")]
+            for st_ in (a.get("p") or ["—"])[:3]:
+                l_ = per.setdefault(st_, [])
+                if len(l_) < 40:
+                    l_.append(riga)
+    if not per:
+        return False
+    return _scrivi_se_cambia(os.path.join(WEB, "fatti.js"), "window.FATTI=" + json.dumps(
+        {"agg": adesso.date().isoformat(), "stati": per, "articoli": F.get("totale_articoli", 0), "fatti": F.get("totale_fatti", 0)},
+        ensure_ascii=False, separators=(",", ":")) + ";")
+
+
+def controlli_passo(chiavi, cfg, adesso, tel, errori, leggero):
+    """Dalla 2.38, dopo il potere: chi guida (controllato), armi SIPRI, fatti dagli articoli. Restituisce le tre righe
+    del diario."""
+    R = leggi_json(os.path.join(DATI, "regia.json"), {}) or {}
+    lenta = R.get("rete") == "lenta"
+    out = {}
+    ic = cfg.get("capi", {}) or {}
+    try:
+        n_ = 0 if lenta else (ic.get("per_giro_carica", 20) if R.get("spinta") else ic.get("per_giro", 10))
+        c_ = capi_aggiorna(cfg, adesso, errori, n_, 1 if R.get("spinta") else 0)
+        out["capi"] = [c_["fatti"], c_["enti"], c_["stati"], c_["diversi"], c_["mancano"], c_["in_coda"]]
+        if c_["fatti"] or not leggero:
+            scrivi_capi_web(adesso)
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Chi guida: {str(e)[:100]}")
+    if not lenta:
+        try:
+            a_ = armi_aggiorna(cfg, adesso, errori)
+            out["armi"] = [a_["fatti"], a_["affari"], a_["anno"]]
+            if a_["fatti"] or not leggero:
+                scrivi_armi_web(adesso)
+        except SenzaRete:
+            raise
+        except Exception as e:
+            errori.append(f"Armi (SIPRI): {str(e)[:100]}")
+    try:
+        fi = cfg.get("fatti", {}) or {}
+        f_ = fatti_aggiorna(chiavi, cfg, adesso, errori, fi.get("per_giro_carica", 6) if R.get("spinta") else fi.get("per_giro", 3))
+        out["fatti"] = [f_["articoli"], f_["fatti"], f_["scartati"], f_["totale"], f_["in_coda"]]
+        if f_["articoli"] or not leggero:
+            scrivi_fatti_web(adesso)
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Fatti dagli articoli: {str(e)[:100]}")
+    return out
 
 
 # 8. Totali (dalla 2.33.7): quanto ha fatto il programma da quando esiste, ogni mese, ogni giorno. Il diario tiene solo gli
@@ -7739,6 +8816,7 @@ TOTALI_VOCI = [("voci", "voci nuove raccolte"), ("tradotti", "titoli di testate 
                ("schede", "fatti messi in schede"), ("memoria", "fatti confermati messi in memoria"), ("avvisi", "avvisi"),
                ("fonti", "fonti trovate da solo"), ("verifiche", "notizie verificate"), ("accordi", "accordi trovati"),
                ("appalti", "appalti trovati"), ("intel", "fatti sui servizi segreti"), ("cronologie", "cronologie storiche scritte"),
+               ("capi", "cariche controllate su più fonti"), ("fatti_art", "fatti tirati fuori dagli articoli"),
                ("giri", "giri del programma"), ("mb", "MB scaricati")]
 
 
@@ -7753,6 +8831,7 @@ def _totali_di(r):
     return {"voci": r.get("nuove") or 0, "tradotti": g("attesa", 0), "articoli": g("articoli", 0), "schede": g("x229", 0),
             "memoria": g("memoria", 0), "avvisi": g("x229", 1), "fonti": len(r.get("fonti_nuove") or []), "verifiche": g("verifiche", 0),
             "accordi": g("piano", 1), "appalti": g("piano", 2), "intel": g("intel", 0), "cronologie": g("storia", 0), "giri": 1,
+            "capi": g("capi", 0), "fatti_art": g("fatti", 1),
             "mb": round(r.get("mb") or 0, 1)}
 
 
@@ -7842,6 +8921,12 @@ def lavoro_229(archivio, adesso, cfg, chiavi, dati_cielo, dati_calore, tel, erro
         raise
     except Exception as e:
         errori.append(f"Biblioteca: {str(e)[:100]}")
+    try:  # dalla 2.38: chi guida controllato su più fonti, armi vendute e comprate (SIPRI), fatti dagli articoli
+        esito["controlli"] = controlli_passo(chiavi, cfg, adesso, tel, errori, leggero)
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Controlli: {str(e)[:100]}")
     try:
         esito["indice"] = indice_aggiorna(archivio, adesso, cfg, secondi=cfg.get("indice", {}).get("secondi", 45))
     except Exception as e:
@@ -9929,6 +11014,8 @@ def _aggiorna(leggero=False):
         "potere": [(esito_229.get("potere") or {}).get(c_) for c_ in ("fatte", "sezioni", "voci", "gruppi")],
         "biblioteca": [(esito_229.get("biblioteca") or {}).get(c_) for c_ in ("libri", "capitoli", "lezioni", "dinamiche", "lezioni_totali",
                                                                                 "dinamiche_totali", "studi_nuovi", "scaricato", "scartate", "archivi")],
+        "capi": (esito_229.get("controlli") or {}).get("capi"), "armi": (esito_229.get("controlli") or {}).get("armi"),
+        "fatti": (esito_229.get("controlli") or {}).get("fatti"),
         "regia": [(leggi_json(os.path.join(DATI, "regia.json"), {}) or {}).get(c_) for c_ in ("passo", "articoli", "cronologie", "rete")],
         "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
@@ -10552,7 +11639,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         avvisato = False
         for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json", "totali_base.json",
                      "sistemi.json", "sistemi_base.json", "potere_base.json", "aziende_lei.json", "gruppi_base.json",
-                     "archivi_base.json") + tuple(sorted(SCRIPT)):
+                     "archivi_base.json", "capi_base.json", "armi_base.json") + tuple(sorted(SCRIPT)):
             src = os.path.join(cartella, "programma", nome)
             dst = os.path.join(QUI, nome)
             if os.path.exists(src) and (not os.path.exists(dst) or open(src, "rb").read() != open(dst, "rb").read()):
@@ -10645,7 +11732,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         for nome in (("diario.json", "rapporto.json", "rapporti.json", "avvisi.json", "totali.js") if solo_diario else
                      ("live.json", "live.js", "sapere.js", "memoria.js", "piano.js", "servizi.js", "basi.js", "diario.json",
                       "rapporto.json", "rapporti.json", "avvisi.json", "andamento.js", "schede.js", "economia.js", "storia.js", "totali.js",
-                      "sistemi.js", "potere.js", "biblioteca.js")):
+                      "sistemi.js", "potere.js", "biblioteca.js", "capi.js", "armi.js", "fatti.js")):
             sorgente = os.path.join(DATI if nome.endswith(".json") else WEB, nome)
             if os.path.exists(sorgente):
                 shutil.copyfile(sorgente, os.path.join(cartella, nome))
@@ -10657,7 +11744,12 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         if subprocess.run(["git", "-C", cartella, "diff", "--cached", "--quiet"]).returncode != 0:
             subprocess.run(["git", "-C", cartella, "-c", "user.name=Castello", "-c", "user.email=castello@localhost",
                             "commit", "-m", "Dati live dal telefono"], check=True)
-            subprocess.run(["git", "-C", cartella, "push"], check=True)
+            if subprocess.run(["git", "-C", cartella, "push"]).returncode != 0:
+                # dalla 2.38 anche il motore nel cloud scrive nel repository (solo programma/*_base.json): se è arrivato
+                # prima lui, si riprendono i suoi file e si rimanda (i file non si toccano mai a vicenda)
+                subprocess.run(["git", "-C", cartella, "-c", "user.name=Castello", "-c", "user.email=castello@localhost",
+                                "pull", "--rebase"], check=True)
+                subprocess.run(["git", "-C", cartella, "push"], check=True)
         print("Sincronizzazione fatta.")
     except (OSError, subprocess.CalledProcessError) as e:
         # mai mostrare il token contenuto nell'indirizzo del repository
@@ -11174,6 +12266,46 @@ if __name__ == "__main__":
         print(f"Studi dai centri di ricerca: {len(S_b.get('voci') or [])}, letti il {(S_b.get('quando') or 'mai')[:16]}")
         for v_b in (S_b.get("voci") or [])[:8]:
             print(f"  {v_b[0]} · {v_b[3]} · {v_b[1][:110]}")
+    elif comando == "capi":  # dalla 2.38: python castello.py capi [nome di Stato o di ente]
+        C_c = _capi_carica()
+        cosa_c = _capi_testo(" ".join(a[1:]).strip())
+        tutti_c = [("Stato", k, r) for k, r in (C_c.get("stati") or {}).items()] + [("ente", r.get("titolo") or k, r) for k, r in (C_c.get("enti") or {}).items()]
+        if not cosa_c:
+            conta_c = {}
+            for _, _, r in tutti_c:
+                conta_c[r.get("esito")] = conta_c.get(r.get("esito"), 0) + 1
+            print(f"Chi guida, controllato: {len(tutti_c)} voci · " + ", ".join(f"{k}: {v}" for k, v in sorted(conta_c.items(), key=lambda z: -z[1])))
+            for t_, n_, r in [z for z in tutti_c if z[2].get("esito") in ("diversi", "manca")][:30]:
+                print(f"  {r.get('voto')} {n_}: " + "; ".join(r.get("perche") or [])[:200])
+            print("Per uno:  python castello.py capi Italia   (o il nome inglese di un ente: capi NATO)")
+        for t_, n_, r in tutti_c:
+            if cosa_c and cosa_c in _capi_testo(n_):
+                print(f"{n_} ({t_}) · voto {r.get('voto')} · {r.get('esito')} · controllato il {str(r.get('quando'))[:10]}")
+                print("  Wikidata: " + ("; ".join(f"{x[0]} ({x[1]}{', dal ' + x[2] if x[2] else ''})" for x in r.get("wd") or []) or "niente"))
+                print("  Wikipedia: " + ("; ".join(f"{x[0]} ({x[1]})" for x in r.get("wp") or []) or "niente"))
+                for p_ in r.get("perche") or []:
+                    print("  · " + p_)
+    elif comando == "armi":  # dalla 2.38: python castello.py armi [Stato]
+        A_a = leggi_json(MAG("armi", "sipri.json"), None) or leggi_json(os.path.join(QUI, "armi_base.json"), {}) or {}
+        st_a = " ".join(a[1:]).strip()
+        aff_a = A_a.get("affari") or []
+        print(f"SIPRI: {len(aff_a)} affari attivi dal {A_a.get('da')} al {A_a.get('anno')}, letti il {str(A_a.get('quando') or 'mai')[:10]}")
+        if st_a:
+            for tit_a, i_a in (("Comprati", 0), ("Venduti", 1)):
+                l_a = sorted([x for x in aff_a if x[i_a] == st_a], key=lambda x: -(x[10] or 0))
+                print(f"{tit_a} ({len(l_a)}):")
+                for x in l_a[:15]:
+                    print(f"  {x[2]} · {x[3]} {x[4]} ({x[5]}) {'da ' + x[1] if i_a == 0 else 'a ' + x[0]} · consegnati {x[6] or 0} {x[7]}")
+    elif comando == "fatti":  # dalla 2.38: python castello.py fatti [Stato]
+        F_f = leggi_json(MAG("fatti", "fatti.json"), {}) or {}
+        st_f = " ".join(a[1:]).strip()
+        print(f"Fatti dagli articoli: {F_f.get('totale_fatti', 0)} da {F_f.get('totale_articoli', 0)} articoli (oggi {F_f.get('oggi', 0)})")
+        for k_f, x_f in sorted((F_f.get("fatti") or {}).items(), key=lambda z: str(z[1].get("d")), reverse=True)[:200]:
+            if st_f and st_f not in (x_f.get("p") or []):
+                continue
+            for f_ in x_f.get("fatti") or []:
+                print(f"  {x_f.get('d')} · {f_['chi']}: {f_['cosa']}" + (f" ({f_['quanti']})" if f_.get("quanti") else "") + f" · {x_f.get('f')}")
+                print(f"      «{f_['cit'][:200]}»")
     elif comando == "avvisi":  # dalla 2.29: gli avvisi delle ultime 48 ore
         V_ = leggi_json(os.path.join(DATI, "avvisi.json"), {}) or {}
         da_ = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()

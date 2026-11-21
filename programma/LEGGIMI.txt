@@ -405,6 +405,44 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.38 (21 novembre) – IL CONTROLLO DEI DATI, LE ARMI SIPRI, I FATTI DAGLI ARTICOLI, IL MOTORE NEL CLOUD
+- Il modello per i dati che cambiano (prima: chi guida Stati, istituzioni, banche centrali, grandi banche e fondi):
+  1. ogni dato è un'affermazione con fonte, data della fonte e data del controllo (provenienza, come nel modello PROV
+     del W3C);
+  2. due voti separati, come nel codice dell'Ammiragliato della NATO (AJP-2.1): la fonte da A (sito ufficiale) a F
+     (nessuna) e l'informazione da 1 (confermata da una fonte indipendente) a 6 (non giudicabile). Wikidata e Wikipedia
+     valgono C, affidabilità media;
+  3. due fonti che copiano l'una dall'altra contano come una: Wikidata e Wikipedia d'accordo danno al massimo C2
+     («probabile»); per C1 servono le notizie lette dal telefono che nominano la persona con l'ente o lo Stato, per A il
+     sito ufficiale citato da Wikipedia (il programma lo apre e cerca il cognome);
+  4. ogni dato scade: dopo 14 giorni si ricontrolla, quelli in disaccordo o mancanti dopo 3;
+  5. quando le fonti non concordano non si sceglie in silenzio: la pagina mostra tutte e due, con le date;
+  6. quando manca si scrive che manca, e il dato va in testa alla coda;
+  7. il voto vale per quell'affermazione in quel momento e si rifà a ogni controllo.
+- Fonti per chi guida: Wikidata (con la data d'inizio e, dalla 2.38, anche il nome inglese), il riquadro iniziale della
+  voce di Wikipedia in inglese (20 voci in una sola richiesta; i nomi che Wikipedia riempie da sola, come
+  {{Current leader}} di Stati Uniti e Svezia, si fanno espandere a Wikipedia), le notizie già lette (indice istantaneo).
+  Nomi traslitterati in modi diversi (Lukašenko, Lukashenko) si riconoscono; padre e figlio no (Ali e Mojtaba Khamenei).
+- Esempi trovati il 21/11: BRI (Banca dei Regolamenti Internazionali) senza capo su Wikidata → Pablo Hernández de Cos
+  da Wikipedia; AIIB: Wikidata dice ancora Jin Liqun, Wikipedia Zou Jiayi; OSCE: Wikidata Helga Schmid, Wikipedia
+  Feridun Sinirlioğlu; banche centrali di Svizzera, Brasile, Spagna, Colombia, Paesi Bassi con Wikidata indietro.
+- Pagina: in Potere ogni nome con il voto e la data; cartella «Controllo dei dati: chi guida» con il modello, i conti e
+  l'elenco dei disaccordi; nella pagina di ogni Stato, sotto Governo, il controllo automatico e l'avviso se un capo di
+  Stato o di governo indicato dalle fonti non compare nel testo (o se è Wikidata a essere indietro).
+- Armi vendute e comprate: il registro SIPRI dei trasferimenti di armi convenzionali maggiori degli ultimi 10 anni
+  (6.247 affari, 1.220 ordini non ancora consegnati) in una sola richiesta ogni 30 giorni. Pagina «Armi vendute e
+  comprate» (area Difesa), in ogni Stato chi gli vende e a chi vende, in ogni sistema d'arma chi l'ha comprato. Uso non
+  commerciale con citazione (termini SIPRI); i TIV misurano il volume, non il prezzo.
+- Fatti dagli articoli: degli articoli letti (notizie confermate) il cervello tira fuori chi, che cosa, quanti, dove,
+  quando; ogni fatto porta la frase esatta, che il programma cerca parola per parola nel testo: se non c'è o se un
+  numero non torna, il fatto si scarta. Al massimo 40 articoli al giorno (circa 0,02 $ al giorno). La frase resta sul
+  telefono; sul sito il fatto e il link. Comando:  python castello.py fatti [Stato]
+- Motore nel cloud (GitHub Actions, gratis per i repository pubblici): ogni domenica alle 3:17 rifà potere, chi guida,
+  chi controlla chi, archivi di tutti i 198 Stati, schede dei sistemi d'arma e registro SIPRI, e scrive solo
+  programma/*_base.json. Il telefono prende le voci più nuove delle sue (e rifà il voto dei capi con le sue notizie).
+  Nessuna chiave sul cloud. Se il telefono e il motore mandano insieme, il telefono riprende e rimanda.
+- Comandi nuovi:  python castello.py capi [Stato o ente]   ·   armi [Stato]   ·   fatti [Stato]
+
 NOVITÀ 2.37 (21 novembre) – DOCUMENTI DESECRETATI E TRAPELATI
 - Per 2 Stati a giro (prima quelli con avvisi recenti, poi l'ordine del piano; ogni Stato rifatto dopo 60 giorni) il
   telefono cerca: nei FRUS (Foreign Relations of the United States: i documenti diplomatici desecretati che il

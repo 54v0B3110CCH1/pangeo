@@ -1,0 +1,44 @@
+# Motore nel cloud di PanGeo (dalla 2.38): una volta alla settimana rifà le basi dei dati aperti (potere, chi guida,
+# chi controlla chi, archivi, sistemi d'arma, armi SIPRI) e le mette in programma/*_base.json. Il telefono, al giro dopo,
+# prende le voci più nuove. Nessuna chiave: solo dati pubblici. Si lancia anche a mano: scheda Actions › Motore › Run.
+name: Motore nel cloud
+on:
+  schedule:
+    - cron: "17 2 * * 0"   # domenica alle 2:17 UTC (le 3:17 in Italia d'inverno)
+  workflow_dispatch:
+    inputs:
+      lavori:
+        description: "Lavori (vuoto = tutti): potere capi gruppi archivi sistemi armi"
+        required: false
+        default: ""
+permissions:
+  contents: write
+concurrency:
+  group: motore
+  cancel-in-progress: false
+jobs:
+  motore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Lavori pesanti sui dati aperti
+        run: python3 tools/motore.py ${{ github.event.inputs.lavori }} --minuti 300
+      - name: Manda le basi nuove (solo programma/*_base.json)
+        run: |
+          git config user.name "PanGeo motore"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add programma/*_base.json
+          if git diff --cached --quiet; then echo "Niente di nuovo"; exit 0; fi
+          git commit -m "Motore nel cloud: basi aggiornate"
+          for i in 1 2 3 4 5 6; do
+            git pull --rebase && git push && exit 0
+            echo "Il telefono ha mandato i suoi dati nel frattempo: riprovo tra 30 secondi"
+            sleep 30
+          done
+          exit 1
