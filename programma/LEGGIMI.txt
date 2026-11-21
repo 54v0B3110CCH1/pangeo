@@ -405,6 +405,9 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.38.1 (21 novembre) – i comandi  capi  e  armi  dicono che cosa manca invece di restare muti (prima della
+sincronizzazione le basi non sono ancora sul telefono).
+
 NOVITÀ 2.38 (21 novembre) – IL CONTROLLO DEI DATI, LE ARMI SIPRI, I FATTI DAGLI ARTICOLI, IL MOTORE NEL CLOUD
 - Il modello per i dati che cambiano (prima: chi guida Stati, istituzioni, banche centrali, grandi banche e fondi):
   1. ogni dato è un'affermazione con fonte, data della fonte e data del controllo (provenienza, come nel modello PROV

@@ -61,7 +61,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.38"
+VERSIONE = "2.38.1"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -12278,6 +12278,12 @@ if __name__ == "__main__":
             for t_, n_, r in [z for z in tutti_c if z[2].get("esito") in ("diversi", "manca")][:30]:
                 print(f"  {r.get('voto')} {n_}: " + "; ".join(r.get("perche") or [])[:200])
             print("Per uno:  python castello.py capi Italia   (o il nome inglese di un ente: capi NATO)")
+        if not tutti_c:
+            print("Nessun controllo ancora sul telefono: la base arriva con la prossima sincronizzazione "
+                  "(python castello.py sincronizza) e i giri ne fanno 10-20 a volta.")
+        elif cosa_c and not any(cosa_c in _capi_testo(n_) for _, n_, _ in tutti_c):
+            print(f"Nessun controllo per «{' '.join(a[1:]).strip()}». Gli Stati si scrivono come nella pagina (Iran, USA, "
+                  "Regno Unito); gli enti con il nome inglese della voce di Wikipedia (NATO, Bank for International Settlements).")
         for t_, n_, r in tutti_c:
             if cosa_c and cosa_c in _capi_testo(n_):
                 print(f"{n_} ({t_}) · voto {r.get('voto')} · {r.get('esito')} · controllato il {str(r.get('quando'))[:10]}")
@@ -12289,8 +12295,12 @@ if __name__ == "__main__":
         A_a = leggi_json(MAG("armi", "sipri.json"), None) or leggi_json(os.path.join(QUI, "armi_base.json"), {}) or {}
         st_a = " ".join(a[1:]).strip()
         aff_a = A_a.get("affari") or []
-        print(f"SIPRI: {len(aff_a)} affari attivi dal {A_a.get('da')} al {A_a.get('anno')}, letti il {str(A_a.get('quando') or 'mai')[:10]}")
-        if st_a:
+        if not aff_a:
+            print("Il registro SIPRI non è ancora sul telefono: arriva con la prossima sincronizzazione "
+                  "(python castello.py sincronizza) oppure lo scarica il programma al prossimo giro (una richiesta).")
+        else:
+            print(f"SIPRI: {len(aff_a)} affari attivi dal {A_a.get('da')} al {A_a.get('anno')}, letti il {str(A_a.get('quando') or 'mai')[:10]}")
+        if st_a and aff_a:
             for tit_a, i_a in (("Comprati", 0), ("Venduti", 1)):
                 l_a = sorted([x for x in aff_a if x[i_a] == st_a], key=lambda x: -(x[10] or 0))
                 print(f"{tit_a} ({len(l_a)}):")
