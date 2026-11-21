@@ -405,6 +405,21 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.34 (21 novembre, mattina) – OGNI STATO A 360° E SCALETTA CONTROLLATA
+- Correzione: nella scaletta «Le più rilevanti adesso» il cervello scriveva la sua classifica (1, 2, 3…) al posto del
+  numero della notizia, così ogni «perché» finiva sotto la notizia sbagliata (sotto «Sciopero generale in Veneto» c'era
+  il commento sulla clausola dell'Ucraina). Ora ogni voce ha un codice (V12) e il cervello copia le prime parole del
+  titolo: il programma tiene la riga solo se titolo e perché parlano della stessa voce, altrimenti cerca la voce giusta
+  dalle parole o scarta la riga. Lo stesso per le voci dei collegamenti. Al primo giro la scaletta vecchia si ripulisce
+  una volta e il quadro si rifà subito.
+- Com'è fatto ogni Stato (Banca Mondiale, 3 indicatori a giro: config.json › economia › banca_mondiale_per_giro): da dove
+  viene il PIL (agricoltura, industria, manifattura, servizi), PIL per abitante, crescita, disoccupazione, rendite delle
+  risorse, export di combustibili e di alta tecnologia, ricerca, turisti, rimesse; istruzione (laureati, iscritti
+  all'università e alle superiori, alfabetizzazione, spesa); salute (speranza di vita, mortalità sotto i 5 anni, medici,
+  letti, spesa); società (città, internet, elettricità, povertà, figli per donna).
+- Prodotti di punta: i 10 capitoli che ogni Stato esporta di più (UN Comtrade, capitoli a 2 cifre).
+- Pagina, estensione 43: nella scheda di ogni Stato il riquadro «Com'è fatto lo Stato».
+
 NOVITÀ 2.33 (20 novembre, sera) – LA STORIA DI OGNI STATO, COLLEGATA AL PRESENTE
 - Una volta alla settimana il programma scarica due archivi accademici gratuiti (pochi KB): i conflitti armati dal 1946
   dell'Università di Uppsala (UCDP/PRIO, con la violenza contro i civili e gli scontri tra gruppi armati) e l'elenco dei

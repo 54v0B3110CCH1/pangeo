@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.33.8"
+VERSIONE = "2.34"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -5541,6 +5541,36 @@ WB_INDICATORI = (
     ("BN.CAB.XOKA.GD.ZS", "conto_corrente", "Saldo del conto corrente, % del PIL"),
     ("MS.MIL.MPRT.KD", "armi_import", "Importazioni di armi (indice SIPRI)"),
     ("MS.MIL.XPRT.KD", "armi_export", "Esportazioni di armi (indice SIPRI)"),
+    # dalla 2.34: com'è fatto lo Stato (economia per settori, istruzione, salute, società), sempre dalla Banca Mondiale
+    ("NY.GDP.PCAP.CD", "pil_abitante", "PIL per abitante (dollari)"),
+    ("NY.GDP.MKTP.KD.ZG", "crescita", "Crescita del PIL, % all’anno"),
+    ("NV.AGR.TOTL.ZS", "agricoltura_pil", "Agricoltura, pesca e foreste, % del PIL"),
+    ("NV.IND.TOTL.ZS", "industria_pil", "Industria (con costruzioni ed energia), % del PIL"),
+    ("NV.IND.MANF.ZS", "manifattura_pil", "Manifattura, % del PIL"),
+    ("NV.SRV.TOTL.ZS", "servizi_pil", "Servizi, % del PIL"),
+    ("NY.GDP.TOTL.RT.ZS", "rendite_risorse", "Rendite delle risorse naturali (petrolio, gas, minerali, legno), % del PIL"),
+    ("TX.VAL.FUEL.ZS.UN", "export_combustibili", "Combustibili, % delle merci esportate"),
+    ("TX.VAL.TECH.MF.ZS", "alta_tecnologia", "Alta tecnologia, % dei manufatti esportati"),
+    ("GB.XPD.RSDV.GD.ZS", "ricerca_pil", "Ricerca e sviluppo, % del PIL"),
+    ("ST.INT.ARVL", "turisti", "Turisti arrivati in un anno"),
+    ("BX.TRF.PWKR.DT.GD.ZS", "rimesse_pil", "Rimesse degli emigrati, % del PIL"),
+    ("SL.UEM.TOTL.ZS", "disoccupazione", "Disoccupazione, % della forza lavoro"),
+    ("SE.TER.CUAT.BA.ZS", "laureati", "Laureati (almeno triennale), % delle persone con 25 anni o più"),
+    ("SE.TER.ENRR", "iscritti_universita", "Iscritti all’università, % (lordo) dei giovani in età"),
+    ("SE.SEC.ENRR", "iscritti_superiori", "Iscritti alle scuole superiori, % (lordo)"),
+    ("SE.ADT.LITR.ZS", "alfabetizzazione", "Adulti che sanno leggere e scrivere, %"),
+    ("SE.XPD.TOTL.GD.ZS", "spesa_istruzione", "Spesa pubblica per l’istruzione, % del PIL"),
+    ("SP.DYN.LE00.IN", "speranza_vita", "Aspettativa di vita alla nascita (anni)"),
+    ("SH.XPD.CHEX.GD.ZS", "spesa_sanita", "Spesa sanitaria, % del PIL"),
+    ("SH.DYN.MORT", "mortalita_5anni", "Bambini morti prima dei 5 anni, ogni 1.000 nati"),
+    ("SH.MED.PHYS.ZS", "medici", "Medici ogni 1.000 abitanti"),
+    ("SH.MED.BEDS.ZS", "letti", "Letti d’ospedale ogni 1.000 abitanti"),
+    ("SP.URB.TOTL.IN.ZS", "urbana", "Popolazione che vive in città, %"),
+    ("IT.NET.USER.ZS", "internet", "Persone che usano internet, %"),
+    ("EG.ELC.ACCS.ZS", "elettricita", "Persone con l’elettricità, %"),
+    ("SI.POV.DDAY", "poverta", "Povertà estrema (meno di 3 dollari al giorno a parità di potere d’acquisto), %"),
+    ("SP.POP.GROW", "crescita_popolazione", "Crescita della popolazione, % all’anno"),
+    ("SP.DYN.TFRT.IN", "figli_donna", "Figli per donna"),
 )
 TASSI_ISO2 = ("US", "DE", "IT", "FR", "ES", "GB", "JP", "CA", "AU", "NL", "BE", "AT", "PT", "GR", "IE", "FI", "SE", "DK", "NO", "CH",
               "PL", "CZ", "HU", "SK", "SI", "LT", "LV", "EE", "LU", "IS", "IL", "KR", "MX", "CL", "CO", "NZ", "TR", "ZA", "IN", "CN", "RU", "BR")
@@ -5607,7 +5637,8 @@ def economia(cfg, adesso, errori, secondi=90):
         except Exception as e:
             errori.append(f"Economia (Banca Mondiale {chiave}): {str(e)[:80]}")
             agg_bm[chiave] = (adesso - timedelta(days=imp.get("banca_mondiale_giorni", 7)) + timedelta(hours=6)).isoformat()
-        break
+        if sum(1 for f_ in fatti if f_.startswith("Banca Mondiale")) >= imp.get("banca_mondiale_per_giro", 1) or time.time() - t0 > secondi:
+            break
     # 2. valute: una volta al giorno, tutte insieme
     val = E.setdefault("valute", {"storia": {}})
     if _eco_scade(val.get("agg"), ore=imp.get("valute_ore", 20)) and time.time() - t0 < secondi:
@@ -5688,6 +5719,20 @@ def economia(cfg, adesso, errori, secondi=90):
                         break  # nessun dato per quell'anno: si prova l'anno prima
                 if ok_:
                     r_["anno"] = anno
+                    try:  # dalla 2.34: i prodotti di punta, cioè le esportazioni verso tutto il mondo per capitolo delle dogane
+                        d = json.loads(scarica(f"https://comtradeapi.un.org/public/v1/preview/C/A/HS?reporterCode={cod[st_][2]}&period={anno}"
+                                               f"&flowCode=X&cmdCode=AG2&partnerCode=0&includeDesc=true", timeout=40))
+                        pr_ = {}
+                        for x in d.get("data") or []:
+                            if not x.get("partner2Code") and x.get("motCode", 0) == 0 and x.get("customsCode", "C00") == "C00" and x.get("primaryValue"):
+                                pr_[str(x.get("cmdCode"))] = pr_.get(str(x.get("cmdCode")), 0) + x["primaryValue"]
+                        r_["Xprod"] = [[k, round(v)] for k, v in sorted(pr_.items(), key=lambda kv: -kv[1])[:10]]
+                        time.sleep(2.5)
+                    except SenzaRete:
+                        raise
+                    except Exception as e_p:
+                        if "429" in str(e_p) or "403" in str(e_p):
+                            raise
                     break
             com[st_] = r_
         except Exception as e:
@@ -5724,7 +5769,8 @@ def scrivi_economia_web(cfg, adesso):
         for st_, l in serie.items():
             z = S.setdefault(st_, {}).setdefault("bm", {})
             z[chiave] = l[-1]
-            if chiave in ("mil_pil", "debito_pil", "import_pil", "export_pil", "armi_import", "armi_export", "inflazione"):
+            if chiave in ("mil_pil", "debito_pil", "import_pil", "export_pil", "armi_import", "armi_export", "inflazione",
+                          "speranza_vita", "crescita", "disoccupazione", "laureati", "pil_abitante"):
                 S[st_].setdefault("serie", {})[chiave] = l[-12:]
     for st_, x in (E.get("tassi") or {}).items():
         if x.get("s"):
@@ -5738,7 +5784,7 @@ def scrivi_economia_web(cfg, adesso):
                                                    _var_valuta(storia, c[3], 365)]
     for st_, x in (E.get("comtrade") or {}).items():
         if x.get("anno"):
-            S.setdefault(st_, {})["commercio"] = {k: x.get(k) for k in ("anno", "M", "X", "M93", "X93", "M_tot", "X_tot", "M93_tot", "X93_tot")}
+            S.setdefault(st_, {})["commercio"] = {k: x.get(k) for k in ("anno", "M", "X", "M93", "X93", "M_tot", "X_tot", "M93_tot", "X93_tot", "Xprod")}
     mat = {k: {"nome": n, "s": ((E.get("materie") or {}).get(k) or {}).get("s", [])[-250:]} for _, k, n in MATERIE}
     _scrivi_se_cambia(os.path.join(WEB, "economia.js"), "window.ECONOMIA=" + json.dumps(
         {"agg": adesso.astimezone().strftime("%d/%m/%Y %H:%M"), "stati": S, "materie": mat, "fonti": ECO_FONTI,
@@ -6627,6 +6673,81 @@ def _quadro_voci(archivio, P, adesso, imp):
     return voci + fatti[:imp.get("fatti_piano", 50)]
 
 
+_QV_VUOTE = set("della delle dello degli dalla dalle nella nelle sulla sulle sugli dagli negli come dopo prima sono anche "
+                "contro verso secondo ancora mentre perché quando quale quali questa questo nuovo nuova nuovi nuove molto "
+                "the and for with from into after over its their this that have has will are was were been says said new "
+                "about more than they what which while".split())
+
+
+def _quadro_parole(testo):
+    """Le parole che contano di un testo, accorciate a 6 lettere (Ucraina e ucraino, eliminare ed eliminazione), più le
+    sigle e i nomi corti degli Stati (USA, UE, ONU)."""
+    t = (testo or "").lower()
+    lunghe = {w[:6] for w in re.findall(r"[a-zà-ÿ0-9]{4,}", t) if w not in _QV_VUOTE}
+    sigle = {w.lower() for w in re.findall(r"\b[A-Z]{2,4}\b", testo or "")}
+    return lunghe | sigle
+
+
+def _quadro_punti(voce, testo):
+    pv = _quadro_parole(voce.get("t", "") + " " + " ".join(voce.get("paesi") or []))
+    return len(pv & _quadro_parole(testo))
+
+
+def _quadro_voce_di(voci, n, eco, perche, presi=()):
+    """Dalla 2.34: il numero che il cervello scrive vale solo se parla davvero di quella voce. Prima le parole del titolo
+    che ha copiato, poi il perché: devono stare nel titolo (o negli Stati) della voce. Se il numero è sbagliato (per
+    esempio ha scritto la sua classifica 1, 2, 3 invece del codice) si cerca la voce giusta dalle parole; se non c'è una
+    voce chiara, la riga si scarta. Restituisce l'indice della voce o None."""
+    liberi = [i for i in range(len(voci)) if i + 1 not in presi]
+    for testo, serve in ((eco, 2), (perche, 2)):
+        pt = _quadro_parole(testo)
+        if not pt:
+            continue
+        soglia = min(serve, len(pt))
+        if 0 < n <= len(voci) and n not in presi and _quadro_punti(voci[n - 1], testo) >= soglia:
+            return n - 1
+        punti = sorted(((_quadro_punti(voci[i], testo), i) for i in liberi), reverse=True)
+        if punti and punti[0][0] >= max(soglia, 3 if testo is perche else soglia) and (len(punti) < 2 or punti[0][0] > punti[1][0]):
+            return punti[0][1]
+    return None
+
+
+def _quadro_voci_del_legame(voci, nums, testo):
+    """Le voci di un collegamento restano solo se il collegamento ne parla (almeno due parole o Stati in comune); se ne
+    restano meno di due, si cercano dalle parole del collegamento."""
+    buone = [n for n in nums if _quadro_punti(voci[n - 1], testo) >= 2]
+    if len(buone) < 2:
+        altre = sorted(((_quadro_punti(v, testo), i + 1) for i, v in enumerate(voci) if i + 1 not in buone), reverse=True)
+        buone += [n for p_, n in altre if p_ >= 3][:max(0, 2 - len(buone))]
+    return buone[:5]
+
+
+def quadro_ripulisci(Q):
+    """Una volta sola (2.34): la scaletta e i collegamenti scritti prima del controllo. Ogni perché resta solo sotto la voce
+    di cui parla davvero (se la voce giusta è nella scaletta la si sposta lì); il resto si toglie e il quadro si rifà
+    al giro dopo."""
+    vecchia = Q.get("scaletta") or []
+    voci = [{k: v for k, v in x.items() if k not in ("r", "perche")} for x in vecchia]
+    # tutte le coppie perché–voce, dalla più sicura: così due perché simili non si rubano la voce
+    coppie = sorted(((_quadro_punti(v, x.get("perche", "")), j, i) for j, x in enumerate(vecchia) for i, v in enumerate(voci)),
+                    reverse=True)
+    dato, preso = {}, set()
+    for punti, j, i in coppie:
+        if punti >= 3 and j not in dato and i not in preso:
+            dato[j] = i
+            preso.add(i)
+    nuova = [dict(voci[dato[j]], r=x.get("r"), perche=x.get("perche", "")) for j, x in enumerate(vecchia) if j in dato]
+    tolte = len(vecchia) - len(nuova)
+    Q["scaletta"] = nuova
+    for c in Q.get("collegamenti") or []:
+        vv = c.get("voci") or []
+        tieni = [v for v in vv if _quadro_punti(v, (c.get("stati") or "") + " " + (c.get("testo") or "")) >= 2]
+        tolte += len(vv) - len(tieni)
+        c["voci"] = tieni
+    Q["iso"] = ""  # il quadro si rifà al prossimo giro, con il controllo
+    return tolte
+
+
 def quadro(chiavi, cfg, archivio, leggero, errori):
     """Il cervello guarda il quadro intero, ogni 3 ore (nei giri completi): mette in scaletta le notizie e i fatti più
     rilevanti, cerca che cosa li collega e, per ogni collegamento, scrive la domanda da verificare. Nei giri dopo il
@@ -6639,6 +6760,13 @@ def quadro(chiavi, cfg, archivio, leggero, errori):
     perc = os.path.join(DATI, "quadro.json")
     Q = leggi_json(perc, {})
     Q.setdefault("collegamenti", [])
+    if Q.get("ripulito") != "2.34":
+        try:
+            Q["tolte_2_34"] = quadro_ripulisci(Q)
+        except Exception as e:
+            errori.append(f"Quadro (pulizia): {str(e)[:100]}")
+        Q["ripulito"] = "2.34"
+        scrivi_json(perc, Q)
     conto = _conto_cervello()
     adesso = datetime.now(timezone.utc)
     ultimo = Q.get("iso", "")
@@ -6653,16 +6781,17 @@ def quadro(chiavi, cfg, archivio, leggero, errori):
                 "Sei l'analista di un archivio pubblico di difesa e geopolitica. Qui sotto ci sono le notizie confermate da più "
                 "fonti nelle ultime 24 ore e i fatti che il programma ha trovato sulla stampa negli ultimi 30 giorni (accordi, "
                 "appalti, intelligence, energia, trasporti, cibo e risorse, IA militare). Sono i pezzi di un puzzle: cerca "
-                "soprattutto i collegamenti tra temi e Stati diversi. Formato: numero. [tipo] data – Stati – testo – fonte. Usa SOLO queste voci: non "
+                "soprattutto i collegamenti tra temi e Stati diversi. Formato: codice. [tipo] data – Stati – testo – fonte. Usa SOLO queste voci: non "
                 "aggiungere nulla che sai per conto tuo.\n\n"
                 "PARTE 1, SCALETTA: scegli da 10 a 15 voci, le più rilevanti per la difesa e la sicurezza, in ordine dalla più "
-                "importante. Una riga per voce:\n"
-                "R | numero | rilevanza da 1 a 5 | perché conta, in una frase in italiano\n"
+                "importante (l'ordine delle righe è la classifica: NON numerarle tu). Una riga per voce:\n"
+                "R | codice della voce (per esempio V12) | rilevanza da 1 a 5 | le prime parole del titolo, copiate | perché "
+                "conta, in una frase in italiano, su QUELLA voce\n"
                 "(5 = cambia gli equilibri tra Stati o in una regione; 3 = importante per uno Stato; 1 = minore).\n\n"
-                "PARTE 2, COLLEGAMENTI: fino a 5 collegamenti tra voci diverse, ognuno con almeno due numeri. Per esempio lo "
+                "PARTE 2, COLLEGAMENTI: fino a 5 collegamenti tra voci diverse, ognuno con almeno due codici. Per esempio lo "
                 "stesso Stato o la stessa azienda in fatti diversi, un accordo e un appalto che si spiegano a vicenda, una mossa "
                 "di uno Stato e la risposta di un altro. Una riga per collegamento:\n"
-                "K | numeri delle voci collegate | Stati coinvolti | il collegamento in una frase in italiano | da 3 a 7 parole "
+                "K | codici delle voci collegate (per esempio V3, V17) | Stati coinvolti | il collegamento in una frase in italiano | da 3 a 7 parole "
                 "da cercare, senza virgolette | lingua in cui cercare (it, en, oppure la sigla della lingua del posto) | che "
                 "cosa vuoi sapere, in italiano\n\n"
                 "Regole. Un collegamento è ciò che le voci mostrano, non un'ipotesi: se è solo possibile, comincia con "
@@ -6671,7 +6800,7 @@ def quadro(chiavi, cfg, archivio, leggero, errori):
                 "senza titoli e senza commenti.\n" +
                 ("\nGIÀ TROVATI:\n" + "\n".join("· " + g for g in gia) + "\n" if gia else "") +
                 "\nVOCI\n" + "\n".join(
-                    f"{i + 1}. [{v['tipo']}] {v['d'] or 'senza data'} – {', '.join(v['paesi']) or '-'} – {v['t']} – {v['fonte']}"
+                    f"V{i + 1}. [{v['tipo']}] {v['d'] or 'senza data'} – {', '.join(v['paesi']) or '-'} – {v['t']} – {v['fonte']}"
                     + (f" ({v['nf']} fonti)" if v.get("nf", 1) > 1 else "") for i, v in enumerate(voci)))
             try:
                 risposta = chiedi_claude(chiavi, cfg, domanda, 2200, conto)
@@ -6680,18 +6809,23 @@ def quadro(chiavi, cfg, archivio, leggero, errori):
                 errori.append("Claude (quadro): " + re.sub(r"sk-ant-[A-Za-z0-9_-]+", "***", str(e))[:160])
                 risposta = None
             if risposta is not None:
-                scaletta, nuovi, presi = [], [], set()
+                scaletta, nuovi, presi, scartate_ = [], [], set(), 0
                 for riga in risposta.splitlines():
                     p = [x.strip(" *`") for x in riga.strip().lstrip("-•* ").split("|")]
                     sigla = p[0].upper().strip(" .:)") if p else ""
                     if sigla == "R" and len(p) >= 4:
                         n_ = re.search(r"\d+", p[1])
                         r_ = re.search(r"[1-5]", p[2])
-                        if n_ and r_ and 0 < int(n_.group(0)) <= len(voci) and int(n_.group(0)) not in presi and len(p[3]) > 8:
-                            presi.add(int(n_.group(0)))
-                            scaletta.append(dict(voci[int(n_.group(0)) - 1], r=int(r_.group(0)), perche=pulisci(p[3], 240)))
+                        eco_, perche_ = (p[3], p[-1]) if len(p) >= 5 else ("", p[3])
+                        i_ = _quadro_voce_di(voci, int(n_.group(0)) if n_ else 0, eco_, perche_, presi)
+                        if i_ is None:
+                            scartate_ += 1
+                        elif r_ and len(perche_) > 8:
+                            presi.add(i_ + 1)
+                            scaletta.append(dict(voci[i_], r=int(r_.group(0)), perche=pulisci(perche_, 240)))
                     elif sigla == "K" and len(p) >= 7:
                         nums = list(dict.fromkeys(int(x) for x in re.findall(r"\d+", p[1]) if 0 < int(x) <= len(voci)))
+                        nums = _quadro_voci_del_legame(voci, nums, p[2] + " " + p[3])
                         q = " ".join(re.sub(r'[<>{}\\"«»()]|https?:\S*', " ", p[4]).split())
                         if len(nums) >= 2 and len(p[3]) > 15 and 2 <= len(q.split()) <= 9 and len(q) <= 110:
                             nuovi.append({"iso": adesso.isoformat(), "stati": pulisci(p[2], 120), "testo": pulisci(p[3], 300),
@@ -6705,6 +6839,7 @@ def quadro(chiavi, cfg, archivio, leggero, errori):
                         Q["scaletta"] = scaletta[:15]
                     Q["collegamenti"] = (nuovi[:5] + Q["collegamenti"])[:imp.get("tieni", 40)]
                     esito[:2] = [len(scaletta), len(nuovi[:5])]
+                    Q["scartate"] = scartate_  # righe in cui il numero e il perché non parlavano della stessa voce
                 else:
                     errori.append(f"Claude (quadro): risposta senza righe R o K ({len(risposta)} caratteri)")
     # 2. le domande dei collegamenti: si cercano e si risponde, poche a giro

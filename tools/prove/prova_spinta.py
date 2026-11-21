@@ -59,7 +59,7 @@ for par in (1, 8):
     open("/home/claude/q16/esito.txt", "a").write(f"paralleli {par}: {risultati[par]}\n")
     print("paralleli", par, "→ durata", risultati[par][0], "s · spinta", d.get("spinta"), "· nuove", d.get("nuove"),
           "· richieste", len(conta), "· contemporanee max", massimo[0], "· invariate (304)", d.get("invariate"))
-    assert d.get("v", "").startswith("2.32")
+    assert d.get("v", "") == C.VERSIONE
 assert risultati[1][2] == risultati[8][2], "le voci nuove devono essere le stesse"
 assert risultati[8][1][3] < risultati[1][1][3], "in parallelo i feed devono durare meno"
 assert risultati[8][4] > 1 and risultati[1][4] == 1
@@ -74,6 +74,8 @@ sp3 = C.spinta(json.load(open(os.path.join(C.QUI, "config.json"))), {"in_carica"
 assert not sp3["piena"] and "caldo" in sp3["perche"]
 imp = {"thread": 4}
 C.os.cpu_count = lambda: 8
+_c = json.load(open(os.path.join(C.QUI, "config.json"))); _c["spinta"]["prove_thread"] = [4, 6, 8]
+json.dump(_c, open(os.path.join(C.QUI, "config.json"), "w"))  # la prova usa tre misure, il telefono ora [4, 6]
 assert C._sig_thread(imp, {"in_carica": True, "temp": 30}) == 4
 S = C._off_stato(); S["sig_thread"] = 4; C._off_salva(S)
 C._sig_misura(96, 40); C._sig_misura(96, 40)
