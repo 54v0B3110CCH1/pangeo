@@ -4,9 +4,10 @@
 // non statali. Dati da Wikidata (potere.js, rifatti dal telefono una sezione a giro). In ogni Stato: «Chi ha il potere».
 const CAR_POT = {};
 function caricaPotere() { caricaJs('potere.js', 'POTERE', CAR_POT); }
-const POT_ORDINE = ['istituzioni', 'banche', 'fondi', 'gestori', 'miliardari', 'porti', 'aeroporti', 'armati'];
+const POT_ORDINE = ['istituzioni', 'fmi', 'banche', 'fondi', 'gestori', 'miliardari', 'porti', 'aeroporti', 'armati'];
 const POT_SPIEGA = {
-  istituzioni: 'Chi le guida, da quando, dove hanno sede. Le quote e i voti degli Stati nel Fondo monetario e nella Banca mondiale non sono ancora nell’archivio.',
+  istituzioni: 'Chi le guida, da quando, dove hanno sede.',
+  fmi: 'Quanto pesa ogni Stato nel Fondo monetario: quota (in milioni di diritti speciali di prelievo) e percentuale dei voti. Le decisioni più importanti chiedono l’85% dei voti. Letto dalla tabella ufficiale del FMI; se il sito rifiuta il programma, la sezione resta vuota e si riprova il giorno dopo.',
   banche: 'Chi guida la banca centrale di ogni Stato e da quando. La Fed americana: le sue azioni le tengono per legge le banche aderenti, ma non danno il controllo come una normale proprietà.',
   fondi: 'I fondi di investimento degli Stati: di chi sono, chi li guida, quanto hanno (con l’anno del dato).',
   gestori: 'Chi muove più soldi: grandi gestori, banche, fondi di private equity. Per ognuno chi lo guida, quanto gestisce e, quando PanGeo lo sa dai documenti ufficiali, le quote nelle aziende della difesa.',
@@ -53,6 +54,8 @@ function potVoce(s, x) {
     if (x.sito) h += '<div class="s"><a href="' + safeU(x.sito) + '" target="_blank" rel="noopener">sito ufficiale</a></div>';
     return h + '</div>';
   }
+  if (s === 'fmi') return '<div class="item"><div class="t">' + stLink(x.st) + '</div><div class="m">voti ' + String(x.voti_pc).replace('.', ',') + '% (' + Number(x.voti).toLocaleString('it-IT') +
+    ') · quota ' + String(x.quota_pc).replace('.', ',') + '% (' + Number(x.quota).toLocaleString('it-IT') + ' milioni di DSP) · <a href="' + safeU(x.f) + '" target="_blank" rel="noopener">fonte FMI</a></div></div>';
   if (s === 'banche') return '<div class="item"><div class="t">' + potWd(x.q, x.n) + ' · ' + potStati(x.st) + '</div><div class="m">' +
     [potGuida(x) || 'chi la guida: non registrato su Wikidata',
       (x.prop || []).length ? 'proprietà: ' + esc(x.prop.join(', ')) : '', x.sito ? '<a href="' + safeU(x.sito) + '" target="_blank" rel="noopener">sito</a>' : ''].filter(Boolean).join(' · ') + '</div></div>';
@@ -73,14 +76,17 @@ function potVoce(s, x) {
 function viewPotere(sez) {
   caricaPotere();
   const P = window.POTERE;
-  crumbs(sez ? [['#potere', 'Potere'], ['', ((P && P.nomi) || {})[sez] || sez]] : [['', 'Potere']]);
-  let h = '<h2>' + (sez && P ? esc(P.nomi[sez] || sez) : 'Potere, istituzionale e non') + '</h2>';
+  const tSez = sez === 'gruppi' ? 'Chi controlla chi: aziende della difesa' : (((P && P.nomi) || {})[sez] || sez);
+  crumbs(sez ? [['#potere', 'Potere'], ['', tSez]] : [['', 'Potere']]);
+  let h = '<h2>' + (sez && P ? esc(tSez) : 'Potere, istituzionale e non') + '</h2>';
   if (!P) return h + '<p class="note">' + (CAR_POT.c === 3 ? 'Dati del potere non ancora disponibili: arrivano con il prossimo giro completo del programma.' : 'Carico…') + '</p>';
   if (!sez) {
     h += '<p class="note">Chi guida, chi possiede, chi ha soldi, porti, aeroporti e armi. Dati da Wikidata (enciclopedia aperta, da incrociare con le fonti ufficiali), rifatti dal programma ogni settimana. Ogni nome porta alla sua scheda su Wikidata con le fonti.</p><div>';
     POT_ORDINE.forEach(s => { const v = ((P.sezioni || {})[s] || {}).voci || []; h += '<a class="folder big" href="#potere/' + s + '"><b>' + esc(P.nomi[s] || s) + '</b><small>' + v.length + ' voci · ' + esc(POT_SPIEGA[s].split('. ')[0]) + '</small></a>'; });
+    if (P.gruppi) h += '<a class="folder big" href="#potere/gruppi"><b>Chi controlla chi: aziende della difesa</b><small>' + Object.keys(P.gruppi).length + ' aziende · capogruppo e società controllate, Stato per Stato (registro GLEIF)</small></a>';
     return h + '</div>';
   }
+  if (sez === 'gruppi') return h + potGruppiVista();
   const X = (P.sezioni || {})[sez] || {};
   h += '<p class="note">' + esc(POT_SPIEGA[sez] || '') + (X.quando ? ' Aggiornato il ' + potData(X.quando) + '.' : '') + '</p>';
   const v = X.voci || [];
@@ -97,6 +103,8 @@ function potereStatoHtml(n) {
   const di = (x, campo) => { const v = x[campo]; return Array.isArray(v) ? v.includes(n) : v === n; };
   const pezzi = [];
   const sez = s => ((P.sezioni[s] || {}).voci || []);
+  const fmi = sez('fmi').find(x => x.st === n);
+  if (fmi) pezzi.push(['Nel Fondo monetario', 'voti ' + String(fmi.voti_pc).replace('.', ',') + '%, quota ' + String(fmi.quota_pc).replace('.', ',') + '% (' + (sez('fmi').indexOf(fmi) + 1) + '° per voti)']);
   const banche = sez('banche').filter(x => di(x, 'st'));
   if (banche.length) pezzi.push(['Banca centrale', banche.map(x => potWd(x.q, x.n) + (potGuida(x) ? ' · ' + potGuida(x) : '')).join('; ')]);
   const fondi = sez('fondi').filter(x => di(x, 'st'));
@@ -118,4 +126,26 @@ function potereStatoHtml(n) {
   if (!pezzi.length) return '';
   return '<h3 id="st-potere"><span class="dot" style="background:var(--aziende)"></span>Chi ha il potere</h3><div class="item"><dl class="kv">' +
     pezzi.map(p => '<dt>' + esc(p[0]) + '</dt><dd>' + p[1] + '</dd>').join('') + '</dl><div class="s">Da Wikidata, aggiornato ogni settimana; può essere incompleto. <a href="#potere">Tutto il potere</a></div></div>';
+}
+// chi controlla chi tra le aziende della difesa (GLEIF, dalla 2.36): nella pagina dell'azienda e in #potere/gruppi
+function potGruppoHtml(nome, breve) {
+  caricaPotere();
+  const P = window.POTERE, g = P && P.gruppi ? P.gruppi[nome] : null;
+  if (!g || g.errore) return '';
+  const r = [];
+  r.push(['Nome legale', esc(g.legale || '') + ' · ' + (STATI[g.paese] ? stLink(g.paese) : esc(g.paese || ''))]);
+  if (g.capo) r.push(['Capogruppo ultima', esc(g.capo[0]) + ' · ' + (STATI[g.capo[1]] ? stLink(g.capo[1]) : esc(g.capo[1] || ''))]);
+  else if (g.capo_perche) r.push(['Capogruppo ultima', 'nessuna dichiarata: ' + esc(g.capo_perche)]);
+  if (g.diretto && (!g.capo || g.diretto[2] !== g.capo[2])) r.push(['Controllante diretto', esc(g.diretto[0]) + ' · ' + esc(g.diretto[1] || '')]);
+  if (g.figlie) r.push(['Società che controlla', g.figlie.toLocaleString('it-IT') + (Object.keys(g.paesi || {}).length ? ' in ' + Object.keys(g.paesi).length + (g.figlie > 200 ? '+' : '') + ' Stati: ' +
+    Object.entries(g.paesi).slice(0, breve ? 5 : 15).map(([st, n]) => (STATI[st] ? stLink(st) : esc(st)) + ' ' + n).join(', ') : '')]);
+  return '<div class="item"><dl class="kv">' + r.map(x => '<dt>' + esc(x[0]) + '</dt><dd>' + x[1] + '</dd>').join('') + '</dl><div class="s">Registro GLEIF (codice LEI ' +
+    '<a href="https://search.gleif.org/#/record/' + esc(g.lei) + '" target="_blank" rel="noopener">' + esc(g.lei) + '</a>), dati del ' + potData(g.d) + '. Dice chi consolida i conti, non le quote dei singoli azionisti (per quelle c’è la scheda Proprietà).</div></div>';
+}
+function potGruppiVista() {
+  const P = window.POTERE, G = (P && P.gruppi) || {};
+  const nomi = Object.keys(G).filter(n => !G[n].errore).sort((a, b) => (G[b].figlie || 0) - (G[a].figlie || 0));
+  let h = '<p class="note">Per ' + nomi.length + ' aziende della difesa: chi le controlla e quante società controllano, dal registro mondiale GLEIF. In ordine di società controllate.</p>';
+  return h + nomi.map(n => { const g = G[n]; return '<div class="item"><div class="t">' + azLink(n) + ' <span class="s">' + esc(g.legale || '') + '</span></div><div class="m">' +
+    [g.capo ? 'capogruppo: ' + esc(g.capo[0]) : (g.capo_perche ? esc(g.capo_perche) : ''), g.figlie ? g.figlie.toLocaleString('it-IT') + ' società controllate in ' + Object.keys(g.paesi || {}).length + (g.figlie > 200 ? '+' : '') + ' Stati' : 'nessuna società controllata registrata'].filter(Boolean).join(' · ') + '</div></div>'; }).join('');
 }

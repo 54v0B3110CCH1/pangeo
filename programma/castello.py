@@ -58,7 +58,7 @@ import xml.etree.ElementTree as ET
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
-VERSIONE = "2.35.1"
+VERSIONE = "2.36"
 QUI = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(QUI, "web")
 DATI = os.path.join(QUI, "dati")
@@ -6925,11 +6925,12 @@ POTERE_ENTI = {
                 "Norges Bank Investment Management", "Deutsche Bank", "Intesa Sanpaolo", "UniCredit", "Crédit Agricole", "Santander Group",
                 "Bank of China", "China Construction Bank", "Agricultural Bank of China", "Sberbank", "VTB Bank"],
 }
-POTERE_SEZIONI = ["istituzioni", "gestori", "banche", "fondi", "miliardari", "porti", "aeroporti", "armati"]
+POTERE_SEZIONI = ["istituzioni", "gestori", "banche", "fondi", "miliardari", "porti", "aeroporti", "armati", "fmi"]
 POTERE_NOMI = {"istituzioni": "Istituzioni internazionali", "gestori": "Grandi gestori di soldi e grandi banche",
                "banche": "Banche centrali", "fondi": "Fondi sovrani", "miliardari": "Le persone più ricche",
                "porti": "Porti: chi li gestisce e chi li possiede", "aeroporti": "Aeroporti più grandi: chi li gestisce e chi li possiede",
-               "armati": "Gruppi armati non statali e compagnie militari private"}
+               "armati": "Gruppi armati non statali e compagnie militari private",
+               "fmi": "Quote e voti degli Stati nel Fondo monetario internazionale"}
 # classi di Wikidata che non si scrivono come fatto: sono accuse o designazioni contestate, che PanGeo riporta solo con la fonte
 POTERE_CLASSI_NO = {"terrorist organization", "organizzazione terroristica", "criminal organization", "organizzazione criminale",
                     "designated terrorist group", "Islamist terrorist organization"}
@@ -7123,8 +7124,74 @@ def _pot_righe(sezione, righe, inv):
     return [uniti[k] for k in ordine if uniti[k].get("n") and not re.match(r"^Q\d+$", uniti[k]["n"])]
 
 
+# come il Fondo monetario scrive alcuni Stati membri
+FMI_NOMI = {"korea": "Corea del Sud", "korea, republic of": "Corea del Sud", "congo, democratic republic of the": "RD Congo",
+            "congo, democratic republic of": "RD Congo", "congo, republic of": "Congo", "iran, islamic republic of": "Iran",
+            "lao people's democratic republic": "Laos", "kyrgyz republic": "Kirghizistan", "slovak republic": "Slovacchia",
+            "syrian arab republic": "Siria", "venezuela, república bolivariana de": "Venezuela", "venezuela, republica bolivariana de": "Venezuela",
+            "yemen, republic of": "Yemen", "türkiye": "Turchia", "turkiye": "Turchia", "turkey": "Turchia", "china, people's republic of": "Cina",
+            "china": "Cina", "russian federation": "Russia", "brunei darussalam": "Brunei", "cabo verde": "Capo Verde", "czech republic": "Repubblica Ceca",
+            "timor-leste": "Timor Est", "north macedonia": "Macedonia del Nord", "st. kitts and nevis": "Saint Kitts e Nevis", "st. lucia": "Saint Lucia",
+            "st. vincent and the grenadines": "Saint Vincent e Grenadine", "são tomé and príncipe": "São Tomé e Príncipe", "sao tome and principe": "São Tomé e Príncipe",
+            "gambia, the": "Gambia", "bahamas, the": "Bahamas", "micronesia, federated states of": "Micronesia", "egypt, arab republic of": "Egitto",
+            "côte d'ivoire": "Costa d’Avorio", "cote d'ivoire": "Costa d’Avorio", "kosovo, republic of": "Kosovo", "united states": "USA",
+            "united kingdom": "Regno Unito", "united arab emirates": "Emirati Arabi", "bosnia and herzegovina": "Bosnia ed Erzegovina",
+            "marshall islands, republic of the": "Isole Marshall", "solomon islands": "Isole Salomone", "south sudan, republic of": "Sud Sudan",
+            "eswatini, kingdom of": "Eswatini", "netherlands, the": "Paesi Bassi", "the netherlands": "Paesi Bassi", "andorra, principality of": "Andorra"}
+POTERE_FMI = ["https://www.imf.org/external/np/sec/memdir/members.aspx", "https://www.imf.org/en/About/executive-board/members-quotas"]
+
+
+def _pot_fmi_righe(pagina, inv):
+    """La tabella del Fondo monetario «Members' Quotas and Voting Power»: per ogni Stato membro la quota (milioni di DSP)
+    e la sua percentuale, i voti e la loro percentuale. Si leggono le righe con il nome di uno Stato e almeno quattro
+    numeri; la pagina cambia aspetto negli anni, così si guarda solo l'ordine delle colonne."""
+    out = []
+    for tr in re.findall(r"(?is)<tr\b.*?</tr>", pagina):
+        celle = [" ".join(html.unescape(re.sub(r"<[^>]+>", " ", c)).split()) for c in re.findall(r"(?is)<t[dh]\b[^>]*>(.*?)</t[dh]>", tr)]
+        if len(celle) < 5:
+            continue
+        nome = re.sub(r"\s*\d+$|\*", "", celle[0]).strip()
+        st_ = FMI_NOMI.get(nome.lower()) or _sis_paese(nome, inv)
+        if st_ not in inv.values():
+            st_ = _sis_paese(nome.split(",")[0].strip(), inv)
+        if st_ not in inv.values():
+            continue
+        numeri = []
+        for c in celle[1:]:
+            c_ = c.replace(",", "").replace("%", "").strip()
+            if re.fullmatch(r"\d+(\.\d+)?", c_):
+                numeri.append(float(c_))
+        if len(numeri) < 4:
+            continue
+        quota, quota_pc, voti, voti_pc = numeri[0], numeri[1], numeri[-2], numeri[-1]
+        if not (0 <= quota_pc <= 25 and 0 <= voti_pc <= 25 and voti >= quota_pc):
+            continue
+        if st_ not in [o["st"] for o in out]:
+            out.append({"st": st_, "n": st_, "quota": quota, "quota_pc": quota_pc, "voti": int(voti), "voti_pc": voti_pc})
+    return sorted(out, key=lambda x: -x["voti_pc"])
+
+
+def _pot_fmi(inv):
+    ultimo = None
+    for u in POTERE_FMI:
+        try:
+            r = _pot_fmi_righe(scarica(u, timeout=60).decode("utf-8", "replace"), inv)
+            if len(r) >= 120:
+                for x in r:
+                    x["f"] = u
+                return r
+            ultimo = ValueError(f"tabella non trovata ({len(r)} righe) in {u}")
+        except SenzaRete:
+            raise
+        except Exception as e:
+            ultimo = e
+    raise ultimo or ValueError("FMI non raggiungibile")
+
+
 def potere_sezione(sezione, inv=None):
     """Una sezione da Wikidata (una sola richiesta)."""
+    if sezione == "fmi":
+        return _pot_fmi(inv if inv is not None else _sis_inverso())
     corpo = urllib.parse.urlencode({"query": _pot_query(sezione)}).encode()
     r = json.loads(scarica("https://query.wikidata.org/sparql", timeout=120, corpo=corpo, intestazioni=dict(
         SIS_UA, **{"Accept": "application/sparql-results+json", "Content-Type": "application/x-www-form-urlencoded"})))
@@ -7143,7 +7210,12 @@ def potere_aggiorna(cfg, adesso, errori, quante=1):
     if not imp.get("attivo", True) or quante <= 0:
         return esito
     vecchie = (adesso - timedelta(days=imp.get("giorni", 7))).isoformat()
-    da_fare = sorted((s for s in POTERE_SEZIONI if (P.get(s) or {}).get("quando", "") < vecchie), key=lambda s: (P.get(s) or {}).get("quando", ""))
+    ieri_ = (adesso - timedelta(days=1)).isoformat()  # una sezione andata male si riprova dopo un giorno, non a ogni giro
+    def _vecchio_formato(s):  # dalla 2.35.1 chi guida ha ruolo e data: le sezioni scritte prima si rifanno subito
+        return s in ("istituzioni", "gestori", "banche") and not any("cr" in v for v in ((P.get(s) or {}).get("voci") or [])[:10])
+    da_fare = sorted((s for s in POTERE_SEZIONI if ((P.get(s) or {}).get("quando", "") < vecchie or _vecchio_formato(s))
+                      and (P.get(s) or {}).get("errore", "") < ieri_),
+                     key=lambda s: (P.get(s) or {}).get("quando", ""))
     inv = _sis_inverso()
     for s in da_fare[:quante]:
         try:
@@ -7170,9 +7242,13 @@ def scrivi_potere_web(adesso):
         P = leggi_json(os.path.join(QUI, "potere_base.json"), {}) or {}
     if not P:
         return False
+    G = leggi_json(MAG("potere", "gruppi.json"), None)
+    if G is None:
+        G = leggi_json(os.path.join(QUI, "gruppi_base.json"), {}) or {}
     return _scrivi_se_cambia(os.path.join(WEB, "potere.js"), "window.POTERE=" + json.dumps(
         {"agg": adesso.date().isoformat(), "nomi": POTERE_NOMI,
-         "sezioni": {s: {"quando": (P.get(s) or {}).get("quando", "")[:10], "voci": (P.get(s) or {}).get("voci") or []} for s in POTERE_SEZIONI}},
+         "sezioni": {s: {"quando": (P.get(s) or {}).get("quando", "")[:10], "voci": (P.get(s) or {}).get("voci") or []} for s in POTERE_SEZIONI},
+         "gruppi": {k: {c: v for c, v in x.items() if c != "quando"} | {"d": (x.get("quando") or "")[:10]} for k, x in G.items()}},
         ensure_ascii=False, separators=(",", ":")) + ";")
 
 
@@ -7183,7 +7259,14 @@ def potere_passo(cfg, adesso, tel, errori, leggero):
     R = leggi_json(os.path.join(DATI, "regia.json"), {}) or {}
     quante = 0 if R.get("rete") == "lenta" else (imp.get("per_giro_carica", 2) if R.get("spinta") else imp.get("per_giro", 1))
     r_ = potere_aggiorna(cfg, adesso, errori, quante)
-    if not leggero or r_.get("fatte"):
+    try:  # dalla 2.36: chi controlla chi tra le aziende della difesa (GLEIF)
+        g_ = gruppi_aggiorna(cfg, adesso, errori, 0 if R.get("rete") == "lenta" else imp.get("gruppi_per_giro", 10))
+        r_["gruppi"] = [g_.get("fatte"), g_.get("aziende"), g_.get("in_coda")]
+    except SenzaRete:
+        raise
+    except Exception as e:
+        errori.append(f"Chi controlla chi: {str(e)[:100]}")
+    if not leggero or r_.get("fatte") or (r_.get("gruppi") or [0])[0]:
         scrivi_potere_web(adesso)
     return r_
 
@@ -7321,7 +7404,7 @@ def biblioteca_aggiorna(chiavi, cfg, adesso, tel, errori, quanti_lezioni=1, scar
     """Un libro scaricato al giro (se ne manca uno e la rete è buona), le lezioni del cervello su pochi capitoli, gli studi
     dai feed dei centri di ricerca ogni biblioteca.studi_ore ore. Restituisce i conti per il diario."""
     imp = cfg.get("biblioteca", {}) or {}
-    esito = {"libri": 0, "capitoli": 0, "lezioni": 0, "dinamiche": 0, "studi_nuovi": 0, "scaricato": ""}
+    esito = {"libri": 0, "capitoli": 0, "lezioni": 0, "dinamiche": 0, "studi_nuovi": 0, "scaricato": "", "scartate": 0}
     if not imp.get("attiva", True):
         return esito
     cart = MAG("biblioteca")
@@ -7400,6 +7483,7 @@ def biblioteca_aggiorna(chiavi, cfg, adesso, tel, errori, quanti_lezioni=1, scar
                 fatte += 1
                 esito["lezioni"] += 1
                 esito["dinamiche"] += len(tenute)
+                esito["scartate"] += scartate  # citazioni non trovate parola per parola nel testo
         scrivi_json(os.path.join(DATI, "cervello.json"), conto)
         scrivi_json(perc_l, LZ)
     # 3. gli studi: titoli e link dai feed dei centri di ricerca
@@ -7477,6 +7561,81 @@ def biblioteca_passo(chiavi, cfg, adesso, tel, errori, leggero):
     if not leggero or r_.get("lezioni") or r_.get("scaricato") or r_.get("studi_nuovi"):
         scrivi_biblioteca_web(cfg, adesso)
     return r_
+
+
+# 12. Chi controlla chi (dalla 2.36): per le aziende della difesa che hanno un codice LEI (programma/aziende_lei.json,
+#     110 su 172, trovati da Claude nel registro GLEIF), la capogruppo ultima e diretta, oppure il motivo dichiarato per
+#     cui non c'è (nessun controllante, persone fisiche, …), e quante società controlla e in quali Stati. Fonte: GLEIF,
+#     registro mondiale delle entità giuridiche, dati aperti. Dieci aziende a giro con la rete buona, rifatte ogni 30 giorni.
+GLEIF_MOTIVI = {"NO_KNOWN_PERSON": "nessun controllante noto (dichiarazione al registro)",
+                "NATURAL_PERSONS": "nessuna società sopra: dichiara come controllanti persone fisiche (spesso vuol dire azionariato diffuso)", "NON_CONSOLIDATING": "dichiara un controllante che non consolida i suoi conti",
+                "NON_PUBLIC": "il controllante non è reso pubblico", "BINDING_LEGAL_COMMITMENTS": "vincoli di legge impediscono di dirlo",
+                "LEGAL_OBSTACLES": "ostacoli di legge impediscono di dirlo", "DISCLOSURE_DETRIMENTAL": "dirlo la danneggerebbe (dichiarazione)",
+                "CONSENT_NOT_OBTAINED": "il controllante non ha dato il consenso", "DETRIMENT_NOT_EXCLUDED": "dirlo potrebbe danneggiarla (dichiarazione)"}
+
+
+def _gleif(percorso):
+    try:
+        return json.loads(scarica("https://api.gleif.org/api/v1/" + percorso, timeout=40, intestazioni=dict(SIS_UA, Accept="application/vnd.api+json")))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+
+
+def _gleif_ente(d):
+    e = (((d or {}).get("data") or {}).get("attributes") or {}).get("entity") or {}
+    if not e:
+        return None
+    return [e.get("legalName", {}).get("name", ""), e.get("legalAddress", {}).get("country", ""), ((d or {}).get("data") or {}).get("id", "")]
+
+
+def gruppi_aggiorna(cfg, adesso, errori, quante=10):
+    imp = cfg.get("potere", {}) or {}
+    perc = MAG("potere", "gruppi.json")
+    os.makedirs(os.path.dirname(perc), exist_ok=True)
+    G = leggi_json(perc, None)
+    if G is None:
+        G = leggi_json(os.path.join(QUI, "gruppi_base.json"), {}) or {}
+    L = leggi_json(os.path.join(QUI, "aziende_lei.json"), {}) or {}
+    vecchie = (adesso - timedelta(days=imp.get("giorni_gruppi", 30))).isoformat()
+    coda = sorted((n for n in L if (G.get(n) or {}).get("quando", "") < vecchie), key=lambda n: (G.get(n) or {}).get("quando", ""))
+    esito = {"fatte": 0, "aziende": len(G), "in_coda": len(coda)}
+    iso2 = {c_[1]: st_ for st_, c_ in ((leggi_json(os.path.join(QUI, "config.json"), {}) or {}).get("codici") or {}).items() if c_ and c_[1]}
+    for nome in coda[:quante]:
+        lei = L[nome]
+        try:
+            rec = _gleif_ente(_gleif(f"lei-records/{lei}"))
+            if not rec:
+                G[nome] = {"quando": adesso.isoformat(), "lei": lei, "errore": "codice non trovato"}
+                continue
+            x = {"quando": adesso.isoformat(), "lei": lei, "legale": rec[0], "paese": iso2.get(rec[1], rec[1])}
+            for rel, k in (("ultimate-parent", "capo"), ("direct-parent", "diretto")):
+                p_ = _gleif_ente(_gleif(f"lei-records/{lei}/{rel}"))
+                if p_:
+                    x[k] = [p_[0], iso2.get(p_[1], p_[1]), p_[2]]
+                else:
+                    ex = ((_gleif(f"lei-records/{lei}/{rel}-reporting-exception") or {}).get("data") or {}).get("attributes") or {}
+                    if ex.get("reason"):
+                        x[k + "_perche"] = GLEIF_MOTIVI.get(ex["reason"], ex["reason"].replace("_", " ").lower())
+            fig = _gleif(f"lei-records/{lei}/ultimate-children?page%5Bsize%5D=200") or {}
+            x["figlie"] = ((fig.get("meta") or {}).get("pagination") or {}).get("total", 0)
+            conta = {}
+            for r in fig.get("data") or []:
+                c_ = (((r.get("attributes") or {}).get("entity") or {}).get("legalAddress") or {}).get("country", "")
+                st_ = iso2.get(c_, c_)
+                conta[st_] = conta.get(st_, 0) + 1
+            x["paesi"] = dict(sorted(conta.items(), key=lambda z: -z[1])[:15])
+            G[nome] = x
+            esito["fatte"] += 1
+        except SenzaRete:
+            raise
+        except Exception as e:
+            errori.append(f"Chi controlla chi (GLEIF, {nome}): {str(e)[:80]}")
+            break
+    scrivi_json(perc, G)
+    esito.update(aziende=len(G), in_coda=max(0, len(coda) - esito["fatte"]))
+    return esito
 
 
 # 8. Totali (dalla 2.33.7): quanto ha fatto il programma da quando esiste, ogni mese, ogni giorno. Il diario tiene solo gli
@@ -9673,9 +9832,9 @@ def _aggiorna(leggero=False):
         "articoli": [(esito_229.get("articoli") or {}).get(c_) for c_ in ("letti", "poco_testo", "provati", "in_coda", "totale")],
         "storia": [(esito_229.get("storia") or {}).get(c_) for c_ in ("fatti", "con_cronologia", "in_coda", "stati", "conflitti", "golpe", "ultimo")],
         "sistemi": [(esito_229.get("sistemi") or {}).get(c_) for c_ in ("fatte", "schede", "in_coda")],
-        "potere": [(esito_229.get("potere") or {}).get(c_) for c_ in ("fatte", "sezioni", "voci")],
+        "potere": [(esito_229.get("potere") or {}).get(c_) for c_ in ("fatte", "sezioni", "voci", "gruppi")],
         "biblioteca": [(esito_229.get("biblioteca") or {}).get(c_) for c_ in ("libri", "capitoli", "lezioni", "dinamiche", "lezioni_totali",
-                                                                                "dinamiche_totali", "studi_nuovi", "scaricato")],
+                                                                                "dinamiche_totali", "studi_nuovi", "scaricato", "scartate")],
         "regia": [(leggi_json(os.path.join(DATI, "regia.json"), {}) or {}).get(c_) for c_ in ("passo", "articoli", "cronologie", "rete")],
         "x229": [esito_229.get("schede"), (esito_229.get("avvisi") or [None])[0], (esito_229.get("indice") or {}).get("totale"),
                  (esito_229.get("significato") or {}).get("fatti"), (esito_229.get("significato") or {}).get("fase")],
@@ -10298,7 +10457,7 @@ def sincronizza(cfg=None, chiavi=None, solo_diario=False, nel_giro=False):
         cambiati = []
         avvisato = False
         for nome in ("castello.py", "config.json", "paesi.json", "mappa.json", "LEGGIMI.txt", "piano_base.json", "totali_base.json",
-                     "sistemi.json", "sistemi_base.json", "potere_base.json") + tuple(sorted(SCRIPT)):
+                     "sistemi.json", "sistemi_base.json", "potere_base.json", "aziende_lei.json", "gruppi_base.json") + tuple(sorted(SCRIPT)):
             src = os.path.join(cartella, "programma", nome)
             dst = os.path.join(QUI, nome)
             if os.path.exists(src) and (not os.path.exists(dst) or open(src, "rb").read() != open(dst, "rb").read()):

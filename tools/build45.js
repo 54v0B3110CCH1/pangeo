@@ -19,6 +19,8 @@ if (!h.includes('function viewPotere(')) {
        "  ['Stati e politica', ['#stati', '#avvisi', '#andamento', '#fatti', '#storia', '#alleanze', '#live', '#temi', '#propaganda']],\n  ['Potere e soldi', ['#potere']],");
   sost("  tess['#economia'] = ", "  tess['#potere'] = '<a class=\"folder big\" href=\"#potere\"><b>Potere, istituzionale e non</b><small>Chi guida FMI, Banca Mondiale e banche centrali; fondi sovrani, grandi gestori e banche con le loro quote nella difesa; i più ricchi; chi gestisce porti e aeroporti; gruppi armati non statali</small></a>';\n  tess['#economia'] = ");
   sost('statoFattoHtml(n) + sistemiStatoHtml(n) + schedeStatoHtml(n);', 'statoFattoHtml(n) + sistemiStatoHtml(n) + potereStatoHtml(n) + schedeStatoHtml(n);');
+  sost("  if (rows.length) html += `<div class=\"item\"><dl class=\"kv\">${rows.map(r => `<dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd>`).join('')}</dl></div>`;",
+       "  if (rows.length) html += `<div class=\"item\"><dl class=\"kv\">${rows.map(r => `<dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd>`).join('')}</dl></div>`;\n  { const gH = potGruppoHtml(a.nome); if (gH) html += '<h3 id=\"az-gruppo\"><span class=\"dot\" style=\"background:var(--aziende)\"></span>Chi la controlla e che cosa controlla</h3>' + gH; }");
 }
 const s0 = h.indexOf('<script>') + 8, s1 = h.indexOf('</script>', s0);
 new vm.Script(h.slice(s0, s1));

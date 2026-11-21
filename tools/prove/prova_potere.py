@@ -45,7 +45,8 @@ ok("organizzazione terroristica" not in a["cl"] and a["sost"] == ["Iran"] and a[
 m = C.potere_sezione("miliardari", inv)
 ok(len(m) == 1 and m[0]["v"] == 790000000000 and m[0]["quando"] == "2026-06-12", "miliardari: il dato più recente")
 for s in C.POTERE_SEZIONI:
-    ok(len(C._pot_query(s)) > 200, "query " + s)
+    if s != "fmi":  # il FMI non è una domanda a Wikidata: si legge la sua tabella
+        ok(len(C._pot_query(s)) > 200, "query " + s)
 # un giro: la base, poi una sezione vecchia rifatta
 P0 = json.load(open(os.path.join(T, "potere_base.json")))
 for s in P0: P0[s]["quando"] = "2026-01-01T00:00:00+00:00"
@@ -53,8 +54,43 @@ json.dump(P0, open(os.path.join(T, "potere_base.json"), "w"))
 er = []
 r = C.potere_aggiorna(cfg, datetime.now(timezone.utc), er, quante=1)
 print(r, er)
-ok(r["fatte"] == 0 and any("tengo quelle di prima" in e or "non previsto" in e for e in er), "risposta povera o errore: tiene i dati di prima")
+ok(r["fatte"] == 0 and any(e.startswith("Potere (") for e in er), "risposta povera o errore: tiene i dati di prima")
+P1 = json.load(open(C.MAG("potere", "potere.json")))
+ok(P1["fmi"].get("errore") and not P1["fmi"].get("quando"), "sezione andata male: segnata, si riprova dopo un giorno")
+r_b = C.potere_aggiorna(cfg, datetime.now(timezone.utc), er, quante=1)
+ok("fmi" in P1 and json.load(open(C.MAG("potere", "potere.json")))["fmi"]["errore"] == P1["fmi"]["errore"], "il giro dopo non riprova il FMI")
 C.scrivi_potere_web(datetime.now(timezone.utc))
 t = open(os.path.join(C.WEB, "potere.js")).read()
 ok(t.startswith("window.POTERE=") and len(t) > 50000, "potere.js scritto dalla base")
+
+# chi controlla chi (GLEIF, 2.36)
+json.dump({"Fincantieri": "LEI_FIN", "Rheinmetall": "LEI_RHM"}, open(os.path.join(T, "aziende_lei.json"), "w"))
+def ente(lei, nome, paese):
+    return {"data": {"id": lei, "attributes": {"entity": {"legalName": {"name": nome}, "legalAddress": {"country": paese}}}}}
+def gfinta(url, timeout=25, intestazioni=None, corpo=None, risposta=None):
+    import urllib.error
+    p_ = url.split("/api/v1/")[1]
+    R_ = {"lei-records/LEI_FIN": ente("LEI_FIN", "FINCANTIERI S.P.A.", "IT"),
+          "lei-records/LEI_FIN/ultimate-parent": ente("LEI_CDP", "CASSA DEPOSITI E PRESTITI", "IT"),
+          "lei-records/LEI_FIN/direct-parent": ente("LEI_CDPE", "CDP EQUITY S.P.A.", "IT"),
+          "lei-records/LEI_FIN/ultimate-children?page%5Bsize%5D=200": {"meta": {"pagination": {"total": 3}}, "data": [
+              ente("a", "VARD", "NO")["data"], ente("b", "FMG", "US")["data"], ente("c", "FIN X", "NO")["data"]]},
+          "lei-records/LEI_RHM": ente("LEI_RHM", "Rheinmetall Aktiengesellschaft", "DE"),
+          "lei-records/LEI_RHM/ultimate-parent-reporting-exception": {"data": {"attributes": {"reason": "NO_KNOWN_PERSON"}}},
+          "lei-records/LEI_RHM/direct-parent-reporting-exception": {"data": {"attributes": {"reason": "NO_KNOWN_PERSON"}}},
+          "lei-records/LEI_RHM/ultimate-children?page%5Bsize%5D=200": {"meta": {"pagination": {"total": 0}}, "data": []}}
+    if p_ in R_:
+        return json.dumps(R_[p_]).encode()
+    raise urllib.error.HTTPError(url, 404, "non trovato", {}, None)
+C.scarica = gfinta
+er = []
+g = C.gruppi_aggiorna(cfg, datetime.now(timezone.utc), er, quante=10)
+G = json.load(open(C.MAG("potere", "gruppi.json")))
+print(g, er, G)
+ok(g["fatte"] == 2 and not er, "due aziende lette da GLEIF")
+ok(G["Fincantieri"]["capo"][0] == "CASSA DEPOSITI E PRESTITI" and G["Fincantieri"]["paese"] == "Italia", "capogruppo ultima")
+ok(G["Fincantieri"]["figlie"] == 3 and G["Fincantieri"]["paesi"] == {"Norvegia": 2, "USA": 1}, "società controllate per Stato")
+ok("nessun controllante noto" in G["Rheinmetall"]["capo_perche"], "motivo dichiarato quando non c'è capogruppo")
+C.scrivi_potere_web(datetime.now(timezone.utc))
+ok('"gruppi"' in open(os.path.join(C.WEB, "potere.js")).read(), "potere.js con i gruppi")
 print("TUTTO OK")

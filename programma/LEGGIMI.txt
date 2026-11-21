@@ -405,6 +405,20 @@ NOVITÀ 2.21 (19 novembre, sera) – DOPO UNA REINSTALLAZIONE TORNA TUTTO, TRANN
 - Chiavi: se incolli l'ID al posto della chiave di Claude, o la chiave di Claude al posto del token GitHub, te lo dice
   subito e non salva nulla. Sullo schermo non compare mai nessun pezzo di chiave.
 
+NOVITÀ 2.36 (21 novembre) – CHI CONTROLLA CHI E IL PESO NEL FONDO MONETARIO
+- Chi controlla chi: per 110 delle 172 aziende della difesa (quelle con il codice LEI trovato da Claude nel registro
+  mondiale GLEIF, programma/aziende_lei.json) la capogruppo ultima e quella diretta, oppure il motivo dichiarato se non
+  c'è (per esempio «nessuna società la controlla»: azionariato diffuso), e quante società controlla e in quali Stati.
+  Esempio: Fincantieri → Cassa Depositi e Prestiti. Base costruita da Claude (programma/gruppi_base.json); il telefono
+  rifà 10 aziende a giro, ognuna ogni 30 giorni. Pagina: nella scheda di ogni azienda «Chi la controlla e che cosa
+  controlla», in Potere la cartella «Chi controlla chi». Le quote dei singoli azionisti restano nella scheda Proprietà.
+- Quote e voti nel Fondo monetario: il telefono prova a leggere una volta alla settimana la tabella ufficiale del FMI
+  (dal cloud il sito rifiuta: si vedrà se dal telefono risponde). Se c'è, in Potere la sezione e in ogni Stato «Nel
+  Fondo monetario: voti e quota».
+- Una sezione del potere andata male si riprova dopo un giorno, non a ogni giro.
+- Rete «lenta» solo sopra 1 secondo a feed (prima 0,5): fuori carica la rete risultava quasi sempre lenta e la regia
+  rimandava libri, schede e potere (config.json › spinta › rete_lenta_sec).
+
 NOVITÀ 2.35.1 (21 novembre, mezzogiorno) – DEBOLEZZE RAFFORZATE
 - Sistemi d'arma: «chi lo usa» anche dalla sezione «Operators» di Wikipedia in inglese (di solito più completa di
   Wikidata): in uso, ordinati o valutati, usati in passato; gli ordini annullati no. Per il Leopard 2 Wikidata dava 17
